@@ -1,14 +1,5 @@
-import typing
-from dataclasses import dataclass
-
-from src.env import META_ADDRESSES
-
-
-@dataclass
-class Collection:
-    name: str
-    addresses: typing.List[str]
-
+from env import META_ADDRESSES
+from marketplaces import Collection
 
 metapunks_collection = Collection('Metapunks', META_ADDRESSES)
 all_collections = [metapunks_collection]
