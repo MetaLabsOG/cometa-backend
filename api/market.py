@@ -13,6 +13,7 @@ marketplaces: List[Marketplace] = [algogems, randgallery, algoxnft]
 
 
 def get_floor_price(asset_id: int) -> int:
+    # TODO: catch exceptions GRACEFULLY
     creator = get_asset_creator(asset_id)
     collection = get_collection(creator)
     marketplace_floors = [m.get_collection_floor_price(collection) for m in marketplaces]

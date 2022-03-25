@@ -6,10 +6,10 @@ from starlette.middleware.cors import CORSMiddleware
 from api import market
 from api.wallet_manager import WalletAsset, get_wallet_assets
 
+# TODO: fixrouting to /api
 app = FastAPI(
     title="Cometa",
-    version="0.1.1",
-    root_path="/api"
+    version="0.1.1"
 )
 app.add_middleware(
     CORSMiddleware,
