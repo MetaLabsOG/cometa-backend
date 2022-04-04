@@ -2,14 +2,21 @@ from typing import List
 
 from .collection_manager import get_collection
 from blockchain.indexer import get_asset_creator
-from marketplaces import AlgoGems, RandGallery, AlgoXNft, Marketplace
-
+from marketplaces import AlgoGems, RandGallery, AlgoXNft, Marketplace, Sale
 
 algogems = AlgoGems()
 randgallery = RandGallery()
 algoxnft = AlgoXNft()
 
 marketplaces: List[Marketplace] = [algogems, randgallery, algoxnft]
+
+
+# TODO: make market a class
+def get_sales(creator: str) -> List[Sale]:
+    sales = []
+    for marketplace in marketplaces:
+        sales += marketplace.get_sales(creator)
+    return sales
 
 
 def get_floor_price(asset_id: int) -> int:
