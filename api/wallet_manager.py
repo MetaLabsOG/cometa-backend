@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from typing import List
 
@@ -16,6 +17,10 @@ class WalletAsset:
     price: Price
 
 
+# TODO: get ALGO price
+ALGO_PRICE = 0.89
+
+
 def get_wallet_assets(address: str) -> List[WalletAsset]:
     # TODO: implement
     return [
@@ -23,3 +28,23 @@ def get_wallet_assets(address: str) -> List[WalletAsset]:
         WalletAsset('Algorand', 'ALGO', 2000, Price(0.89, 1000000)),
         WalletAsset('Defly Token', 'DEFLY', 42000, Price(0.0139, 128000))
     ]
+
+
+# TODO: name sucks
+@dataclass
+class TimedCost:
+    timestamp: int
+    cost: Price
+
+
+def get_wallet_total_cost(address: str, weeks_count: int):
+    WEEK_SECONDS = 604800
+    MAX_COST = 10000000000  # 10^10
+    cur_time = int(time.time())
+    costs = []
+    for i in range(0, weeks_count):
+        price = MAX_COST * (weeks_count - i) // weeks_count
+        cost = TimedCost(cur_time, Price(price * ALGO_PRICE, price))
+        costs.append(cost)
+        cur_time -= WEEK_SECONDS
+    return costs[::-1]
