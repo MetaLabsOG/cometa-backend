@@ -2,6 +2,8 @@ import time
 from dataclasses import dataclass
 from typing import List
 
+from env import MICROALGOS_IN_ALGO
+
 
 @dataclass
 class Price:
@@ -39,12 +41,12 @@ class TimedCost:
 
 def get_wallet_total_cost(address: str, weeks_count: int):
     WEEK_SECONDS = 604800
-    MAX_COST = 10000000000  # 10^10
+    MAX_COST = 9000000000  # 10^10
     cur_time = int(time.time())
     costs = []
     for i in range(0, weeks_count):
         price = MAX_COST * (weeks_count - i) // weeks_count
-        cost = TimedCost(cur_time, Price(price * ALGO_PRICE, price))
+        cost = TimedCost(cur_time, Price(price * ALGO_PRICE / MICROALGOS_IN_ALGO, price))
         costs.append(cost)
         cur_time -= WEEK_SECONDS
     return costs[::-1]
