@@ -20,7 +20,7 @@ class AssetInfo:
 
 
 # TODO: get ALGO price
-ALGO_PRICE = 0.89
+ALGO_PRICE = 0.75
 
 
 def get_wallet_assets(address: str) -> List[AssetInfo]:
@@ -28,9 +28,8 @@ def get_wallet_assets(address: str) -> List[AssetInfo]:
     if address == 'null':
         return []
     return [
-        AssetInfo('USD Coin', 'USDC', 1000, Price(1, 1111000)),
-        AssetInfo('Algorand', 'ALGO', 2000, Price(0.89, 1000000)),
-        AssetInfo('Defly Token', 'DEFLY', 42000, Price(0.0139, 12800))
+        AssetInfo('USD Coin', 'USDC', 1589, Price(1, int(1 / ALGO_PRICE * MICROALGOS_IN_ALGO))),
+        AssetInfo('Algorand', 'ALGO', 15100, Price(ALGO_PRICE, MICROALGOS_IN_ALGO)),
     ]
 
 
@@ -43,7 +42,7 @@ class TimedCost:
 
 def get_wallet_total_cost(address: str, weeks_count: int) -> List[TimedCost]:
     WEEK_SECONDS = 604800
-    MAX_COST = 9000000000  # 10^10
+    MAX_COST = (15100 + 1589 + 800 + 700 + 150) * MICROALGOS_IN_ALGO
     cur_time = int(time.time())
     costs = []
     for i in range(0, weeks_count):
@@ -71,18 +70,26 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
         return []
     return [
         NftInfo(
-            575429743,
-            'Dead Putin Society  # 23',
-            'Dead Putin Society',
-            'https://ipfs.io/ipfs/bafybeieibt23cenmgkzaqj67b6ebgxn5nkr7nfe3jqysg7nrjf2sue6ppm#i',
-            Price(10 * ALGO_PRICE, 10 * MICROALGOS_IN_ALGO)
+            284290866,
+            'Yieldling Rare #013',
+            'Yieldlings',
+            'https://ipfs.io/ipfs/bafkreifrnteqwajm53rshk654c3bhz6vdoyduegz5xsqfohft5zq5rpomy',
+            Price(800 * ALGO_PRICE, 800 * MICROALGOS_IN_ALGO)
         ),
         NftInfo(
-            471833050,
-            'Metapunk #5',
-            'Metapunks',
-            'https://arweave.net/Il3cm3qrbuyqhVHIaYTh0BFoYr3Ytsdc8ST-lczPbaQ',
-            Price(75 * ALGO_PRICE, 75 * MICROALGOS_IN_ALGO),
+            359028119,
+            'M.N.G.O #1540',
+            'M.N.G.O',
+            'https://ipfs.io/ipfs/QmU9etNk15tZKXug4qEL6YDRQPEUhY67yZ1prFXvzmULpo',
+            Price(700 * ALGO_PRICE, 700 * MICROALGOS_IN_ALGO),
             0.08
+        ),
+        NftInfo(
+            391839995,
+            'Pixel Guy #128',
+            'Pixel Guys',
+            'https://ipfs.io/ipfs/QmNNffZu5wYHKjfpxwpKHXF79sbbe2boz2fwU5gEyy7ArZ/128.png',
+            Price(150 * ALGO_PRICE, 150 * MICROALGOS_IN_ALGO),
+            -0.2
         )
     ]
