@@ -3,11 +3,25 @@ import requests
 BASE_URL = 'https://algoexplorerapi.io/idx2'
 
 
-def get_asset_creator(asset_id: int) -> str:
-    url = f'{BASE_URL}/v2/assets/{asset_id}'
+def get_asset(asset_id: int):
     # TODO: cache asset data
+    url = f'{BASE_URL}/v2/assets/{asset_id}'
+    return requests.get(url).json()['asset']
+
+
+def get_asset_creator(asset_id: int) -> str:
+    asset = get_asset(asset_id)
+    return asset['params']['creator']
+
+
+def get_asset_owner(asset_id: int) -> str:
+    url = f'{BASE_URL}/v2/assets/{asset_id}/balances'
     data = requests.get(url).json()
-    return data['asset']['params']['creator']
+    balances = data['balances']
+    for balance in balances:
+        if balance['amount'] == 1:
+            return balance['address']
+    raise Exception(f'Asset {asset_id} has all zero balances')
 
 
 def get_asset_ids_by_creator(address):
