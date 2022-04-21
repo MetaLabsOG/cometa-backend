@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+dataclasses-json = "0.5.7"
 requests = "2.27.1"
 fastapi = "0.70.1"
 uvicorn = "0.16.0"
