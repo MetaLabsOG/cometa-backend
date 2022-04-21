@@ -1,3 +1,10 @@
+NODE_MODE = "TESTNET"
+
+
+def is_mainnet() -> bool:
+    return NODE_MODE == 'MAINNET'
+
+
 MICROALGOS_IN_ALGO = 1000000
 
 META_ADDRESSES = [
