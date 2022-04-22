@@ -42,22 +42,19 @@ class TimedCost:
 
 
 def get_wallet_total_cost(address: str, weeks_count: int) -> List[TimedCost]:
+    WEEK_SECONDS = 604800
     MAX_COST = (12851 + 1589 + 1125 + 1000 + 700 + 350 + 850) * MICROALGOS_IN_ALGO
     ALGO_PRICE_WEEKS = [0.71, 0.77, 0.83, 0.9, 0.74, 0.7] # 22.04, 17.07, 9.04, 1.04, 24.03, 16.03
     TOTAL_COST_WEEKS = [MAX_COST * algo for algo in ALGO_PRICE_WEEKS]
-    return TOTAL_COST_WEEKS[::-1][:weeks_count]
-
-    # WEEK_SECONDS = 604800
-    # cur_time = int(time.time())
-    # costs = []
-    # for i in range(0, weeks_count):
-    #     price = MAX_COST * (weeks_count - i) // weeks_count
-    #     cost = TimedCost(cur_time, Price(price * ALGO_PRICE / MICROALGOS_IN_ALGO, price))
-    #     if address == 'null':
-    #         cost = TimedCost(cur_time, Price(0, 0))
-    #     costs.append(cost)
-    #     cur_time -= WEEK_SECONDS
-    # return costs[::-1]
+    cur_time = int(time.time())
+    costs = []
+    for i in range(0, weeks_count):
+        cost = TimedCost(cur_time, Price(TOTAL_COST_WEEKS[i] / MICROALGOS_IN_ALGO, TOTAL_COST_WEEKS[i]))
+        if address == 'null':
+            cost = TimedCost(cur_time, Price(0, 0))
+        costs.append(cost)
+        cur_time -= WEEK_SECONDS
+    return costs[::-1]
 
 
 @dataclass
