@@ -77,7 +77,7 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'Yieldlings',
             'https://ipfs.io/ipfs/bafkreifrnteqwajm53rshk654c3bhz6vdoyduegz5xsqfohft5zq5rpomy',
             Price(1000 * ALGO_PRICE, 1000 * MICROALGOS_IN_ALGO),
-            -0.12
+            -12
         ),
         NftInfo(
             359028119,
@@ -85,7 +85,7 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'M.N.G.O',
             'https://ipfs.io/ipfs/QmU9etNk15tZKXug4qEL6YDRQPEUhY67yZ1prFXvzmULpo',
             Price(700 * ALGO_PRICE, 700 * MICROALGOS_IN_ALGO),
-            -0.08
+            -8
         ),
         NftInfo(
             391839995,
@@ -93,7 +93,7 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'Pixel Guys',
             'https://ipfs.io/ipfs/QmNNffZu5wYHKjfpxwpKHXF79sbbe2boz2fwU5gEyy7ArZ/128.png',
             Price(350 * ALGO_PRICE, 350 * MICROALGOS_IN_ALGO),
-            -0.6
+            -60
         ),
         NftInfo(
             656165674,
@@ -101,6 +101,6 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'AlgoAstros',
             'https://ipfs.io/ipfs/bafkreif6tzey3lh5yszyhtnr3lmh6lcdpx5txcm34ovlbnwujfb2sd24fa',
             Price(850 * ALGO_PRICE, 850 * MICROALGOS_IN_ALGO),
-            -0.12
+            -12
         )
     ]
