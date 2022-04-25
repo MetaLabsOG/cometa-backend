@@ -5,16 +5,15 @@ from algosdk.future import transaction
 from algosdk.v2client import algod
 from pymongo import MongoClient
 
-from env import MONGO_PORT, DB_NAME, settings
+from env import MONGO_PORT, DB_NAME, settings, META_TOTAL_SUPPLY
 
-TOTAL_SUPPLY = 1000000
 TOTAL_AIRDROPS = 12
 TOTAL_PERCENT = 0.03
 
 META_ASA_ID = 123  # TODO
 
 CURRENT_PERCENT = TOTAL_PERCENT / TOTAL_AIRDROPS
-CURRENT_SUPPLY = TOTAL_SUPPLY * CURRENT_PERCENT
+CURRENT_SUPPLY = META_TOTAL_SUPPLY * CURRENT_PERCENT
 
 
 db = MongoClient(port=MONGO_PORT)[DB_NAME]
