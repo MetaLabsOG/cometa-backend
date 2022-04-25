@@ -2,6 +2,7 @@ import time
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
 from api import market
@@ -46,15 +47,19 @@ async def wallet_nfts(address: str) -> List[NftInfo]:
     return get_wallet_nfts(address)
 
 
+class AddContract(BaseModel):
+    type: str
+    id: int
+    version: str
+    description: Optional[str] = None
+
+
 @app.post('/contract/add')
-async def add_new_contract(contract: ContractInfo) -> dict:
+async def add_new_contract(contract: AddContract) -> dict:
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
-    # Sets db adding time as deployment time if not provided explicitly.
-    if contract.deployed_timestamp is None:
-        contract.deployed_timestamp = time.time()
-    added = add_contract(contract)
+    added = add_contract(contract.type, contract.id, contract.version, contract.description)
     return {'internal_id': added}
 
 

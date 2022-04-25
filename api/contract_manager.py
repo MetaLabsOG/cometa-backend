@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -16,10 +17,13 @@ class ContractInfo:
     type: str
     id: int
     version: str
-    deployed_timestamp: Optional[float] = None  # TODO: make datetime (have serialization problem with that right now)
+    deployed_timestamp: float  # TODO: make datetime (have serialization problem with that right now)
+    description: Optional[str] = None
 
 
-def add_contract(contract: ContractInfo) -> str:
+def add_contract(type: str, id: int, version: str, description: Optional[str]) -> str:
+    cur_time = time.time()
+    contract = ContractInfo(type, id, version, cur_time, description)
     res = db.insert_one(contract.to_dict())
     return str(res.inserted_id)
 
