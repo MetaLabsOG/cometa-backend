@@ -10,10 +10,10 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
-# TODO: fixrouting to /api
+
 app = FastAPI(
     title="Cometa",
-    version="0.1.1"
+    version="0.1.3"
 )
 app.add_middleware(
     CORSMiddleware,
