@@ -50,7 +50,7 @@ def make_snapshot(snapshot_id: str):
     print(f'Current round = {current_round}')
     print(f'Time = {start_time}')
 
-    holders = metapunks.get_holders()
+    holders = metapunks.get_holders_async()
     nft_count = 0
     holders.sort(reverse=True, key=lambda h: len(h.asa_ids))
     print(f'{len(holders)} holders:')
