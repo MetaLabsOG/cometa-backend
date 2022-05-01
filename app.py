@@ -1,15 +1,16 @@
-import time
+import sys
 from typing import List, Optional
 
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
+from airdrop import airdrop, snapshot
 from api import market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
-
 
 app = FastAPI(
     title="Cometa",
@@ -87,5 +88,23 @@ async def remove_contracts_by_type(type: str) -> dict:
     cnt = remove_contracts(type=type)
     return {'deleted_count': cnt}
 
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="0.0.0.0", port=5001)
+
+if __name__ == "__main__":
+    argv = sys.argv[1:]
+
+    if len(argv) > 0:
+        command = argv[0]
+
+        if command == 'airdrop':
+            if len(argv) < 2:
+                print('Provide airdrop id!')
+                exit(1)
+            airdrop_id = argv[1]
+            snapshot.make_snapshot(airdrop_id)
+            airdrop.run(airdrop_id)
+            exit(0)
+
+        print(f'Command "{command}" is unknown!')
+        exit(1)
+
+    uvicorn.run(app, host="0.0.0.0", port=5001)

@@ -1,8 +1,10 @@
-from env import META_ADDRESSES
+# from api.metapunks import META_ADDRESSES
 from marketplaces import Collection
 
-metapunks_collection = Collection('Metapunks', META_ADDRESSES)
-all_collections = [metapunks_collection]
+# TODO: use db
+# metapunks_collection = Collection('Metapunks', META_ADDRESSES)
+# all_collections = [metapunks_collection]
+all_collections = []
 
 
 def get_collection(creator: str) -> Collection:
