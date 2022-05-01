@@ -1,4 +1,5 @@
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import List
 
@@ -49,11 +50,26 @@ def get_holders() -> List[HolderInfo]:
     ids = get_unlisted_ids()
     print(f'Got {len(ids)} unlisted Metapunks!')
     holders = defaultdict(list)
-    for i, asa_id in enumerate(ids):
+    for i, asa_id in enumerate(ids[:100]):
         address = get_asset_owner(asa_id)
         holders[address].append(asa_id)
         if i % 10 == 0:
             print(f'#{i}')
+    return [HolderInfo(k, v) for k, v in holders.items()]
+
+
+def asset_owner(asset_id):
+    return asset_id, get_asset_owner(asset_id)
+
+
+def get_holders_async() -> List[HolderInfo]:
+    ids = get_unlisted_ids()
+    print(f'Got {len(ids)} unlisted Metapunks!')
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        results = executor.map(asset_owner, ids)
+    holders = defaultdict(list)
+    for asa_id, address in results:
+        holders[address].append(asa_id)
     return [HolderInfo(k, v) for k, v in holders.items()]
 
 
