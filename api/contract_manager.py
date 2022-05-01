@@ -5,10 +5,10 @@ from typing import List, Optional
 from dataclasses_json import dataclass_json
 from pymongo import MongoClient
 
-from env import NODE_MODE
+from env import settings
 
-client = MongoClient(port=27017)
-db = client[NODE_MODE].contract
+client = MongoClient(port=settings.mongodb_port)
+db = client[settings.algo_network].contract
 
 
 @dataclass_json

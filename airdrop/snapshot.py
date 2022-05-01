@@ -1,64 +1,47 @@
-from collections import defaultdict
-from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Dict
 
-from dataclasses_json import dataclass_json
 from pymongo import MongoClient
 
-from api import market
-from blockchain.indexer import get_asset_ids_by_creator, get_asset_owner
+from api import metapunks
 from blockchain.node import get_current_round
-from env import META_ADDRESSES, DB_NAME, MONGO_PORT
+from env import settings
 
-db = MongoClient(port=MONGO_PORT)[DB_NAME]
-
-
-def get_all_metapunk_ids() -> List[int]:
-    res = []
-    for address in META_ADDRESSES:
-        asset_ids = get_asset_ids_by_creator(address)
-        res = res + asset_ids
-    return res
+db = MongoClient(port=settings.mongodb_port)[settings.db_name]
 
 
-def get_listed_ids() -> List[int]:
-    res = []
-    for address in META_ADDRESSES:
-        sales = market.get_sales(address)
-        res = res + [s.asa_id for s in sales]
-    return res
+def mock_snapshot(snapshot_id: str):
+    db.snapshots.insert_one(
+        {
+            'snapshot_id': snapshot_id,
+            'start_time': 420,
+            'end_time': 420,
+            'round': 420,
+            'nft_count': 6,
+            'holders': [
+                {
+                    'address': 'H74LG5REU6TVNFTXNTELPWDPBUFMX62J66VE2UCEY54NO626BFQ7G2RAI4',  # MY OWN opt-in
+                    'asa_ids': ['420', '421', '423']
+                },
+                {
+                    'address': 'METASWXOZB3CFFNWD6BDWU7CG5E42HNWFJZMM6IWR7MCT4P7NDW6755IMM',  # META 1 (!) no opt-in
+                    'asa_ids': ['422']
+                },
+                {
+                    'address': 'METAGTX4BELE3WVMF5GUOYZMCDYFMDEKBWBP6VLDF6AKTNFWJSGKUFDAYU',  # META 2 opt-in
+                    'asa_ids': ['425', '424']
+                }
+            ]
+        }
+    )
 
 
-def get_unlisted_ids() -> List[int]:
-    all_ids = get_all_metapunk_ids()
-    listed_ids = get_listed_ids()
-    return list(set(all_ids) - set(listed_ids))
-
-
-@dataclass_json
-@dataclass
-class HolderInfo:
-    address: str
-    asa_ids: List[int]
-
-
-def get_holders() -> List[HolderInfo]:
-    ids = get_unlisted_ids()
-    print(f'Got {len(ids)} unlisted Metapunks!')
-    holders = defaultdict(list)
-    for i, asa_id in enumerate(ids):
-        address = get_asset_owner(asa_id)
-        holders[address].append(asa_id)
-        if i % 10 == 0:
-            print(f'#{i}')
-    return [HolderInfo(k, v) for k, v in holders.items()]
-
-
-def make_snapshot(snapshot_id: int):
+def make_snapshot(snapshot_id: str):
     if db.snapshots.find_one({'snapshot_id': snapshot_id}) is not None:
         print(f'Snapshot #{snapshot_id} is already done!')
         return
+
+    # mock_snapshot(snapshot_id)
+    # return
 
     current_round = get_current_round()
     start_time = datetime.now()
@@ -67,7 +50,7 @@ def make_snapshot(snapshot_id: int):
     print(f'Current round = {current_round}')
     print(f'Time = {start_time}')
 
-    holders = get_holders()
+    holders = metapunks.get_holders()
     nft_count = 0
     holders.sort(reverse=True, key=lambda h: len(h.asa_ids))
     print(f'{len(holders)} holders:')
@@ -88,9 +71,9 @@ def make_snapshot(snapshot_id: int):
         }
     )
 
-    print(f'Snapshot was made in {end_time - start_time}')
+    print(f'Snapshot was made in {end_time - start_time}\n')
 
 
 if __name__ == '__main__':
-    make_snapshot(1)
+    make_snapshot('1')
     # print(db.snapshots.find_one({'snapshot_id': -1}))
