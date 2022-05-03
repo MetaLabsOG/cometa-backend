@@ -71,6 +71,9 @@ def encode_transactions(transactions):
 
 def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
     _, _, quote = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
+    asset1 = client.fetch_asset(asset1_id)
+    asset2 = client.fetch_asset(asset2_id)
+    pool = client.fetch_pool(asset1, asset2)
     transaction_group = pool.prepare_swap_transactions_from_quote(quote)
 
     encoded_transactions = encode_transactions(transaction_group.transactions)
@@ -80,6 +83,8 @@ def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
 
 
 def get_swap_diff(client, token1_id, token2_id, token1_amount):
+    ALGO_ASA_ID = 0
+    USDC_ASA_ID = 123
     # SWAP TOKEN1-TOKEN2
     res1, price_per_token2, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
 
