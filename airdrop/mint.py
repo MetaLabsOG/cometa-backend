@@ -50,5 +50,22 @@ def mint_token() -> int:
     return asset_id
 
 
+def change_meta_config():
+    params = algod_client.suggested_params()
+    txn = transaction.AssetConfigTxn(
+        sender=public_key,
+        sp=params,
+        index=settings.meta_asa_id,
+        manager=public_key,
+        reserve=public_key,
+        freeze=public_key,
+        clawback=None,
+        strict_empty_address_check=False)
+    signed_txn = txn.sign(private_key)
+    txid = algod_client.send_transaction(signed_txn)
+    confirmed_txn = transaction.wait_for_confirmation(algod_client, txid, 4)
+    print_created_asset(algod_client, public_key, settings.meta_asa_id)
+
+
 if __name__ == '__main__':
     print(mint_token())
