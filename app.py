@@ -89,6 +89,31 @@ async def remove_contracts_by_type(type: str) -> dict:
     return {'deleted_count': cnt}
 
 
+# TINYMAN SWAP
+
+@app.get('/asset_swap_cost')
+async def asset_swap_cost(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+    client = init_test_tinyclient(address)
+    res_tokens, price_per_token, _ = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
+
+    return {
+        'res_tokens': res_tokens,
+        'price_per_token': price_per_token
+    }
+
+
+@app.get('/swap_asset_transactions')
+async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+    client = init_test_tinyclient(address)
+    transactions, signed_transactions = get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount)
+
+    return {
+        'transactions': transactions,
+        'signed_transactions': signed_transactions
+    }
+
+
+
 if __name__ == "__main__":
     argv = sys.argv[1:]
 
