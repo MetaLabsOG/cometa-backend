@@ -1,6 +1,7 @@
 from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient
 from algosdk import account, encoding
 from algosdk.v2client import algod
+import urllib.request, json
 import base64
 
 
@@ -25,6 +26,11 @@ def init_main_tinyclient(address):
 
 
 def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):
+    ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
+    asset_info = {}
+    with urllib.request.urlopen(ASSETS_PATH) as url:
+        asset_info = json.loads(url.read().decode())
+
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
     pool = client.fetch_pool(asset1, asset2)
