@@ -63,9 +63,12 @@ def check_optin(client, asset_id):
 def encode_transactions(transactions):
     encode_trans = []
     for txn in transactions:
-        txn = encoding.msgpack_encode(txn)
-        txn = base64.b64decode(txn)
-        encode_trans.append(list(txn))
+        if txn:
+            txn = encoding.msgpack_encode(txn)
+            txn = base64.b64decode(txn)
+            encode_trans.append(list(txn))
+        else:
+            encode_trans.append([])
     return encode_trans
 
 
