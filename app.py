@@ -96,7 +96,7 @@ async def remove_contracts_by_type(type: str) -> dict:
 
 @app.get('/asset_swap_cost')
 async def asset_swap_cost(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_test_tinyclient(address)
+    client = init_main_tinyclient(address)
     res_tokens, price_per_token, _ = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
 
     return {
@@ -107,7 +107,7 @@ async def asset_swap_cost(address: str, asset1_id: int, asset2_id: int, asset1_a
 
 @app.get('/swap_asset_transactions')
 async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_test_tinyclient(address)
+    client = init_main_tinyclient(address)
     transactions, signed_transactions = get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount)
 
     return {
