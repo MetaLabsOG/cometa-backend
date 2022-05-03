@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
 from airdrop import airdrop, snapshot
+from airdrop.mint import change_meta_config
 from api import market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts
@@ -90,6 +91,9 @@ async def remove_contracts_by_type(type: str) -> dict:
 
 
 if __name__ == "__main__":
+    change_meta_config()
+    exit(0)
+
     argv = sys.argv[1:]
 
     if len(argv) > 0:
