@@ -13,7 +13,7 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
-from tinyman.swap import init_test_tinyclient, init_main_tinyclient, get_asset_swap_cost, get_swap_asset_transactions
+from tinyman_api.swap import init_test_tinyclient, init_main_tinyclient, get_asset_swap_cost, get_swap_asset_transactions
 
 app = FastAPI(
     title="Cometa",
