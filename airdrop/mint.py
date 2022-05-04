@@ -2,16 +2,12 @@ import json
 
 from algosdk import mnemonic, account
 from algosdk.future import transaction
-from algosdk.v2client import algod
 
-from blockchain.node import print_created_asset
+from blockchain.node import print_created_asset, init_algod_client
 from env import settings, META_TOTAL_SUPPLY, META_DECIMALS
 
-algod_client = algod.AlgodClient(settings.algod_token, settings.algod_address,
-                                 headers={
-                                     'User-Agent': 'py-algorand-sdk',
-                                     'X-API-Key': settings.algod_token
-                                 })
+
+algod_client = init_algod_client()
 private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
