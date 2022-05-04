@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 import urllib.request
 
+from tinyman.assets import Asset
+
 from airdrop import airdrop, snapshot
 from api import market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
@@ -117,6 +119,11 @@ async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, 
     }
 
 
+def get_amount(micros: int, asset: Asset) -> float:
+    decimals = 10 ** asset.decimals
+    return micros / decimals
+
+
 @app.get('/pool')
 async def pool(asset1_id: int, asset2_id: int) -> dict:
     client = init_main_tinyclient('YGXBCM7TE2UUVL6OAYBJU2QN25NH5OQLXTNMK4ZD5NG45QOHH6YD4WK3OA')
@@ -125,21 +132,21 @@ async def pool(asset1_id: int, asset2_id: int) -> dict:
 
     pool = client.fetch_pool(asset1, asset2)
 
-    ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
-    asset_info = {}
-    with urllib.request.urlopen(ASSETS_PATH) as url:
-        asset_info = json.loads(url.read().decode())
+    asset1_reserve = get_amount(pool.asset1_reserves, pool.asset1)
+    asset2_reserve = get_amount(pool.asset2_reserves, pool.asset2)
+    total_lp_tokens = get_amount(pool.issued_liquidity, pool.liquidity_asset)
 
-    LP_DECIMALS = 6
-
-    decimals1 = 10 ** asset_info[str(asset1_id)]['decimals']
-    decimals2 = 10 ** asset_info[str(asset2_id)]['decimals']
-    decimalsLP = 10 ** LP_DECIMALS
+    # Because Tinyman SDK swap them inside Pool
+    if asset1_id < asset2_id:
+        tmp = asset1_reserve
+        asset1_reserve = asset2_reserve
+        asset2_reserve = tmp
 
     return {
-        'asset1_reserve': pool.asset1_reserves / decimals1,
-        'asset2_reserve': pool.asset2_reserves / decimals2,
-        'total_lp_tokens': pool.issued_liquidity / decimalsLP
+        'name': pool.liquidity_asset.name,
+        'asset1_reserve': asset1_reserve,
+        'asset2_reserve': asset2_reserve,
+        'total_lp_tokens': total_lp_tokens
     }
 
 
