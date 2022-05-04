@@ -1,3 +1,4 @@
+import json
 import sys
 from typing import List, Optional
 
@@ -5,9 +6,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
+import urllib.request
 
 from airdrop import airdrop, snapshot
-from airdrop.mint import change_meta_config
 from api import market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts
@@ -116,11 +117,33 @@ async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, 
     }
 
 
+@app.get('/pool')
+async def pool(asset1_id: int, asset2_id: int) -> dict:
+    client = init_main_tinyclient('YGXBCM7TE2UUVL6OAYBJU2QN25NH5OQLXTNMK4ZD5NG45QOHH6YD4WK3OA')
+    asset1 = client.fetch_asset(asset1_id)
+    asset2 = client.fetch_asset(asset2_id)
+
+    pool = client.fetch_pool(asset1, asset2)
+
+    ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
+    asset_info = {}
+    with urllib.request.urlopen(ASSETS_PATH) as url:
+        asset_info = json.loads(url.read().decode())
+
+    LP_DECIMALS = 6
+
+    decimals1 = 10 ** asset_info[str(asset1_id)]['decimals']
+    decimals2 = 10 ** asset_info[str(asset2_id)]['decimals']
+    decimalsLP = 10 ** LP_DECIMALS
+
+    return {
+        'asset1_reserve': pool.asset1_reserves / decimals1,
+        'asset2_reserve': pool.asset2_reserves / decimals2,
+        'total_lp_tokens': pool.issued_liquidity / decimalsLP
+    }
+
 
 if __name__ == "__main__":
-    change_meta_config()
-    exit(0)
-
     argv = sys.argv[1:]
 
     if len(argv) > 0:
