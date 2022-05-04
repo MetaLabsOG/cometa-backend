@@ -1,28 +1,52 @@
-from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient
-from algosdk import account, encoding
-from algosdk.v2client import algod
-import urllib.request, json
 import base64
+import json
+import urllib.request
+from typing import Optional
+
+from algosdk import account, encoding
+from tinyman.assets import Asset
+from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
+
+from blockchain.node import init_algod_client
+from env import settings
 
 
-def init_test_tinyclient(address):
-    algod_client = algod.AlgodClient('REMOVED_CREDENTIAL',
-                                     'https://testnet-algorand.api.purestake.io/ps2',
-                                     headers={'User-Agent': 'py-algorand-sdk',
-                                              'X-API-Key': 'REMOVED_CREDENTIAL'})
-    client = TinymanTestnetClient(algod_client=algod_client, user_address=address)
-
-    return client
+def init_tinyman_client(address: Optional[str] = None) -> TinymanClient:
+    algod_client = init_algod_client()
+    if settings.is_mainnet():
+        return TinymanMainnetClient(algod_client=algod_client, user_address=address)
+    else:
+        return TinymanTestnetClient(algod_client=algod_client, user_address=address)
 
 
-def init_main_tinyclient(address):
-    algod_client = algod.AlgodClient('REMOVED_CREDENTIAL',
-                                     'https://mainnet-algorand.api.purestake.io/ps2',
-                                     headers={'User-Agent': 'py-algorand-sdk',
-                                              'X-API-Key': 'REMOVED_CREDENTIAL'})
-    client = TinymanMainnetClient(algod_client=algod_client, user_address=address)
+# TODO: use in other methods
+def get_amount(micros: int, asset: Asset) -> float:
+    decimals = 10 ** asset.decimals
+    return micros / decimals
 
-    return client
+
+def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict:
+    asset1 = client.fetch_asset(asset1_id)
+    asset2 = client.fetch_asset(asset2_id)
+
+    pool = client.fetch_pool(asset1, asset2)
+
+    asset1_reserve = get_amount(pool.asset1_reserves, pool.asset1)
+    asset2_reserve = get_amount(pool.asset2_reserves, pool.asset2)
+    total_lp_tokens = get_amount(pool.issued_liquidity, pool.liquidity_asset)
+
+    # Because Tinyman SDK swap them inside Pool
+    if asset1_id < asset2_id:
+        tmp = asset1_reserve
+        asset1_reserve = asset2_reserve
+        asset2_reserve = tmp
+
+    return {
+        'name': pool.liquidity_asset.name,
+        'asset1_reserve': asset1_reserve,
+        'asset2_reserve': asset2_reserve,
+        'total_lp_tokens': total_lp_tokens
+    }
 
 
 def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):

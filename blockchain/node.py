@@ -1,8 +1,20 @@
 import json
 
 import requests
+from algosdk.v2client import algod
+
+from env import settings
 
 BASE_URL = 'https://node.algoexplorerapi.io'
+
+
+# TODO: maybe inject settings?
+def init_algod_client():
+    return algod.AlgodClient(settings.algod_token, settings.algod_address,
+                             headers={
+                                 'User-Agent': 'py-algorand-sdk',
+                                 'X-API-Key': settings.algod_token
+                             })
 
 
 def get_current_round():
