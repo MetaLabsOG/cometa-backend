@@ -1,4 +1,3 @@
-import json
 import sys
 from typing import List, Optional
 
@@ -6,7 +5,6 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
-import urllib.request
 
 from tinyman.assets import Asset
 
@@ -16,7 +14,7 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
-from tinyman_api.swap import init_test_tinyclient, init_main_tinyclient, get_asset_swap_cost, get_swap_asset_transactions
+from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info
 
 app = FastAPI(
     title="Cometa",
@@ -99,7 +97,7 @@ async def remove_contracts_by_type(type: str) -> dict:
 
 @app.get('/asset_swap_cost')
 async def asset_swap_cost(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_main_tinyclient(address)
+    client = init_tinyman_client(address)
     res_tokens, price_per_token, _ = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
 
     return {
@@ -110,7 +108,7 @@ async def asset_swap_cost(address: str, asset1_id: int, asset2_id: int, asset1_a
 
 @app.get('/swap_asset_transactions')
 async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_main_tinyclient(address)
+    client = init_tinyman_client(address)
     transactions, signed_transactions = get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount)
 
     return {
@@ -119,35 +117,10 @@ async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, 
     }
 
 
-def get_amount(micros: int, asset: Asset) -> float:
-    decimals = 10 ** asset.decimals
-    return micros / decimals
-
-
 @app.get('/pool')
 async def pool(asset1_id: int, asset2_id: int) -> dict:
-    client = init_main_tinyclient('YGXBCM7TE2UUVL6OAYBJU2QN25NH5OQLXTNMK4ZD5NG45QOHH6YD4WK3OA')
-    asset1 = client.fetch_asset(asset1_id)
-    asset2 = client.fetch_asset(asset2_id)
-
-    pool = client.fetch_pool(asset1, asset2)
-
-    asset1_reserve = get_amount(pool.asset1_reserves, pool.asset1)
-    asset2_reserve = get_amount(pool.asset2_reserves, pool.asset2)
-    total_lp_tokens = get_amount(pool.issued_liquidity, pool.liquidity_asset)
-
-    # Because Tinyman SDK swap them inside Pool
-    if asset1_id < asset2_id:
-        tmp = asset1_reserve
-        asset1_reserve = asset2_reserve
-        asset2_reserve = tmp
-
-    return {
-        'name': pool.liquidity_asset.name,
-        'asset1_reserve': asset1_reserve,
-        'asset2_reserve': asset2_reserve,
-        'total_lp_tokens': total_lp_tokens
-    }
+    client = init_tinyman_client('YGXBCM7TE2UUVL6OAYBJU2QN25NH5OQLXTNMK4ZD5NG45QOHH6YD4WK3OA')
+    return get_pool_info(client, asset1_id, asset2_id)
 
 
 if __name__ == "__main__":
