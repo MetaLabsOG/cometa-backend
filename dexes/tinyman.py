@@ -50,17 +50,12 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict
 
 
 def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):
-    ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
-    asset_info = {}
-    with urllib.request.urlopen(ASSETS_PATH) as url:
-        asset_info = json.loads(url.read().decode())
-
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
     pool = client.fetch_pool(asset1, asset2)
 
-    decimal1 = 10 ** asset_info[str(asset1_id)]['decimals']
-    decimal2 = 10 ** asset_info[str(asset2_id)]['decimals']
+    decimal1 = 10 ** asset1.decimals
+    decimal2 = 10 ** asset2.decimals
 
     quote = pool.fetch_fixed_input_swap_quote(asset1(asset1_amount * decimal1), slippage=0.01)
     price_per_token = quote.price * decimal1 / decimal2
