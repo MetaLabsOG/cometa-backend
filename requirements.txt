@@ -7,13 +7,14 @@
 
 -i https://pypi.org/simple
 anyio==3.5.0; python_full_version >= '3.6.2'
-asgiref==3.5.0; python_version >= '3.7'
+asgiref==3.5.1; python_version >= '3.7'
 certifi==2021.10.8
 cffi==1.15.0
 charset-normalizer==2.0.12; python_version >= '3'
-click==8.1.2; python_version >= '3.7'
+click==8.1.3; python_version >= '3.7'
 dataclasses-json==0.5.7
 fastapi==0.75.2
+git+https://github.com/tinymanorg/tinyman-py-sdk.git@c922cba801e3bdab0f3a5a5e19a25c292f16a9fd#egg=tinyman-py-sdk
 h11==0.13.0; python_version >= '3.6'
 idna==3.3; python_version >= '3'
 marshmallow-enum==1.5.1
@@ -21,7 +22,7 @@ marshmallow==3.15.0; python_version >= '3.7'
 msgpack==1.0.3
 mypy-extensions==0.4.3
 packaging==21.3; python_version >= '3.6'
-py-algorand-sdk==1.12.0
+py-algorand-sdk==1.13.1
 pycparser==2.21
 pycryptodomex==3.14.1; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
 pydantic==1.9.0
@@ -36,5 +37,3 @@ typing-extensions==4.2.0; python_version >= '3.7'
 typing-inspect==0.7.1
 urllib3==1.26.9; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4' and python_version < '4'
 uvicorn==0.17.6
-git+https://github.com/tinymanorg/tinyman-py-sdk.git
-
