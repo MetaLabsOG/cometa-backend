@@ -5,7 +5,8 @@ from algosdk.future import transaction
 from algosdk.v2client import algod
 from pymongo import MongoClient
 
-from env import settings, META_TOTAL_SUPPLY, META_DECIMALS
+from blockchain.assets import META_TOTAL_SUPPLY, META_ASA_ID, META_DECIMALS
+from env import settings
 
 TOTAL_AIRDROPS = 12
 TOTAL_PERCENT = 0.03
@@ -40,7 +41,7 @@ def send_tokens(address: str, amount: float, airdrop_id: str):
         sp=params,
         receiver=address,
         amt=amount_micros,
-        index=settings.meta_asa_id,
+        index=META_ASA_ID,
         note=f'Metapunks Airdrop #{airdrop_id}'
     )
     signed_txn = unsigned_txn.sign(private_key)
