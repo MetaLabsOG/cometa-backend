@@ -15,6 +15,7 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
 from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info
+from env import DEFAULT_CLIENT_ADDRESS
 
 app = FastAPI(
     title="Cometa",
@@ -96,8 +97,8 @@ async def remove_contracts_by_type(type: str) -> dict:
 # TINYMAN SWAP
 
 @app.get('/asset_swap_cost')
-async def asset_swap_cost(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_tinyman_client(address)
+async def asset_swap_cost(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
     res_tokens, price_per_token, _ = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
 
     return {
@@ -119,7 +120,7 @@ async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, 
 
 @app.get('/pool')
 async def pool(asset1_id: int, asset2_id: int) -> dict:
-    client = init_tinyman_client('YGXBCM7TE2UUVL6OAYBJU2QN25NH5OQLXTNMK4ZD5NG45QOHH6YD4WK3OA')
+    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
     return get_pool_info(client, asset1_id, asset2_id)
 
 
