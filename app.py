@@ -6,7 +6,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
-from tinyman.assets import Asset
 
 from airdrop import airdrop, snapshot
 from api import market
@@ -14,12 +13,12 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
-from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info
+from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap
 from env import DEFAULT_CLIENT_ADDRESS
 
 app = FastAPI(
     title="Cometa",
-    version="0.1.3"
+    version="0.1.4"
 )
 app.add_middleware(
     CORSMiddleware,
@@ -124,6 +123,12 @@ async def pool(asset1_id: int, asset2_id: int) -> dict:
     return get_pool_info(client, asset1_id, asset2_id)
 
 
+@app.get('/zap')
+async def prepare_zap(asset_id: int, microalgos: int) -> dict:
+    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
+    return zap(client, asset_id, microalgos)
+
+
 if __name__ == "__main__":
     argv = sys.argv[1:]
 
@@ -142,4 +147,4 @@ if __name__ == "__main__":
         print(f'Command "{command}" is unknown!')
         exit(1)
 
-    uvicorn.run(app, host="0.0.0.0", port=5001)
+    uvicorn.run(app, host="0.0.0.0", port=5000)
