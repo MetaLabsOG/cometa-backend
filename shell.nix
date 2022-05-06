@@ -8,6 +8,7 @@ stdenv.mkDerivation {
 
     # Python requirements (enough to get a virtualenv going).
     python38Full
+    python38Packages.pyflakes
     pipenv
   ];
   src = null;
