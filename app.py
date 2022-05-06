@@ -10,7 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from airdrop import airdrop, snapshot
 from api import market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
-    remove_contracts
+    remove_contracts, update_contract
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
 from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap
@@ -54,9 +54,16 @@ async def wallet_nfts(address: str) -> List[NftInfo]:
 
 class AddContract(BaseModel):
     type: str
-    id: int
+    id: int = ...
     version: str
     description: Optional[str] = None
+    metadata: Optional[dict] = None
+
+class ModifyContract(BaseModel):
+    # Type and version should not be changed
+    id: int = ...
+    description: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 @app.post('/contract/add')
@@ -64,9 +71,16 @@ async def add_new_contract(contract: AddContract) -> dict:
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
-    added = add_contract(contract.type, contract.id, contract.version, contract.description)
+    added = add_contract(contract.type, contract.id, contract.version, contract.description, contract.metadata)
     return {'internal_id': added}
 
+@app.patch('/contract/update')
+async def update(contract: ModifyContract) -> dict:
+    if get_contract(contract.id) is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    
+    res = update_contract(contract.id, contract.description, contract.metadata)
+    return {'updated': res}
 
 @app.get('/contract/{contract_id}')
 async def get_contract_by_id(contract_id: int) -> ContractInfo:
