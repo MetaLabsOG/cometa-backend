@@ -1,12 +1,19 @@
 import base64
 from typing import Optional
 
-from algosdk import account, encoding
+from algosdk import account, encoding, mnemonic
 from tinyman.assets import Asset
 from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
 
+from blockchain.assets import ALGO_ASA_ID, USDC_ASA_ID
 from blockchain.node import init_algod_client
 from env import settings
+
+
+ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
+
+private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
+public_key = account.address_from_private_key(private_key)
 
 
 def init_tinyman_client(address: Optional[str] = None) -> TinymanClient:
@@ -17,10 +24,14 @@ def init_tinyman_client(address: Optional[str] = None) -> TinymanClient:
         return TinymanTestnetClient(algod_client=algod_client, user_address=address)
 
 
-# TODO: use in other methods
 def get_amount(micros: int, asset: Asset) -> float:
     decimals = 10 ** asset.decimals
     return micros / decimals
+
+
+def get_micros(amount: float, asset: Asset) -> int:
+    decimals = 10 ** asset.decimals
+    return int(amount * decimals)
 
 
 def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict:
@@ -107,7 +118,6 @@ def get_swap_diff(client, token1_id, token2_id, token1_amount):
     USDC_ASA_ID = 10458941
     if settings.is_mainnet():
         USDC_ASA_ID = 31566704
-
     # SWAP TOKEN1-TOKEN2
     res1, _, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
 
@@ -124,3 +134,39 @@ def get_swap_diff(client, token1_id, token2_id, token1_amount):
         'algo': res2,
         'usdc_diff': usdc_res
     }
+
+
+def zap(client: TinymanClient, asset_id: int, microalgos: int) -> dict:
+    ALGO = client.fetch_asset(ALGO_ASA_ID)
+    asset2 = client.fetch_asset(asset_id)
+    pool = client.fetch_pool(ALGO, asset2)
+
+    # TODO: (check) opt-in for asset2
+
+    half = microalgos // 2
+    # TODO: set slippage
+    quote = pool.fetch_fixed_input_swap_quote(ALGO(half), slippage=0.01)
+    print(quote)
+    print(f'price={quote.price}, amount_in={quote.amount_in}, amount_out={quote.amount_out}')
+
+    transaction_group = pool.prepare_swap_transactions_from_quote(quote)
+    transaction_group.sign_with_private_key(public_key, private_key)
+    swap_tx = client.submit(transaction_group, wait=True)
+    print(f'Swapped with: {swap_tx}')
+
+    # TODO: (check) opt-in to lp tokens
+    quote = pool.fetch_mint_quote(ALGO(half), slippage=0.01)
+    print(quote)
+    transaction_group = pool.prepare_mint_transactions_from_quote(quote)
+    transaction_group.sign_with_private_key(public_key, private_key)
+    add_liquidity_tx = client.submit(transaction_group, wait=True)
+    print(f'Added liquidity with: {add_liquidity_tx}')
+
+    info = pool.fetch_pool_position()
+    share = info['share'] * 100
+    print(f'Pool Tokens: {info[pool.liquidity_asset]}')
+    print(f'Assets: {info[asset2]}, {info[ALGO]}')
+    print(f'Share of pool: {share:.3f}%')
+
+    return {'added_lp_tokens': info[pool.liquidity_asset]}
+
