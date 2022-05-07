@@ -4,18 +4,14 @@ from pydantic import BaseSettings
 
 MICROALGOS_IN_ALGO = 1000000
 
-META_TOTAL_SUPPLY = 10000000
-META_DECIMALS = 6
-
-TESTNET_META_ASA_ID = 85401361
-MAINNET_META_ASA_ID = 712012773
-
 DEFAULT_CLIENT_ADDRESS = 'YGXBCM7TE2UUVL6OAYBJU2QN25NH5OQLXTNMK4ZD5NG45QOHH6YD4WK3OA'
 
 
 class Settings(BaseSettings):
     algo_network: str
+
     algo_mnemonic: str
+    tinyman_mnemonic: str
 
     testnet_algod_address: str
     mainnet_algod_address: str
@@ -35,10 +31,6 @@ class Settings(BaseSettings):
     @cached_property
     def algod_address(self):
         return self.mainnet_algod_address if self.is_mainnet() else self.testnet_algod_address
-
-    @cached_property
-    def meta_asa_id(self):
-        return MAINNET_META_ASA_ID if self.is_mainnet() else TESTNET_META_ASA_ID
 
     @property
     def db_name(self):
