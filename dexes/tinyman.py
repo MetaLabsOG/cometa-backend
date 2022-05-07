@@ -1,6 +1,4 @@
 import base64
-import json
-import urllib.request
 from typing import Optional
 
 from algosdk import account, encoding
@@ -106,16 +104,23 @@ def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
 
 def get_swap_diff(client, token1_id, token2_id, token1_amount):
     ALGO_ASA_ID = 0
-    USDC_ASA_ID = 123
+    USDC_ASA_ID = 10458941
+    if settings.is_mainnet():
+        USDC_ASA_ID = 31566704
+
     # SWAP TOKEN1-TOKEN2
-    res1, price_per_token2, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
+    res1, _, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
 
     # SWAP TOKEN1-ALGO-TOKEN2
-    algos, price_per_algo, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
-    res2, algo_per_token2, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
+    algos, _, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
+    res2, _, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
 
     # SWAP DIFF IN USDC
-    algos, price_per_algo, _ = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, res2 - res1)
-    usdc_res, usdc_price, _ = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos)
+    algos, _, _ = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, res2 - res1)
+    usdc_res, _, _ = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos)
 
-    return res1, res2, usdc_res
+    return {
+        'direct': res1,
+        'algo': res2,
+        'usdc_diff': usdc_res
+    }
