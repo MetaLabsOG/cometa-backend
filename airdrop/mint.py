@@ -3,8 +3,9 @@ import json
 from algosdk import mnemonic, account
 from algosdk.future import transaction
 
+from blockchain.assets import META_TOTAL_SUPPLY, META_DECIMALS, META_ASA_ID
 from blockchain.node import print_created_asset, init_algod_client
-from env import settings, META_TOTAL_SUPPLY, META_DECIMALS
+from env import settings
 
 
 algod_client = init_algod_client()
@@ -51,7 +52,7 @@ def change_meta_config():
     txn = transaction.AssetConfigTxn(
         sender=public_key,
         sp=params,
-        index=settings.meta_asa_id,
+        index=META_ASA_ID,
         manager=public_key,
         reserve=public_key,
         freeze=public_key,
@@ -60,7 +61,7 @@ def change_meta_config():
     signed_txn = txn.sign(private_key)
     txid = algod_client.send_transaction(signed_txn)
     confirmed_txn = transaction.wait_for_confirmation(algod_client, txid, 4)
-    print_created_asset(algod_client, public_key, settings.meta_asa_id)
+    print_created_asset(algod_client, public_key, META_ASA_ID)
 
 
 if __name__ == '__main__':

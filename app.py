@@ -6,21 +6,19 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
-from tinyman.assets import Asset
 
 from airdrop import airdrop, snapshot
 from api import market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
-    remove_contracts
+    remove_contracts, update_contract
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
-from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info, \
-    get_swap_diff
+from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap, get_swap_diff
 from env import DEFAULT_CLIENT_ADDRESS
 
 app = FastAPI(
     title="Cometa",
-    version="0.1.3"
+    version="0.1.4"
 )
 app.add_middleware(
     CORSMiddleware,
@@ -56,9 +54,16 @@ async def wallet_nfts(address: str) -> List[NftInfo]:
 
 class AddContract(BaseModel):
     type: str
-    id: int
+    id: int = ...
     version: str
     description: Optional[str] = None
+    metadata: Optional[dict] = None
+
+class ModifyContract(BaseModel):
+    # Type and version should not be changed
+    id: int = ...
+    description: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 @app.post('/contract/add')
@@ -66,9 +71,16 @@ async def add_new_contract(contract: AddContract) -> dict:
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
-    added = add_contract(contract.type, contract.id, contract.version, contract.description)
+    added = add_contract(contract.type, contract.id, contract.version, contract.description, contract.metadata)
     return {'internal_id': added}
 
+@app.patch('/contract/update')
+async def update(contract: ModifyContract) -> dict:
+    if get_contract(contract.id) is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    
+    res = update_contract(contract.id, contract.description, contract.metadata)
+    return {'updated': res}
 
 @app.get('/contract/{contract_id}')
 async def get_contract_by_id(contract_id: int) -> ContractInfo:
@@ -131,6 +143,12 @@ async def pool(asset1_id: int, asset2_id: int) -> dict:
     return get_pool_info(client, asset1_id, asset2_id)
 
 
+@app.get('/zap')
+async def prepare_zap(asset_id: int, microalgos: int) -> dict:
+    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
+    return zap(client, asset_id, microalgos)
+
+
 if __name__ == "__main__":
     argv = sys.argv[1:]
 
@@ -149,4 +167,4 @@ if __name__ == "__main__":
         print(f'Command "{command}" is unknown!')
         exit(1)
 
-    uvicorn.run(app, host="0.0.0.0", port=5001)
+    uvicorn.run(app, host="0.0.0.0", port=5000)
