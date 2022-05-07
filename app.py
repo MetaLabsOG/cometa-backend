@@ -14,7 +14,8 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
-from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info
+from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info, \
+    get_swap_diff
 from env import DEFAULT_CLIENT_ADDRESS
 
 app = FastAPI(
@@ -116,6 +117,12 @@ async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, 
         'transactions': transactions,
         'signed_transactions': signed_transactions
     }
+
+
+@app.get('/swap_diff')
+async def swap_diff(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
+    return get_swap_diff(client, asset1_id, asset2_id, asset1_amount) 
 
 
 @app.get('/pool')
