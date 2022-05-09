@@ -149,7 +149,7 @@ if __name__ == "__main__":
     if len(argv) > 0:
         command = argv[0]
 
-        if command == 'airdrop':
+        if command ==   'airdrop':
             if len(argv) < 2:
                 print('Provide airdrop id!')
                 exit(1)
