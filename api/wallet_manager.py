@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from api import tinychart
-from env import MICROALGOS_IN_ALGO
+from blockchain.assets import MICROALGOS_IN_ALGO
 
 
 @dataclass

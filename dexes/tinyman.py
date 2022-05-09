@@ -16,7 +16,7 @@ private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
 
-def init_tinyman_client(address: Optional[str] = None) -> TinymanClient:
+def init_tinyman_client(address: Optional[str] = public_key) -> TinymanClient:
     algod_client = init_algod_client()
     if settings.is_mainnet():
         return TinymanMainnetClient(algod_client=algod_client, user_address=address)
