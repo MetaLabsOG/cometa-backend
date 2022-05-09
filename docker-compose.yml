@@ -22,5 +22,5 @@ services:
         volumes:
             - .:/app
         ports:
-            - "5001:5000"
+            - "5001:5001"
         network_mode: host
