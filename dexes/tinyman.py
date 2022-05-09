@@ -4,6 +4,8 @@ from typing import Optional
 from algosdk import account, encoding, mnemonic
 from tinyman.assets import Asset
 from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
+from tinyman.utils import TransactionGroup
+from algosdk.future.transaction import ApplicationOptInTxn, AssetOptInTxn
 
 from blockchain.assets import ALGO_ASA_ID, USDC_ASA_ID
 from blockchain.node import init_algod_client
@@ -58,34 +60,52 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict
     }
 
 
-def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):
+def get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount):
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
     pool = client.fetch_pool(asset1, asset2)
 
+    quote = pool.fetch_fixed_input_swap_quote(asset1(get_micros(asset1_amount, asset1)), slippage=0.01)
+
+    return pool, quote
+
+
+def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):
+    asset1 = client.fetch_asset(asset1_id)
+    asset2 = client.fetch_asset(asset2_id)
+    pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount)
+
     decimal1 = 10 ** asset1.decimals
     decimal2 = 10 ** asset2.decimals
 
-    quote = pool.fetch_fixed_input_swap_quote(asset1(asset1_amount * decimal1), slippage=0.01)
     price_per_token = quote.price * decimal1 / decimal2
     res_tokens = price_per_token * asset1_amount
 
-    return float(res_tokens), float(price_per_token), quote
+    return float(res_tokens), float(price_per_token)
 
 
-# TODO
-def check_optin(client, asset_id):
+def get_optin_transactions(client, asset_id):
+    optin_txns = []
+    suggested_params = client.algod.suggested_params()
     if not client.is_opted_in():
-        print('Account not opted into app, opting in now..')
-        transaction_group = client.prepare_app_optin_transactions()
-        transaction_group.sign_with_private_key(account['address'], account['private_key'])
-        result = client.submit(transaction_group, wait=True)
+        txn = ApplicationOptInTxn(
+            sender=client.user_address,
+            sp=suggested_params,
+            index=client.validator_app_id,
+        )
+        optin_txns.append(txn)
 
-    if not client.asset_is_opted_in(asset_id):
-        print('Account not opted into asset, opting in now..')
-        transaction_group = client.prepare_asset_optin_transactions(asset_id)
-        transaction_group.sign_with_private_key(account['address'], account['private_key'])
-        result = client.submit(transaction_group, wait=True)
+    if asset_id > 0 and not client.asset_is_opted_in(asset_id):
+        txn = AssetOptInTxn(
+            sender=client.user_address,
+            sp=suggested_params,
+            index=asset_id,
+        )
+        optin_txns.append(txn)
+
+    transaction_group = TransactionGroup(optin_txns)
+
+    return encode_transactions(transaction_group.transactions)
 
 
 def encode_transactions(transactions):
@@ -101,10 +121,7 @@ def encode_transactions(transactions):
 
 
 def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
-    _, _, quote = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
-    asset1 = client.fetch_asset(asset1_id)
-    asset2 = client.fetch_asset(asset2_id)
-    pool = client.fetch_pool(asset1, asset2)
+    pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount)
     transaction_group = pool.prepare_swap_transactions_from_quote(quote)
 
     encoded_transactions = encode_transactions(transaction_group.transactions)
@@ -113,26 +130,41 @@ def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
     return encoded_transactions, encoded_signed_transactions
 
 
-def get_swap_diff(client, token1_id, token2_id, token1_amount):
-    ALGO_ASA_ID = 0
-    USDC_ASA_ID = 10458941
-    if settings.is_mainnet():
-        USDC_ASA_ID = 31566704
+def get_best_swap(client, token1_id, token2_id, token1_amount):
+    asset1 = client.fetch_asset(token1_id)
+    asset2 = client.fetch_asset(token2_id)
+
+    best_tokens, best_swap_path = 0, ''
+
     # SWAP TOKEN1-TOKEN2
-    res1, _, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
+    try:
+        direct_tokens, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
+        best_tokens, best_swap_path = direct_tokens, [asset1.unit_name, asset2.unit_name],
+    except:
+        direct_tokens = 0
 
     # SWAP TOKEN1-ALGO-TOKEN2
-    algos, _, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
-    res2, _, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
+    try:
+        algos, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
+        res, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
+        if res > best_tokens:
+            best_tokens, best_swap_path = res, [asset1.unit_name, 'ALGO', asset2.unit_name]
+    except:
+        algos = 0
 
     # SWAP DIFF IN USDC
-    algos, _, _ = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, res2 - res1)
-    usdc_res, _, _ = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos)
+    try:
+        algos_diff, _ = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, max(0, best_tokens - direct_tokens))
+        usdc_diff, _ = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos_diff)
+    except:
+        usdc_diff = 0
 
     return {
-        'direct': res1,
-        'algo': res2,
-        'usdc_diff': usdc_res
+        'best_swap': best_tokens,
+        'best_path': best_swap_path,
+        'direct_swap': direct_tokens,
+        'usdc_diff': usdc_diff,
+        'algos': algos
     }
 
 
