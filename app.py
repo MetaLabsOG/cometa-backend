@@ -159,7 +159,7 @@ if __name__ == "__main__":
     if len(argv) > 0:
         command = argv[0]
 
-        if command ==   'airdrop':
+        if command == 'airdrop':
             if len(argv) < 2:
                 print('Provide airdrop id!')
                 exit(1)
@@ -171,4 +171,4 @@ if __name__ == "__main__":
         print(f'Command "{command}" is unknown!')
         exit(1)
 
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=settings.server_port)

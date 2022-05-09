@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     algod_address: str
     algod_token: str
 
+    server_port: int
     mongodb_port: int
 
     class Config:
