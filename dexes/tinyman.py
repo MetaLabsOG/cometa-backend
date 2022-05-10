@@ -18,7 +18,7 @@ private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
 
-def init_tinyman_client(address: Optional[str] = None) -> TinymanClient:
+def init_tinyman_client(address: Optional[str] = public_key) -> TinymanClient:
     algod_client = init_algod_client()
     if settings.is_mainnet():
         return TinymanMainnetClient(algod_client=algod_client, user_address=address)
@@ -108,6 +108,20 @@ def get_optin_transactions(client, asset_id):
     return encode_transactions(transaction_group.transactions)
 
 
+def check_optin(client: TinymanClient, asset_id: int, user_address: str):
+    if not client.is_opted_in(user_address):
+        print('Account not opted into app, opting in now..')
+        transaction_group = client.prepare_app_optin_transactions(user_address)
+        transaction_group.sign_with_private_key(public_key, private_key)
+        result = client.submit(transaction_group, wait=True)
+
+    if not client.asset_is_opted_in(asset_id, user_address):
+        print(f'Account not opted into asset {asset_id}, opting in now..')
+        transaction_group = client.prepare_asset_optin_transactions(asset_id, user_address)
+        transaction_group.sign_with_private_key(public_key, private_key)
+        result = client.submit(transaction_group, wait=True)
+
+
 def encode_transactions(transactions):
     encode_trans = []
     for txn in transactions:
@@ -184,12 +198,12 @@ def get_best_swap(client, token1_id, token2_id, token1_amount):
     }
 
 
-def zap(client: TinymanClient, asset_id: int, microalgos: int) -> dict:
+def zap(client: TinymanClient, user_address: str, asset_id: int, microalgos: int) -> dict:
     ALGO = client.fetch_asset(ALGO_ASA_ID)
     asset2 = client.fetch_asset(asset_id)
     pool = client.fetch_pool(ALGO, asset2)
 
-    # TODO: (check) opt-in for asset2
+    check_optin(client, asset_id, user_address)
 
     half = microalgos // 2
     # TODO: set slippage
@@ -202,7 +216,8 @@ def zap(client: TinymanClient, asset_id: int, microalgos: int) -> dict:
     swap_tx = client.submit(transaction_group, wait=True)
     print(f'Swapped with: {swap_tx}')
 
-    # TODO: (check) opt-in to lp tokens
+    check_optin(client, pool.liquidity_asset.id, user_address)
+
     quote = pool.fetch_mint_quote(ALGO(half), slippage=0.01)
     print(quote)
     transaction_group = pool.prepare_mint_transactions_from_quote(quote)

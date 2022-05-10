@@ -1,3 +1,4 @@
+import secrets
 import sys
 from typing import List, Optional
 
@@ -13,13 +14,13 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts, update_contract
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 
-from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap, \
+from dexes.tinyman import get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap, \
     get_best_swap, get_optin_transactions
-from env import DEFAULT_CLIENT_ADDRESS
+from env import settings
 
 app = FastAPI(
     title="Cometa",
-    version="0.1.4"
+    version="0.1.5"
 )
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +32,18 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+
+def check_password(password: str) -> None:
+    if not secrets.compare_digest(settings.api_password, password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+
+
+@app.get('/status')
+async def status() -> dict:
+    return {
+        'algo_network': settings.algo_network
+    }
 
 
 @app.get('/floor_price')
@@ -60,6 +73,7 @@ class AddContract(BaseModel):
     description: Optional[str] = None
     metadata: Optional[dict] = None
 
+
 class ModifyContract(BaseModel):
     # Type and version should not be changed
     id: int = ...
@@ -68,20 +82,24 @@ class ModifyContract(BaseModel):
 
 
 @app.post('/contract/add')
-async def add_new_contract(contract: AddContract) -> dict:
+async def add_new_contract(contract: AddContract, password: str) -> dict:
+    check_password(password)
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
     added = add_contract(contract.type, contract.id, contract.version, contract.description, contract.metadata)
     return {'internal_id': added}
 
+
 @app.patch('/contract/update')
-async def update(contract: ModifyContract) -> dict:
+async def update(contract: ModifyContract, password: str) -> dict:
+    check_password(password)
     if get_contract(contract.id) is None:
         raise HTTPException(status_code=404, detail="Contract not found")
     
     res = update_contract(contract.id, contract.description, contract.metadata)
     return {'updated': res}
+
 
 @app.get('/contract/{contract_id}')
 async def get_contract_by_id(contract_id: int) -> ContractInfo:
@@ -97,13 +115,15 @@ async def get_contracts_by_type(type: str) -> List[ContractInfo]:
 
 
 @app.delete('/contract/{contract_id}')
-async def remove_contract_by_id(contract_id: int) -> dict:
+async def remove_contract_by_id(contract_id: int, password: str) -> dict:
+    check_password(password)
     cnt = remove_contract(contract_id=contract_id)
     return {'deleted_count': cnt}
 
 
 @app.delete('/contracts')
-async def remove_contracts_by_type(type: str) -> dict:
+async def remove_contracts_by_type(type: str, password: str) -> dict:
+    check_password(password)
     cnt = remove_contracts(type=type)
     return {'deleted_count': cnt}
 
@@ -112,7 +132,8 @@ async def remove_contracts_by_type(type: str) -> dict:
 
 @app.get('/best_swap')
 async def best_swap(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
+    # TODO
+    client = init_tinyman_client(settings.algod_address)
     return get_best_swap(client, asset1_id, asset2_id, asset1_amount)
 
 
@@ -158,14 +179,14 @@ async def routing_transactions(address: str, asset1_id: int, asset2_id: int, ass
 
 @app.get('/pool')
 async def pool(asset1_id: int, asset2_id: int) -> dict:
-    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
+    client = init_tinyman_client()
     return get_pool_info(client, asset1_id, asset2_id)
 
 
 @app.get('/zap')
-async def prepare_zap(asset_id: int, microalgos: int) -> dict:
-    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
-    return zap(client, asset_id, microalgos)
+async def prepare_zap(user_address: str, asset_id: int, microalgos: int) -> dict:
+    client = init_tinyman_client()
+    return zap(client, user_address, asset_id, microalgos)
 
 
 if __name__ == "__main__":
@@ -186,4 +207,4 @@ if __name__ == "__main__":
         print(f'Command "{command}" is unknown!')
         exit(1)
 
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=settings.server_port)

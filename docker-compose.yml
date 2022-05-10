@@ -1,10 +1,26 @@
 version: '3.3'
 
 services:
-    app:
+    prod:
         build: .
         restart: always
         entrypoint: ./scripts/docker-entry.sh
+        environment:
+            COMETA_ENVIRONMENT: "prod"
         volumes:
             - .:/app
+        ports:
+            - "5000:5000"
+        network_mode: host
+
+    test:
+        build: .
+        restart: always
+        entrypoint: ./scripts/docker-entry.sh
+        environment:
+            COMETA_ENVIRONMENT: "test"
+        volumes:
+            - .:/app
+        ports:
+            - "5001:5001"
         network_mode: host
