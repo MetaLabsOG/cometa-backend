@@ -113,8 +113,7 @@ def encode_transactions(transactions):
     for txn in transactions:
         if txn:
             txn = encoding.msgpack_encode(txn)
-            txn = base64.b64decode(txn)
-            encode_trans.append(list(txn))
+            encode_trans.append(txn)
         else:
             encode_trans.append([])
     return encode_trans
@@ -124,22 +123,29 @@ def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
     pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount)
     transaction_group = pool.prepare_swap_transactions_from_quote(quote)
 
+    tx_id = transaction_group.transactions[0].get_txid()
+
     encoded_transactions = encode_transactions(transaction_group.transactions)
     encoded_signed_transactions = encode_transactions(transaction_group.signed_transactions)
 
-    return encoded_transactions, encoded_signed_transactions
+    return encoded_transactions, encoded_signed_transactions, tx_id
 
 
 def get_best_swap(client, token1_id, token2_id, token1_amount):
     asset1 = client.fetch_asset(token1_id)
     asset2 = client.fetch_asset(token2_id)
 
-    best_tokens, best_swap_path = 0, ''
+    best_tokens, best_path = 0, []
+    best_path.append({
+        'asset_id': token1_id,
+        'unit_name': asset1.unit_name,
+        'amount': token1_amount
+    })
 
     # SWAP TOKEN1-TOKEN2
     try:
         direct_tokens, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
-        best_tokens, best_swap_path = direct_tokens, [asset1.unit_name, asset2.unit_name],
+        best_tokens = direct_tokens
     except:
         direct_tokens = 0
 
@@ -148,9 +154,20 @@ def get_best_swap(client, token1_id, token2_id, token1_amount):
         algos, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
         res, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
         if res > best_tokens:
-            best_tokens, best_swap_path = res, [asset1.unit_name, 'ALGO', asset2.unit_name]
+            best_tokens = res
+            best_path.append({
+                'asset_id': ALGO_ASA_ID,
+                'unit_name': 'ALGO',
+                'amount': algos
+            })
     except:
-        algos = 0
+        pass
+
+    best_path.append({
+        'asset_id': token2_id,
+        'unit_name': asset2.unit_name,
+        'amount': best_tokens
+    })
 
     # SWAP DIFF IN USDC
     try:
@@ -161,10 +178,9 @@ def get_best_swap(client, token1_id, token2_id, token1_amount):
 
     return {
         'best_swap': best_tokens,
-        'best_path': best_swap_path,
+        'best_path': best_path,
         'direct_swap': direct_tokens,
         'usdc_diff': usdc_diff,
-        'algos': algos
     }
 
 

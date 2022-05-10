@@ -110,44 +110,50 @@ async def remove_contracts_by_type(type: str) -> dict:
 
 # TINYMAN SWAP
 
-@app.get('/asset_swap_cost')
-async def asset_swap_cost(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
-    try:
-        res_tokens, price_per_token = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
-
-        return {
-            'res_tokens': res_tokens,
-            'price_per_token': price_per_token
-        }
-    except Exception as e:
-        return {
-            'error': str(e)
-        }
-
-
-@app.get('/swap_asset_transactions')
-async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_tinyman_client(address)
-    try:
-        optin_transactions = get_optin_transactions(client, asset2_id)
-        transactions, signed_transactions = get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount)
-
-        return {
-            'optin_transactions': optin_transactions,
-            'transactions': transactions,
-            'signed_transactions': signed_transactions
-        }
-    except Exception as e:
-        return {
-            'error': str(e)
-        }
-
-
 @app.get('/best_swap')
 async def best_swap(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
     client = init_tinyman_client(DEFAULT_CLIENT_ADDRESS)
     return get_best_swap(client, asset1_id, asset2_id, asset1_amount)
+
+
+@app.get('/routing_transactions')
+async def routing_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+    TXNS_FIELD = 'txns'
+    SIGNED_TXNS_FIELD = 'signed_txns'
+
+    client = init_tinyman_client(address)
+    try:
+        transactions = []
+        tx_id = ''
+        optin_transactions = get_optin_transactions(client, asset2_id)
+        if len(optin_transactions) > 0:
+            transactions.append({
+                TXNS_FIELD: optin_transactions,
+                SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))]
+            })
+
+        best_tokens_swap = get_best_swap(client, asset1_id, asset2_id, asset1_amount)
+        print(best_tokens_swap['best_path'])
+        for num, token in enumerate(best_tokens_swap['best_path'][:-1]):
+            cur_asset_id = token['asset_id']
+            cur_asset_amount = token['amount']
+            next_asset_id = best_tokens_swap['best_path'][num + 1]['asset_id']
+            print(cur_asset_id, next_asset_id, cur_asset_amount)
+            swap_transactions, swap_signed_transactions, tx_id = get_swap_asset_transactions(
+                client, cur_asset_id, next_asset_id, cur_asset_amount)
+            transactions.append({
+                TXNS_FIELD: swap_transactions,
+                SIGNED_TXNS_FIELD: swap_signed_transactions
+            })
+
+        return {
+            'transactions': transactions,
+            'tx_id': tx_id
+        }
+    except Exception as e:
+        return {
+            'error': str(e)
+        }
 
 
 @app.get('/pool')
