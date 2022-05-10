@@ -17,4 +17,4 @@ tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git"}
 [dev-packages]
 
 [requires]
-python_version = "3.8"
+python_version = "3.9"
