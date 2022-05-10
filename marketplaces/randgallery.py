@@ -2,7 +2,7 @@ import requests
 
 from typing import List
 
-from env import MICROALGOS_IN_ALGO
+from blockchain.assets import MICROALGOS_IN_ALGO
 from .marketplace import Marketplace, Sale
 
 
