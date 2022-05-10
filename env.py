@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     server_port: int
     mongodb_port: int
 
+    api_password: str
+
     class Config:
         env_file = f'.env.{ENVIRONMENT}'
         arbitrary_types_allowed = True
