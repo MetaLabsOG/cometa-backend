@@ -1,3 +1,4 @@
+import secrets
 import sys
 from typing import List, Optional
 
@@ -30,6 +31,11 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+
+def check_password(password: str) -> None:
+    if not secrets.compare_digest(settings.api_password, password):
+        raise HTTPException(status_code=401, detail="Invalid password")
 
 
 @app.get('/status')
@@ -75,7 +81,8 @@ class ModifyContract(BaseModel):
 
 
 @app.post('/contract/add')
-async def add_new_contract(contract: AddContract) -> dict:
+async def add_new_contract(contract: AddContract, password: str) -> dict:
+    check_password(password)
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
@@ -84,7 +91,8 @@ async def add_new_contract(contract: AddContract) -> dict:
 
 
 @app.patch('/contract/update')
-async def update(contract: ModifyContract) -> dict:
+async def update(contract: ModifyContract, password: str) -> dict:
+    check_password(password)
     if get_contract(contract.id) is None:
         raise HTTPException(status_code=404, detail="Contract not found")
     
@@ -106,13 +114,15 @@ async def get_contracts_by_type(type: str) -> List[ContractInfo]:
 
 
 @app.delete('/contract/{contract_id}')
-async def remove_contract_by_id(contract_id: int) -> dict:
+async def remove_contract_by_id(contract_id: int, password: str) -> dict:
+    check_password(password)
     cnt = remove_contract(contract_id=contract_id)
     return {'deleted_count': cnt}
 
 
 @app.delete('/contracts')
-async def remove_contracts_by_type(type: str) -> dict:
+async def remove_contracts_by_type(type: str, password: str) -> dict:
+    check_password(password)
     cnt = remove_contracts(type=type)
     return {'deleted_count': cnt}
 
