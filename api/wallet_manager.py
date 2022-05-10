@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from api import tinychart
-from env import MICROALGOS_IN_ALGO
+from blockchain.assets import MICROALGOS_IN_ALGO
 
 
 @dataclass
@@ -25,10 +25,13 @@ def get_wallet_assets(address: str) -> List[AssetInfo]:
     if address == 'null':
         return []
     algo_price = tinychart.get_algo_price()
+    DEFLY_IN_ALGO = 0.0088
     return [
         AssetInfo('USD Coin', 'USDC', 1589, Price(1, int(1 / algo_price * MICROALGOS_IN_ALGO))),
-        AssetInfo('Algorand', 'ALGO', 12851, Price(algo_price, MICROALGOS_IN_ALGO)),
-        AssetInfo('gALGO3', 'gALGO3', 1125, Price(algo_price, MICROALGOS_IN_ALGO)),
+        AssetInfo('Algorand', 'ALGO', 13750, Price(algo_price, MICROALGOS_IN_ALGO)),  # TODO: next two lines insted of this when front is fixed
+        # AssetInfo('Algorand', 'ALGO', 12625, Price(algo_price, MICROALGOS_IN_ALGO)),
+        # AssetInfo('gALGO3', 'gALGO3', 1125, Price(algo_price, MICROALGOS_IN_ALGO)),
+        AssetInfo('Defly Token', 'DEFLY', 24672, Price(algo_price * DEFLY_IN_ALGO, DEFLY_IN_ALGO * MICROALGOS_IN_ALGO)),
     ]
 
 

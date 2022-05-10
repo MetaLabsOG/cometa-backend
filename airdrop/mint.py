@@ -55,7 +55,7 @@ def change_meta_config():
         index=META_ASA_ID,
         manager=public_key,
         reserve=public_key,
-        freeze=public_key,
+        freeze=None,
         clawback=None,
         strict_empty_address_check=False)
     signed_txn = txn.sign(private_key)
