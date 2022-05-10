@@ -1,10 +1,9 @@
+import os
 from functools import cached_property
 
 from pydantic import BaseSettings
 
-MICROALGOS_IN_ALGO = 1000000
-
-DEFAULT_CLIENT_ADDRESS = 'YGXBCM7TE2UUVL6OAYBJU2QN25NH5OQLXTNMK4ZD5NG45QOHH6YD4WK3OA'
+ENVIRONMENT = os.getenv('COMETA_ENVIRONMENT', default='test')
 
 
 class Settings(BaseSettings):
@@ -13,24 +12,21 @@ class Settings(BaseSettings):
     algo_mnemonic: str
     tinyman_mnemonic: str
 
-    testnet_algod_address: str
-    mainnet_algod_address: str
-
+    algod_address: str
     algod_token: str
 
+    server_port: int
     mongodb_port: int
 
+    api_password: str
+
     class Config:
-        env_file = '.env'
+        env_file = f'.env.{ENVIRONMENT}'
         arbitrary_types_allowed = True
         keep_untouched = (cached_property,)
 
     def is_mainnet(self):
         return self.algo_network == 'MAINNET'
-
-    @cached_property
-    def algod_address(self):
-        return self.mainnet_algod_address if self.is_mainnet() else self.testnet_algod_address
 
     @property
     def db_name(self):
