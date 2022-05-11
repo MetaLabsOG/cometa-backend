@@ -158,12 +158,10 @@ async def routing_transactions(address: str, asset1_id: int, asset2_id: int, ass
             })
 
         best_tokens_swap = get_best_swap(client, asset1_id, asset2_id, asset1_amount)
-        print(best_tokens_swap['best_path'])
         for num, token in enumerate(best_tokens_swap['best_path'][:-1]):
             cur_asset_id = token['asset_id']
             cur_asset_amount = token['amount']
             next_asset_id = best_tokens_swap['best_path'][num + 1]['asset_id']
-            print(cur_asset_id, next_asset_id, cur_asset_amount)
             swap_transactions, swap_signed_transactions, tx_id = get_swap_asset_transactions(
                 client, cur_asset_id, next_asset_id, cur_asset_amount)
             transactions.append({
@@ -176,9 +174,7 @@ async def routing_transactions(address: str, asset1_id: int, asset2_id: int, ass
             'tx_id': tx_id
         }
     except Exception as e:
-        return {
-            'error': str(e)
-        }
+        raise HTTPException(status_code=401, detail=str(e))
 
 
 @app.get('/pool')
