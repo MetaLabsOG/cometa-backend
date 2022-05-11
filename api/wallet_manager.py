@@ -9,9 +9,8 @@ from blockchain.assets import MICROALGOS_IN_ALGO
 from env import settings
 
 ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
-ACCOUNT_API = 'https://algoindexer.algoexplorerapi.io/v2/accounts/'
-    # if settings.is_mainnet() \
-    # else 'https://algoindexer.testnet.algoexplorerapi.io/v2/accounts/'
+ACCOUNT_API = 'https://algoindexer.algoexplorerapi.io/v2/accounts/' if settings.is_mainnet() \
+    else 'https://algoindexer.testnet.algoexplorerapi.io/v2/accounts/'
 
 
 @dataclass
