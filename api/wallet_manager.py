@@ -35,12 +35,11 @@ def get_wallet_assets(address: str) -> List[AssetInfo]:
     algo_price = tinychart.get_algo_price()
     DEFLY_IN_ALGO = 0.0088
     return [
-        AssetInfo('USD Coin', 'USDC', 1589, Price(1, int(1 / algo_price * MICROALGOS_IN_ALGO))),
-        AssetInfo('Algorand', 'ALGO', 13750, Price(algo_price, MICROALGOS_IN_ALGO)),
-        # TODO: next two lines insted of this when front is fixed
+        AssetInfo('USD Coin', 'USDC', 1589, Price(1, int(1 / algo_price * MICROALGOS_IN_ALGO)), 31566704),
+        AssetInfo('Algorand', 'ALGO', 13750, Price(algo_price, MICROALGOS_IN_ALGO), 0), # TODO: next two lines insted of this when front is fixed
         # AssetInfo('Algorand', 'ALGO', 12625, Price(algo_price, MICROALGOS_IN_ALGO)),
         # AssetInfo('gALGO3', 'gALGO3', 1125, Price(algo_price, MICROALGOS_IN_ALGO)),
-        AssetInfo('Defly Token', 'DEFLY', 24672, Price(algo_price * DEFLY_IN_ALGO, DEFLY_IN_ALGO * MICROALGOS_IN_ALGO)),
+        AssetInfo('Defly Token', 'DEFLY', 24672, Price(algo_price * DEFLY_IN_ALGO, DEFLY_IN_ALGO * MICROALGOS_IN_ALGO), 470842789),
     ]
 
 
@@ -61,8 +60,7 @@ def get_wallet_total_cost(address: str, weeks_count: int) -> List[TimedCost]:
     cur_time = int(time.time())
     costs = []
     for i in range(0, weeks_count):
-        cost = TimedCost(cur_time,
-                         Price(TOTAL_COST_WEEKS[i] / MICROALGOS_IN_ALGO, int(TOTAL_COST_WEEKS[i] / algo_price)))
+        cost = TimedCost(cur_time, Price(TOTAL_COST_WEEKS[i] / MICROALGOS_IN_ALGO, int(TOTAL_COST_WEEKS[i] / algo_price)))
         if address == 'null':
             cost = TimedCost(cur_time, Price(0, 0))
         costs.append(cost)
