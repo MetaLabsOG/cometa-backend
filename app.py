@@ -1,6 +1,6 @@
 import secrets
 import sys
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -12,7 +12,8 @@ from airdrop import airdrop, snapshot
 from api import market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts, update_contract
-from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
+from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
+    NftInfo, get_wallet_assets2
 
 from dexes.tinyman import get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap, \
     get_best_swap, get_optin_transactions
@@ -55,6 +56,9 @@ async def floor_price(asset_id: int) -> int:
 async def wallet_assets(address: str) -> List[AssetInfo]:
     return get_wallet_assets(address)
 
+@app.get('/wallet_assets2/{address}')
+async def wallet_assets(address: str) -> Dict[str, AssetInfo]:
+    return get_wallet_assets2(address)
 
 @app.get('/total_cost/{address}')
 async def total_cost(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
