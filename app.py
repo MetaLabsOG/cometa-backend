@@ -9,7 +9,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 
 from airdrop import airdrop, snapshot
-from api import market
+from api import nft_market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts, update_contract
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
@@ -49,7 +49,7 @@ async def status() -> dict:
 
 @app.get('/floor_price')
 async def floor_price(asset_id: int) -> int:
-    return market.get_floor_price(asset_id)
+    return nft_market.get_floor_price(asset_id)
 
 
 @app.get('/wallet_assets/{address}')

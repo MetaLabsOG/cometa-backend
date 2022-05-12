@@ -58,6 +58,14 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict
     }
 
 
+def get_price_algo(client: TinymanClient, asset_id: int) -> float:
+    ALGO = client.fetch_asset(ALGO_ASA_ID)
+    asset = client.fetch_asset(asset_id)
+    pool = client.fetch_pool(asset, ALGO)
+    print(f'asset1={pool.asset1_price}, asset2={pool.asset2_price}')
+    return pool.asset1_price
+
+
 def get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount):
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
