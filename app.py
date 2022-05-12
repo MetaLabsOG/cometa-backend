@@ -1,6 +1,6 @@
 import secrets
 import sys
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -12,9 +12,11 @@ from airdrop import airdrop, snapshot
 from api import market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts, update_contract
-from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
+from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
+    NftInfo, get_wallet_assets2
 
-from dexes.tinyman import get_asset_swap_cost, get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap
+from dexes.tinyman import get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap, \
+    get_best_swap, get_optin_transactions
 from env import settings
 
 app = FastAPI(
@@ -54,6 +56,9 @@ async def floor_price(asset_id: int) -> int:
 async def wallet_assets(address: str) -> List[AssetInfo]:
     return get_wallet_assets(address)
 
+@app.get('/wallet_assets2/{address}')
+async def wallet_assets(address: str) -> Dict[str, AssetInfo]:
+    return get_wallet_assets2(address)
 
 @app.get('/total_cost/{address}')
 async def total_cost(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
@@ -129,26 +134,47 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
 
 # TINYMAN SWAP
 
-@app.get('/asset_swap_cost')
-async def asset_swap_cost(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    client = init_tinyman_client()
-    res_tokens, price_per_token, _ = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
-
-    return {
-        'res_tokens': res_tokens,
-        'price_per_token': price_per_token
-    }
+@app.get('/best_swap')
+async def best_swap(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+    # TODO
+    client = init_tinyman_client(settings.algod_address)
+    return get_best_swap(client, asset1_id, asset2_id, asset1_amount)
 
 
-@app.get('/swap_asset_transactions')
-async def swap_asset_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+@app.get('/routing_transactions')
+async def routing_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+    TXNS_FIELD = 'txns'
+    SIGNED_TXNS_FIELD = 'signed_txns'
+
     client = init_tinyman_client(address)
-    transactions, signed_transactions = get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount)
+    try:
+        transactions = []
+        tx_id = ''
+        optin_transactions = get_optin_transactions(client, asset2_id)
+        if len(optin_transactions) > 0:
+            transactions.append({
+                TXNS_FIELD: optin_transactions,
+                SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))]
+            })
 
-    return {
-        'transactions': transactions,
-        'signed_transactions': signed_transactions
-    }
+        best_tokens_swap = get_best_swap(client, asset1_id, asset2_id, asset1_amount)
+        for num, token in enumerate(best_tokens_swap['best_path'][:-1]):
+            cur_asset_id = token['asset_id']
+            cur_asset_amount = token['amount']
+            next_asset_id = best_tokens_swap['best_path'][num + 1]['asset_id']
+            swap_transactions, swap_signed_transactions, tx_id = get_swap_asset_transactions(
+                client, cur_asset_id, next_asset_id, cur_asset_amount)
+            transactions.append({
+                TXNS_FIELD: swap_transactions,
+                SIGNED_TXNS_FIELD: swap_signed_transactions
+            })
+
+        return {
+            'transactions': transactions,
+            'tx_id': tx_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 
 @app.get('/pool')
