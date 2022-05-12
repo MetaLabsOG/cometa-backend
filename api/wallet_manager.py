@@ -6,6 +6,7 @@ import urllib.request, json
 
 from api import tinychart
 from blockchain.assets import MICROALGOS_IN_ALGO
+from dexes.tinyman import get_price_algo, init_tinyman_client
 from env import settings
 
 ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
@@ -118,6 +119,14 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
     ]
 
 
+def get_asset_price(asset_id: int) -> Price:
+    tinyman_client = init_tinyman_client()
+    # TODO: cache for sure (5 min (set in settings))
+    price_algo = get_price_algo(tinyman_client, asset_id)
+    algo_price = tinychart.get_algo_price()
+    return Price(price_algo * algo_price, int(price_algo * MICROALGOS_IN_ALGO))
+
+
 def get_wallet_assets2(address: str) -> Dict[str, AssetInfo]:
     with urllib.request.urlopen(ASSETS_PATH) as url:
         assets_info = json.loads(url.read().decode())
@@ -132,6 +141,7 @@ def get_wallet_assets2(address: str) -> Dict[str, AssetInfo]:
         if str(asset_id) in assets_info and asset['amount'] and not asset['deleted']:
             asset_info = assets_info[str(asset_id)]
             asset_amount = asset['amount'] / 10 ** asset_info['decimals']
-            wallet_assets[str(asset_id)] = AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, 0, asset_id)
+            asset_price = get_asset_price(asset_id)
+            wallet_assets[str(asset_id)] = AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, asset_price, asset_id)
 
     return wallet_assets
