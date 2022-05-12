@@ -1,9 +1,16 @@
 import time
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
+import requests
+import urllib.request, json
 
 from api import tinychart
 from blockchain.assets import MICROALGOS_IN_ALGO
+from env import settings
+
+ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
+ACCOUNT_API = 'https://algoindexer.algoexplorerapi.io/v2/accounts/' if settings.is_mainnet() \
+    else 'https://algoindexer.testnet.algoexplorerapi.io/v2/accounts/'
 
 
 @dataclass
@@ -18,6 +25,7 @@ class AssetInfo:
     ticker: str
     amount: int
     price: Price
+    asset_id: int
 
 
 def get_wallet_assets(address: str) -> List[AssetInfo]:
@@ -27,11 +35,11 @@ def get_wallet_assets(address: str) -> List[AssetInfo]:
     algo_price = tinychart.get_algo_price()
     DEFLY_IN_ALGO = 0.0088
     return [
-        AssetInfo('USD Coin', 'USDC', 1589, Price(1, int(1 / algo_price * MICROALGOS_IN_ALGO))),
-        AssetInfo('Algorand', 'ALGO', 13750, Price(algo_price, MICROALGOS_IN_ALGO)),  # TODO: next two lines insted of this when front is fixed
+        AssetInfo('USD Coin', 'USDC', 1589, Price(1, int(1 / algo_price * MICROALGOS_IN_ALGO)), 31566704),
+        AssetInfo('Algorand', 'ALGO', 13750, Price(algo_price, MICROALGOS_IN_ALGO), 0), # TODO: next two lines insted of this when front is fixed
         # AssetInfo('Algorand', 'ALGO', 12625, Price(algo_price, MICROALGOS_IN_ALGO)),
         # AssetInfo('gALGO3', 'gALGO3', 1125, Price(algo_price, MICROALGOS_IN_ALGO)),
-        AssetInfo('Defly Token', 'DEFLY', 24672, Price(algo_price * DEFLY_IN_ALGO, DEFLY_IN_ALGO * MICROALGOS_IN_ALGO)),
+        AssetInfo('Defly Token', 'DEFLY', 24672, Price(algo_price * DEFLY_IN_ALGO, DEFLY_IN_ALGO * MICROALGOS_IN_ALGO), 470842789),
     ]
 
 
@@ -108,3 +116,22 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             -12
         )
     ]
+
+
+def get_wallet_assets2(address: str) -> Dict[str, AssetInfo]:
+    with urllib.request.urlopen(ASSETS_PATH) as url:
+        assets_info = json.loads(url.read().decode())
+
+    url = ACCOUNT_API + address
+    r = requests.get(url)
+    data = r.json()
+
+    wallet_assets = {}
+    for asset in data['account']['assets']:
+        asset_id = asset['asset-id']
+        if str(asset_id) in assets_info and asset['amount'] and not asset['deleted']:
+            asset_info = assets_info[str(asset_id)]
+            asset_amount = asset['amount'] / 10 ** asset_info['decimals']
+            wallet_assets[str(asset_id)] = AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, 0, asset_id)
+
+    return wallet_assets
