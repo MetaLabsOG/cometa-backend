@@ -4,13 +4,13 @@ from typing import Optional
 from algosdk import account, encoding, mnemonic
 from tinyman.assets import Asset
 from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
+from tinyman.utils import TransactionGroup
+from algosdk.future.transaction import ApplicationOptInTxn, AssetOptInTxn
 
 from blockchain.assets import ALGO_ASA_ID, USDC_ASA_ID
 from blockchain.node import init_algod_client
 from env import settings
 
-
-ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
 
 private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
 public_key = account.address_from_private_key(private_key)
@@ -58,19 +58,52 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict
     }
 
 
-def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):
+def get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount):
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
     pool = client.fetch_pool(asset1, asset2)
 
+    quote = pool.fetch_fixed_input_swap_quote(asset1(get_micros(asset1_amount, asset1)), slippage=0.01)
+
+    return pool, quote
+
+
+def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):
+    asset1 = client.fetch_asset(asset1_id)
+    asset2 = client.fetch_asset(asset2_id)
+    pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount)
+
     decimal1 = 10 ** asset1.decimals
     decimal2 = 10 ** asset2.decimals
 
-    quote = pool.fetch_fixed_input_swap_quote(asset1(asset1_amount * decimal1), slippage=0.01)
     price_per_token = quote.price * decimal1 / decimal2
     res_tokens = price_per_token * asset1_amount
 
-    return float(res_tokens), float(price_per_token), quote
+    return float(res_tokens), float(price_per_token)
+
+
+def get_optin_transactions(client, asset_id):
+    optin_txns = []
+    suggested_params = client.algod.suggested_params()
+    if not client.is_opted_in():
+        txn = ApplicationOptInTxn(
+            sender=client.user_address,
+            sp=suggested_params,
+            index=client.validator_app_id,
+        )
+        optin_txns.append(txn)
+
+    if asset_id > 0 and not client.asset_is_opted_in(asset_id):
+        txn = AssetOptInTxn(
+            sender=client.user_address,
+            sp=suggested_params,
+            index=asset_id,
+        )
+        optin_txns.append(txn)
+
+    transaction_group = TransactionGroup(optin_txns)
+
+    return encode_transactions(transaction_group.transactions)
 
 
 def check_optin(client: TinymanClient, asset_id: int, user_address: str):
@@ -92,39 +125,75 @@ def encode_transactions(transactions):
     for txn in transactions:
         if txn:
             txn = encoding.msgpack_encode(txn)
-            txn = base64.b64decode(txn)
-            encode_trans.append(list(txn))
+            encode_trans.append(txn)
         else:
             encode_trans.append([])
     return encode_trans
 
 
 def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
-    _, _, quote = get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount)
-    asset1 = client.fetch_asset(asset1_id)
-    asset2 = client.fetch_asset(asset2_id)
-    pool = client.fetch_pool(asset1, asset2)
+    pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount)
     transaction_group = pool.prepare_swap_transactions_from_quote(quote)
+
+    tx_id = transaction_group.transactions[0].get_txid()
 
     encoded_transactions = encode_transactions(transaction_group.transactions)
     encoded_signed_transactions = encode_transactions(transaction_group.signed_transactions)
 
-    return encoded_transactions, encoded_signed_transactions
+    return encoded_transactions, encoded_signed_transactions, tx_id
 
 
-def get_swap_diff(client, token1_id, token2_id, token1_amount):
+def get_best_swap(client, token1_id, token2_id, token1_amount):
+    asset1 = client.fetch_asset(token1_id)
+    asset2 = client.fetch_asset(token2_id)
+
+    best_tokens, best_path = 0, []
+    best_path.append({
+        'asset_id': token1_id,
+        'unit_name': asset1.unit_name,
+        'amount': token1_amount
+    })
+
     # SWAP TOKEN1-TOKEN2
-    res1, price_per_token2, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
+    try:
+        direct_tokens, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
+        best_tokens = direct_tokens
+    except:
+        direct_tokens = 0
 
     # SWAP TOKEN1-ALGO-TOKEN2
-    algos, price_per_algo, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
-    res2, algo_per_token2, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
+    try:
+        algos, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
+        res, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
+        if res > best_tokens:
+            best_tokens = res
+            best_path.append({
+                'asset_id': ALGO_ASA_ID,
+                'unit_name': 'ALGO',
+                'amount': algos
+            })
+    except:
+        pass
+
+    best_path.append({
+        'asset_id': token2_id,
+        'unit_name': asset2.unit_name,
+        'amount': best_tokens
+    })
 
     # SWAP DIFF IN USDC
-    algos, price_per_algo, _ = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, res2 - res1)
-    usdc_res, usdc_price, _ = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos)
+    try:
+        algos_diff, _ = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, max(0, best_tokens - direct_tokens))
+        usdc_diff, _ = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos_diff)
+    except:
+        usdc_diff = 0
 
-    return res1, res2, usdc_res
+    return {
+        'best_swap': best_tokens,
+        'best_path': best_path,
+        'direct_swap': direct_tokens,
+        'usdc_diff': usdc_diff,
+    }
 
 
 def zap(client: TinymanClient, user_address: str, asset_id: int, microalgos: int) -> dict:
@@ -161,3 +230,4 @@ def zap(client: TinymanClient, user_address: str, asset_id: int, microalgos: int
     print(f'Share of pool: {share:.3f}%')
 
     return {'added_lp_tokens': info[pool.liquidity_asset]}
+
