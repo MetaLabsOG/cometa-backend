@@ -5,7 +5,7 @@ from typing import List
 
 from dataclasses_json import dataclass_json
 
-from . import market
+from . import nft_market
 from blockchain.indexer import get_asset_ids_by_creator, get_asset_owner
 
 META_ADDRESSES = [
