@@ -16,7 +16,7 @@ from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wall
     NftInfo, get_wallet_assets2
 
 from dexes.tinyman import get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap, \
-    get_best_swap, get_optin_transactions
+    get_best_swap, get_optin_transactions, get_fee_transaction, encode_transactions
 from env import settings
 
 app = FastAPI(
@@ -162,6 +162,20 @@ async def routing_transactions(address: str, asset1_id: int, asset2_id: int, ass
             cur_asset_id = token['asset_id']
             cur_asset_amount = token['amount']
             next_asset_id = best_tokens_swap['best_path'][num + 1]['asset_id']
+
+            # if we swap through algo then pay commission
+            # if cur_asset_id == 0 and len(best_tokens_swap['best_path']) > 2:
+            #     algo_amount = cur_asset_amount
+            #     TODO: fix calculation (Y - X) * 10% * A / Y
+            #     fee_amount = algo_amount * 0.01
+            #     cur_asset_amount -= fee_amount
+            #     fee_txn = get_fee_transaction(client, address, fee_amount)
+            #     encoded_fee_txn = encode_transactions([fee_txn])
+            #     transactions.append({
+            #         TXNS_FIELD: encoded_fee_txn,
+            #         SIGNED_TXNS_FIELD: [[]]
+            #     })
+
             swap_transactions, swap_signed_transactions, tx_id = get_swap_asset_transactions(
                 client, cur_asset_id, next_asset_id, cur_asset_amount)
             transactions.append({
