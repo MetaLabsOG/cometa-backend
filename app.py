@@ -164,16 +164,17 @@ async def routing_transactions(address: str, asset1_id: int, asset2_id: int, ass
             next_asset_id = best_tokens_swap['best_path'][num + 1]['asset_id']
 
             # if we swap through algo then pay commission
-            if cur_asset_id == 0 and len(best_tokens_swap['best_path']) > 2:
-                algo_amount = cur_asset_amount
-                fee_amount = algo_amount * 0.01
-                cur_asset_amount -= fee_amount
-                fee_txn = get_fee_transaction(client, address, fee_amount)
-                encoded_fee_txn = encode_transactions([fee_txn])
-                transactions.append({
-                    TXNS_FIELD: encoded_fee_txn,
-                    SIGNED_TXNS_FIELD: [[]]
-                })
+            # if cur_asset_id == 0 and len(best_tokens_swap['best_path']) > 2:
+            #     algo_amount = cur_asset_amount
+            #     TODO: fix calculation (Y - X) * 10% * A / Y
+            #     fee_amount = algo_amount * 0.01
+            #     cur_asset_amount -= fee_amount
+            #     fee_txn = get_fee_transaction(client, address, fee_amount)
+            #     encoded_fee_txn = encode_transactions([fee_txn])
+            #     transactions.append({
+            #         TXNS_FIELD: encoded_fee_txn,
+            #         SIGNED_TXNS_FIELD: [[]]
+            #     })
 
             swap_transactions, swap_signed_transactions, tx_id = get_swap_asset_transactions(
                 client, cur_asset_id, next_asset_id, cur_asset_amount)
