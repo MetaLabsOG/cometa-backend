@@ -135,13 +135,20 @@ def get_wallet_assets2(address: str) -> Dict[str, AssetInfo]:
     r = requests.get(url)
     data = r.json()
 
+    assets = data['account']['assets']
+    assets.append({
+        'asset-id': 0,
+        'amount': data['account']['amount'],
+        'deleted': False
+    })
+
     wallet_assets = {}
-    for asset in data['account']['assets']:
+    for asset in assets:
         asset_id = asset['asset-id']
         if str(asset_id) in assets_info and asset['amount'] and not asset['deleted']:
             asset_info = assets_info[str(asset_id)]
             asset_amount = asset['amount'] / 10 ** asset_info['decimals']
-            asset_price = get_asset_price(asset_id)
-            wallet_assets[str(asset_id)] = AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, asset_price, asset_id)
+            # asset_price = get_asset_price(asset_id)
+            wallet_assets[str(asset_id)] = AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, 0, asset_id)
 
     return wallet_assets
