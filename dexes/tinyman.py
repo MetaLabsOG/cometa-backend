@@ -187,8 +187,8 @@ def get_best_swap(client, token1_id, token2_id, token1_amount):
     # SWAP TOKEN1-ALGO-TOKEN2
     try:
         algos, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
-        # transactions commissions + swap comission
-        algos -= algos * 0.01 - 0.002 * 2
+        # transactions commissions
+        algos -= 0.002 * 2
         res, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
         if res > best_tokens:
             best_tokens = res
