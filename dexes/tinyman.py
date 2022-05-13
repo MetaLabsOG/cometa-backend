@@ -5,7 +5,7 @@ from algosdk import account, encoding, mnemonic
 from tinyman.assets import Asset
 from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
 from tinyman.utils import TransactionGroup
-from algosdk.future.transaction import ApplicationOptInTxn, AssetOptInTxn
+from algosdk.future.transaction import ApplicationOptInTxn, AssetOptInTxn, PaymentTxn
 
 from blockchain.assets import ALGO_ASA_ID, USDC_ASA_ID
 from blockchain.node import init_algod_client
@@ -151,6 +151,21 @@ def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
     return encoded_transactions, encoded_signed_transactions, tx_id
 
 
+def get_fee_transaction(client, address, fee):
+    receiver = 'METAZZXDNBTZSI5PQORZD3Z7GMDXGJBZ3ZZXWS43KARTPGV4ZDOIWQPIF4'
+
+    suggested_params = client.algod.suggested_params()
+    fee = int(fee * 10 ** 6)
+
+    return PaymentTxn(
+        sender=address,
+        sp=suggested_params,
+        receiver=receiver,
+        amt=fee,
+        note='fee',
+    )
+
+
 def get_best_swap(client, token1_id, token2_id, token1_amount):
     asset1 = client.fetch_asset(token1_id)
     asset2 = client.fetch_asset(token2_id)
@@ -172,6 +187,8 @@ def get_best_swap(client, token1_id, token2_id, token1_amount):
     # SWAP TOKEN1-ALGO-TOKEN2
     try:
         algos, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
+        # transactions commissions + swap comission
+        algos -= algos * 0.01 - 0.002 * 2
         res, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
         if res > best_tokens:
             best_tokens = res
