@@ -28,7 +28,7 @@ def get_all_metapunk_ids() -> List[int]:
 def get_listed_ids() -> List[int]:
     res = []
     for address in META_ADDRESSES:
-        sales = market.get_sales(address)
+        sales = nft_market.get_sales(address)
         res = res + [s.asa_id for s in sales]
     return res
 
