@@ -40,7 +40,7 @@ def make_snapshot(snapshot_id: str):
         print(f'Snapshot #{snapshot_id} is already done!')
         return
 
-    # mock_snapshot(snapshot_id)
+    # mock_snapshot(snapshot_id)  # For testing.
     # return
 
     current_round = get_current_round()
@@ -76,4 +76,3 @@ def make_snapshot(snapshot_id: str):
 
 if __name__ == '__main__':
     make_snapshot('1')
-    # print(db.snapshots.find_one({'snapshot_id': -1}))
