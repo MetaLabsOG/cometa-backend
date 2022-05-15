@@ -1,7 +1,7 @@
-import base64
 from typing import Optional
 
 from algosdk import account, encoding, mnemonic
+from algosdk.v2client.algod import AlgodClient
 from tinyman.assets import Asset
 from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
 from tinyman.utils import TransactionGroup
@@ -16,12 +16,16 @@ private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
 
-def init_tinyman_client(address: Optional[str] = public_key) -> TinymanClient:
-    algod_client = init_algod_client()
+def tinyman_from_algod(algod_client: AlgodClient, address: Optional[str] = public_key) -> TinymanClient:
     if settings.is_mainnet():
         return TinymanMainnetClient(algod_client=algod_client, user_address=address)
     else:
         return TinymanTestnetClient(algod_client=algod_client, user_address=address)
+
+
+def init_tinyman_client(address: Optional[str] = public_key) -> TinymanClient:
+    algod_client = init_algod_client()
+    return tinyman_from_algod(algod_client, address)
 
 
 def get_amount(micros: int, asset: Asset) -> float:
