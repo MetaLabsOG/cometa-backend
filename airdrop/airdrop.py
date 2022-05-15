@@ -2,10 +2,10 @@ from datetime import datetime
 
 from algosdk import mnemonic, account
 from algosdk.future import transaction
-from algosdk.v2client import algod
 from pymongo import MongoClient
 
 from blockchain.assets import META_TOTAL_SUPPLY, META_ASA_ID, META_DECIMALS
+from blockchain.node import init_algod_client
 from dexes.tinyman import tinyman_from_algod
 from env import settings
 
@@ -18,11 +18,7 @@ AIRDROP_SUPPLY = META_TOTAL_SUPPLY * CURRENT_PERCENT
 
 db = MongoClient(port=settings.mongodb_port)[settings.db_name]
 
-algod_client = algod.AlgodClient(settings.algod_token, settings.algod_address,
-                                 headers={
-                                     'User-Agent': 'py-algorand-sdk',
-                                     'X-API-Key': settings.algod_token
-                                 })
+algod_client = init_algod_client()
 tinyman_client = tinyman_from_algod(algod_client)
 private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)
