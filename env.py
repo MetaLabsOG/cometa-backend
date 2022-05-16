@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     api_password: str
 
+    algo_price_ttl: int
+    asset_prices_ttl: int
+
     class Config:
         env_file = f'.env.{ENVIRONMENT}'
         arbitrary_types_allowed = True
