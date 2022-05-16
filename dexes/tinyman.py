@@ -1,7 +1,10 @@
+import json
+import urllib.request
 from typing import Optional
 
 from algosdk import account, encoding, mnemonic
 from algosdk.v2client.algod import AlgodClient
+from cachetools import TTLCache, cached
 from tinyman.assets import Asset
 from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
 from tinyman.utils import TransactionGroup
@@ -10,6 +13,9 @@ from algosdk.future.transaction import ApplicationOptInTxn, AssetOptInTxn, Payme
 from blockchain.assets import ALGO_ASA_ID, USDC_ASA_ID
 from blockchain.node import init_algod_client
 from env import settings
+
+
+ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
 
 
 private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
@@ -62,11 +68,13 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict
     }
 
 
-def get_price_algo(client: TinymanClient, asset_id: int) -> float:
+def get_price(client: TinymanClient, asset_id: int) -> float:
+    if asset_id == ALGO_ASA_ID:
+        return 1
+    print(f'Getting price for asset {asset_id}')
     ALGO = client.fetch_asset(ALGO_ASA_ID)
     asset = client.fetch_asset(asset_id)
     pool = client.fetch_pool(asset, ALGO)
-    print(f'asset1={pool.asset1_price}, asset2={pool.asset2_price}')
     return pool.asset1_price
 
 
@@ -260,3 +268,13 @@ def zap(client: TinymanClient, user_address: str, asset_id: int, microalgos: int
 
     return {'added_lp_tokens': info[pool.liquidity_asset]}
 
+
+# TODO: move asset infos to DB
+@cached(cache=TTLCache(maxsize=1, ttl=settings.asset_prices_ttl))
+def get_all_assets():
+    with urllib.request.urlopen(ASSETS_PATH) as url:
+        return json.loads(url.read().decode())
+
+
+def get_asset_info(asset_id: int) -> Optional[dict]:
+    return get_all_assets().get(str(asset_id))
