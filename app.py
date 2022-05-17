@@ -19,6 +19,7 @@ from dexes.tinyman import get_swap_asset_transactions, init_tinyman_client, get_
     get_best_swap, get_optin_transactions, get_fee_transaction, encode_transactions
 from env import settings
 
+
 app = FastAPI(
     title="Cometa",
     version="0.1.5"
@@ -201,7 +202,6 @@ async def pool(asset1_id: int, asset2_id: int) -> dict:
 async def prepare_zap(user_address: str, asset_id: int, microalgos: int) -> dict:
     client = init_tinyman_client()
     return zap(client, user_address, asset_id, microalgos)
-
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
