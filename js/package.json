@@ -17,6 +17,7 @@
   "homepage": "https://github.com/MetaLabsOG/cometa-backend#readme",
   "dependencies": {
     "@metalabsog/crowdsale": "15.1.0",
+    "@metalabsog/farm": "15.1.0",
     "dotenv": "^16.0.1"
   }
 }
