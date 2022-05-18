@@ -1,8 +1,9 @@
+const fs = require('fs/promises');
 const path = require("path");
 const COMETA_ENV = process.env.COMETA_ENVIRONMENT || "test";
 
 require("dotenv").config({
-  path: path.resolve(process.cwd(), `../.env.${COMETA_ENV}`),
+  path: path.resolve(__dirname, `../.env.${COMETA_ENV}`),
 });
 
 const COMMANDS = require("./commands");
@@ -33,19 +34,25 @@ function readJsonFromStdin() {
 }
 
 let response = {};
-readJsonFromStdin()
+let outFile = null;
+
+fs.open(process.argv[2], 'w')
+  .then((filehandle) => {
+    outFile = filehandle;
+    return readJsonFromStdin()
+  })
   .then((body) => {
-    return main(process.argv.slice(2), body);
+    return main(process.argv.slice(3), body);
   })
   .then((result) => {
     response = result;
   })
   .catch((err) => {
-    response = { error: err.message };
+    response = { error: err.message, stack: err.stack };
   })
   .finally(() => {
     const strResponse = JSON.stringify(response);
-    process.stdout.write(`${strResponse}\n`);
+    outFile.write(`${strResponse}\n`);
   });
 
 const main = async (argv, params) => {
