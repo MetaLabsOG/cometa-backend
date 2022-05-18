@@ -14,6 +14,7 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts, update_contract
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2
+from api.js_interop import calljs
 
 from dexes.tinyman import get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap, \
     get_best_swap, get_optin_transactions, get_fee_transaction, encode_transactions
@@ -132,6 +133,19 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
     cnt = remove_contracts(type=type)
     return {'deleted_count': cnt}
 
+class DeployContract(BaseModel):
+    type: str
+    settings: dict
+    metadata: Optional[dict] = None
+    description: Optional[str] = None
+
+@app.post('/contract/deploy')
+async def deploy_contract(password: str, parameters: DeployContract) -> dict:
+    check_password(password)
+    version = calljs("contractVersion", contractType=parameters.type)
+    contract_id = calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
+    added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
+    return {'internal_id': added}
 
 # TINYMAN SWAP
 
@@ -202,6 +216,19 @@ async def pool(asset1_id: int, asset2_id: int) -> dict:
 async def prepare_zap(user_address: str, asset_id: int, microalgos: int) -> dict:
     client = init_tinyman_client()
     return zap(client, user_address, asset_id, microalgos)
+
+# CROWDSALE
+@app.put('/whitelist')
+async def whitelist(contract_id: int, address: str) -> bool:
+    contract = get_contract(contract_id)
+    if contract is None or contract.type != 'crowdsale':
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    whitelist = contract.metadata["whitelist"]
+    if address not in whitelist:
+        raise HTTPException(status_code=403, detail="Address not whitelisted")
+
+    return calljs("crowdsaleWhitelist", contractId=contract.id, addr=address)
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
