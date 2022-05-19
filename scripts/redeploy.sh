@@ -1,3 +1,9 @@
 #!/bin/bash
 
-git pull && scripts/restart.sh
+git pull
+
+pushd js
+npm install
+popd
+
+scripts/restart.sh
