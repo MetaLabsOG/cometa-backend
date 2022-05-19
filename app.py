@@ -218,8 +218,7 @@ async def prepare_zap(user_address: str, asset_id: int, microalgos: int) -> dict
     return zap(client, user_address, asset_id, microalgos)
 
 # CROWDSALE
-@app.put('/whitelist')
-async def whitelist(contract_id: int, address: str) -> bool:
+def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
     contract = get_contract(contract_id)
     if contract is None or contract.type != 'crowdsale':
         raise HTTPException(status_code=404, detail="Contract not found")
@@ -228,7 +227,16 @@ async def whitelist(contract_id: int, address: str) -> bool:
     if address not in whitelist:
         raise HTTPException(status_code=403, detail="Address not whitelisted")
 
-    return calljs("crowdsaleWhitelist", contractId=contract.id, addr=address)
+@app.put('/whitelist_confirm')
+async def whitelist_confirm(contract_id: int, address: str) -> bool:
+    check_crowdsale_whitelist(contract_id, address)
+    return calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
+
+@app.get('/whitelist_check')
+async def whitelist_check(contract_id: int, address: str) -> bool:
+    check_crowdsale_whitelist(contract_id, address)
+    return True
+
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
