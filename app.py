@@ -147,6 +147,11 @@ async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
     return {'internal_id': added}
 
+@app.get('/contract_version')
+async def get_contract_version(type: str) -> dict:
+    version = calljs("contractVersion", contractType=type)
+    return {'version': version}
+
 # TINYMAN SWAP
 
 @app.get('/best_swap')
