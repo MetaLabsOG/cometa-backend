@@ -8,10 +8,12 @@ const CONTRACT_PKGS = {
   farm,
 };
 
+const MNEMONIC = process.env.DEPLOY_MNEMONIC;
+
 const crowdsaleWhitelist = async ({ contractId, addr }) => {
   const { backend, reach } = await crowdsale;
   reach.setProviderByName(NETWORK);
-  const account = await reach.newAccountFromMnemonic(process.env.algo_mnemonic);
+  const account = await reach.newAccountFromMnemonic(MNEMONIC);
 
   const ctc = account.contract(backend, contractId);
   await ctc.a.whitelist(addr);
@@ -33,7 +35,7 @@ const deployContract = async ({ contractType, contractSettings }) => {
 
   const { deploy, reach } = await CONTRACT_PKGS[contractType];
   reach.setProviderByName(NETWORK);
-  const creatorAcc = await reach.newAccountFromMnemonic(process.env.algo_mnemonic);
+  const creatorAcc = await reach.newAccountFromMnemonic(MNEMONIC);
   const { contractId } = await deploy(creatorAcc, contractSettings);
   return contractId;
 }
