@@ -1,3 +1,4 @@
+import asyncio
 import subprocess
 import shutil
 import socket
@@ -13,26 +14,29 @@ def start_js_interop_server():
     jspath = path.join(DIR_PATH, "js", "index.js")
     return subprocess.Popen([shutil.which("node"), jspath, COMETA_SOCK], encoding="utf-8")
 
-def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
+async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
+    loop = asyncio.get_event_loop()
     buf = b''
     while delimeter not in buf:
-        chunk = s.recv(buf_size)
+        chunk = await loop.sock_recv(s, buf_size)
         if not chunk:
             raise RuntimeError("socket closed during recv")
         buf += chunk
     res, _, _ = buf.partition(delimeter)
     return res
 
-def calljs(cmd: str, **params):
+async def calljs(cmd: str, **params):
     if not path.exists(COMETA_SOCK):
         raise Exception(f"No Unix socket {COMETA_SOCK}; did you start js interop server?")
 
     inp = json.dumps({"command": cmd, "body": params})
+    loop = asyncio.get_event_loop()
+
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-        client.connect(COMETA_SOCK)
-        client.sendall(inp.encode('utf-8'))
+        await loop.sock_connect(client, COMETA_SOCK)
+        await loop.sock_sendall(client, inp.encode('utf-8'))
         client.shutdown(socket.SHUT_WR)
-        outp = recv_until_delimeter(client, '\n'.encode('utf-8'))
+        outp = await recv_until_delimeter(client, '\n'.encode('utf-8'))
         client.shutdown(socket.SHUT_RD)
     
     response = json.loads(outp.decode('utf-8'))
