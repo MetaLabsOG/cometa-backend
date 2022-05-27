@@ -142,14 +142,14 @@ class DeployContract(BaseModel):
 @app.post('/contract/deploy')
 async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     check_password(password)
-    version = calljs("contractVersion", contractType=parameters.type)
-    contract_id = calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
+    version = await calljs("contractVersion", contractType=parameters.type)
+    contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
     added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
     return {'internal_id': added}
 
 @app.get('/contract_version')
 async def get_contract_version(type: str) -> dict:
-    version = calljs("contractVersion", contractType=type)
+    version = await calljs("contractVersion", contractType=type)
     return {'version': version}
 
 # TINYMAN SWAP
@@ -209,13 +209,18 @@ def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
 @app.put('/whitelist_confirm')
 async def whitelist_confirm(contract_id: int, address: str) -> bool:
     check_crowdsale_whitelist(contract_id, address)
-    return calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
+    return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
 
 @app.get('/whitelist_check')
 async def whitelist_check(contract_id: int, address: str) -> bool:
     check_crowdsale_whitelist(contract_id, address)
     return True
 
+@app.get('/contracts_states')
+async def contracts_states(type: str) -> dict:
+    infos = get_contracts(type)
+    ids = [info.id for info in infos]
+    return await calljs("fetchContractsGlobalViews", contractType=type, ids=ids)
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
