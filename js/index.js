@@ -8,12 +8,16 @@ require("dotenv").config({
 });
 
 const net = require("net");
-const COMMANDS = require("./commands");
+
+// This is done like this to ensure that Reach is loaded on the start of the server,
+// but __after__ the dotenv require (so that all the env vars are loaded into the stdlib correctly).
+const COMMANDS_PROMISE = import("./commands.mjs");
 const COMETA_SOCK = process.argv[2] || "/tmp/cometa-js-interop.sock";
 
 const server = net.createServer({ allowHalfOpen: true });
 
-server.listen(COMETA_SOCK, () => {
+server.listen(COMETA_SOCK, async () => {
+  await COMMANDS_PROMISE; // pre-load before any calls
   console.log(`JS INTEROP: server listens on ${COMETA_SOCK}`);
 });
 
@@ -77,6 +81,7 @@ function readJsonFromSocket(sock) {
 }
 
 const main = async (cmd, params) => {
+  const COMMANDS = await COMMANDS_PROMISE; // should be already resolved here
   if (!(cmd in COMMANDS)) {
     throw new Error(
       `undefined command ${cmd}; expected one of ${JSON.stringify(
