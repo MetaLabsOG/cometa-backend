@@ -14,7 +14,7 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts, update_contract
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2
-from api.js_interop import calljs
+from api.js_interop import calljs, start_js_interop_server
 
 from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
     get_swap_transactions, get_zap_data
@@ -235,4 +235,5 @@ if __name__ == "__main__":
         print(f'Command "{command}" is unknown!')
         exit(1)
 
-    uvicorn.run(app, host="0.0.0.0", port=settings.server_port)
+    with start_js_interop_server():
+        uvicorn.run(app, host="0.0.0.0", port=settings.server_port)

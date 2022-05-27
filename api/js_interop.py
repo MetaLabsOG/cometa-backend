@@ -1,31 +1,41 @@
-import shutil
 import subprocess
+import shutil
+import socket
 import json
 import os
 
 from os import path
 from env import DIR_PATH
 
-# TODO: Loading up Reach for each interop call is wasteful and legacy. Should spawn 1 process
-# per the backend lifecycle and continually communicate with it. But it's not super necessary right now.
-# TODO: will need to create a writeout pipe separately for each request anyway.
-def calljs(cmd: str, **params):
+COMETA_SOCK = '/tmp/cometa-js-interop.sock';
+
+def start_js_interop_server():
     jspath = path.join(DIR_PATH, "js", "index.js")
-    inp = json.dumps(params)
+    return subprocess.Popen([shutil.which("node"), jspath, COMETA_SOCK], encoding="utf-8")
 
-    # create a pipe (stdout gets clogged by Reach console logs)
-    fifo_path = "/tmp/.cometa_js_interop"
-    if not path.exists(fifo_path):
-        os.mkfifo(fifo_path)
+def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
+    buf = b''
+    while delimeter not in buf:
+        chunk = s.recv(buf_size)
+        if not chunk:
+            raise RuntimeError("socket closed during recv")
+        buf += chunk
+    res, _, _ = buf.partition(delimeter)
+    return res
 
-    with subprocess.Popen(["node", jspath, fifo_path, cmd], stdin=subprocess.PIPE, encoding='utf-8') as proc:
-        proc.stdin.write(inp)
-        proc.stdin.close()
-        with open(fifo_path, 'r') as f:
-            output = f.read()
+def calljs(cmd: str, **params):
+    if not path.exists(COMETA_SOCK):
+        raise Exception(f"No Unix socket {COMETA_SOCK}; did you start js interop server?")
 
-    os.unlink(fifo_path)
-    response = json.loads(output)
+    inp = json.dumps({"command": cmd, "body": params})
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.connect(COMETA_SOCK)
+        client.sendall(inp.encode('utf-8'))
+        client.shutdown(socket.SHUT_WR)
+        outp = recv_until_delimeter(client, '\n'.encode('utf-8'))
+        client.shutdown(socket.SHUT_RD)
+    
+    response = json.loads(outp.decode('utf-8'))
 
     if "error" in response:
         print('js stack trace:', response["stack"])
