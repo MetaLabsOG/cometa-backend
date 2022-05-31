@@ -4,7 +4,7 @@ from functools import cached_property
 from pydantic import BaseSettings
 
 ENVIRONMENT = os.getenv('COMETA_ENVIRONMENT', default='test')
-
+DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 class Settings(BaseSettings):
     algo_network: str
@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     mongodb_port: int
 
     api_password: str
+
+    algo_price_ttl: int
+    asset_prices_ttl: int
 
     class Config:
         env_file = f'.env.{ENVIRONMENT}'

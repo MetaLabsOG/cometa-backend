@@ -10,6 +10,9 @@ stdenv.mkDerivation {
     python38Full
     python38Packages.pyflakes
     pipenv
+
+    # Node (for running backend-based Reach scripts)
+    nodejs-16_x
   ];
   src = null;
   shellHook = ''
@@ -18,8 +21,11 @@ stdenv.mkDerivation {
 
     # Augment the dynamic linker path
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${R}/lib/R/lib:${readline}/lib
-    
+
     # Enter pipenv
     pipenv shell
+
+    # Set cometa env
+    export COMETA_ENVIRONMENT=test
   '';
 }
