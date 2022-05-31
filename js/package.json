@@ -1,0 +1,23 @@
+{
+  "name": "@metalabsog/cometa-backend-scripts",
+  "version": "1.0.0",
+  "description": "A package of CLI utilities to perform tasks on backend (like Reach contract deployment/interaction)",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MetaLabsOG/cometa-backend.git"
+  },
+  "author": "Dmitrii Mukhutdinov (flyingleafe)",
+  "bugs": {
+    "url": "https://github.com/MetaLabsOG/cometa-backend/issues"
+  },
+  "homepage": "https://github.com/MetaLabsOG/cometa-backend#readme",
+  "dependencies": {
+    "@metalabsog/crowdsale": "15.1.0",
+    "@metalabsog/farm": "15.1.0",
+    "dotenv": "^16.0.1"
+  }
+}
