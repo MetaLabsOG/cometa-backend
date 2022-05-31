@@ -1,17 +1,14 @@
 import time
 from dataclasses import dataclass
 from typing import List, Optional, Dict
-import requests
-import urllib.request, json
+
+from cachetools import cached, TTLCache
 
 from api import tinychart
 from blockchain.assets import MICROALGOS_IN_ALGO
-from dexes.tinyman import get_price_algo, init_tinyman_client
+from blockchain.indexer import get_account_assets
+from dexes.tinyman import get_price, init_tinyman_client, get_all_assets, get_asset_info
 from env import settings
-
-ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
-ACCOUNT_API = 'https://algoindexer.algoexplorerapi.io/v2/accounts/' if settings.is_mainnet() \
-    else 'https://algoindexer.testnet.algoexplorerapi.io/v2/accounts/'
 
 
 @dataclass
@@ -29,19 +26,31 @@ class AssetInfo:
     asset_id: int
 
 
-def get_wallet_assets(address: str) -> List[AssetInfo]:
-    # TODO: implement
-    if address == 'null':
-        return []
+@cached(cache=TTLCache(maxsize=1024, ttl=settings.asset_prices_ttl))
+def get_asset_price(asset_id: int) -> Price:
+    tinyman_client = init_tinyman_client()
+    price_in_algo = get_price(tinyman_client, asset_id)
     algo_price = tinychart.get_algo_price()
-    DEFLY_IN_ALGO = 0.0088
-    return [
-        AssetInfo('USD Coin', 'USDC', 1589, Price(1, int(1 / algo_price * MICROALGOS_IN_ALGO)), 31566704),
-        AssetInfo('Algorand', 'ALGO', 13750, Price(algo_price, MICROALGOS_IN_ALGO), 0), # TODO: next two lines insted of this when front is fixed
-        # AssetInfo('Algorand', 'ALGO', 12625, Price(algo_price, MICROALGOS_IN_ALGO)),
-        # AssetInfo('gALGO3', 'gALGO3', 1125, Price(algo_price, MICROALGOS_IN_ALGO)),
-        AssetInfo('Defly Token', 'DEFLY', 24672, Price(algo_price * DEFLY_IN_ALGO, DEFLY_IN_ALGO * MICROALGOS_IN_ALGO), 470842789),
-    ]
+    return Price(price_in_algo * algo_price, int(price_in_algo * MICROALGOS_IN_ALGO))
+
+
+def get_wallet_assets(address: str) -> List[AssetInfo]:
+    wallet_assets = get_account_assets(address)
+    res = []
+    for asset in wallet_assets:
+        asset_id = asset['asset-id']
+        asset_info = get_asset_info(asset_id)
+        if asset_info is not None and asset['amount'] and not asset['deleted']:
+            asset_amount = asset['amount'] / 10 ** asset_info['decimals']
+            asset_price = get_asset_price(asset_id)
+            res.append(AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, asset_price, asset_id))
+
+    # TODO: get balance of staked tokens
+    if address == 'METAWEJ6MAPBIZBKZBX2RTGVEG4SFTB5BRJRKL3UYVXA6TT5YVWUAXV6PU':
+        for asset in res:
+            if asset.name == 'USDC':
+                asset.amount += 1439
+    return res
 
 
 # TODO: name sucks
@@ -80,6 +89,7 @@ class NftInfo:
 
 
 def get_wallet_nfts(address: str) -> List[NftInfo]:
+    # TODO: implement
     if address == 'null':
         return []
     algo_price = tinychart.get_algo_price()
@@ -119,28 +129,10 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
     ]
 
 
-def get_asset_price(asset_id: int) -> Price:
-    tinyman_client = init_tinyman_client()
-    # TODO: cache for sure (5 min (set in settings))
-    price_algo = get_price_algo(tinyman_client, asset_id)
-    algo_price = tinychart.get_algo_price()
-    return Price(price_algo * algo_price, int(price_algo * MICROALGOS_IN_ALGO))
-
-
+# TODO: replace with get_wallet_assets with param 'get_price'
 def get_wallet_assets2(address: str) -> Dict[str, AssetInfo]:
-    with urllib.request.urlopen(ASSETS_PATH) as url:
-        assets_info = json.loads(url.read().decode())
-
-    url = ACCOUNT_API + address
-    r = requests.get(url)
-    data = r.json()
-
-    assets = data['account']['assets']
-    assets.append({
-        'asset-id': 0,
-        'amount': data['account']['amount'],
-        'deleted': False
-    })
+    assets_info = get_all_assets()
+    assets = get_account_assets(address)
 
     wallet_assets = {}
     for asset in assets:

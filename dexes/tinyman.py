@@ -1,7 +1,10 @@
-import base64
+import json
+import urllib.request
 from typing import Optional
 
 from algosdk import account, encoding, mnemonic
+from algosdk.v2client.algod import AlgodClient
+from cachetools import TTLCache, cached
 from tinyman.assets import Asset
 from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
 from tinyman.utils import TransactionGroup
@@ -12,6 +15,9 @@ from blockchain.node import init_algod_client
 from env import settings
 
 
+ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
+
+
 private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
@@ -20,12 +26,16 @@ SIGNED_TXNS_FIELD = 'signed_txns'
 TX_ID_FIELD = 'tx_id'
 
 
-def init_tinyman_client(address: Optional[str] = public_key) -> TinymanClient:
-    algod_client = init_algod_client()
+def tinyman_from_algod(algod_client: AlgodClient, address: Optional[str] = public_key) -> TinymanClient:
     if settings.is_mainnet():
         return TinymanMainnetClient(algod_client=algod_client, user_address=address)
     else:
         return TinymanTestnetClient(algod_client=algod_client, user_address=address)
+
+
+def init_tinyman_client(address: Optional[str] = public_key) -> TinymanClient:
+    algod_client = init_algod_client()
+    return tinyman_from_algod(algod_client, address)
 
 
 def get_amount(micros: int, asset: Asset) -> float:
@@ -62,11 +72,13 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict
     }
 
 
-def get_price_algo(client: TinymanClient, asset_id: int) -> float:
+def get_price(client: TinymanClient, asset_id: int) -> float:
+    if asset_id == ALGO_ASA_ID:
+        return 1
+    print(f'Getting price for asset {asset_id}')
     ALGO = client.fetch_asset(ALGO_ASA_ID)
     asset = client.fetch_asset(asset_id)
     pool = client.fetch_pool(asset, ALGO)
-    print(f'asset1={pool.asset1_price}, asset2={pool.asset2_price}')
     return pool.asset1_price
 
 
@@ -364,4 +376,15 @@ def get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half)
         'transactions': transactions,
         'tx_id': tx_id
     }
+
+
+# TODO: move asset infos to DB
+@cached(cache=TTLCache(maxsize=1, ttl=settings.asset_prices_ttl))
+def get_all_assets():
+    with urllib.request.urlopen(ASSETS_PATH) as url:
+        return json.loads(url.read().decode())
+
+
+def get_asset_info(asset_id: int) -> Optional[dict]:
+    return get_all_assets().get(str(asset_id))
 
