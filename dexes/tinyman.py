@@ -15,6 +15,10 @@ from env import settings
 private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
+TXNS_FIELD = 'txns'
+SIGNED_TXNS_FIELD = 'signed_txns'
+TX_ID_FIELD = 'tx_id'
+
 
 def init_tinyman_client(address: Optional[str] = public_key) -> TinymanClient:
     algod_client = init_algod_client()
@@ -87,7 +91,7 @@ def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):
     price_per_token = quote.price * decimal1 / decimal2
     res_tokens = price_per_token * asset1_amount
 
-    return float(res_tokens), float(price_per_token)
+    return float(res_tokens)
 
 
 def get_optin_transactions(client, asset_id):
@@ -166,7 +170,7 @@ def get_fee_transaction(client, address, fee):
     )
 
 
-def get_best_swap(client, token1_id, token2_id, token1_amount):
+def get_swap_data(client, token1_id, token2_id, token1_amount):
     asset1 = client.fetch_asset(token1_id)
     asset2 = client.fetch_asset(token2_id)
 
@@ -179,17 +183,17 @@ def get_best_swap(client, token1_id, token2_id, token1_amount):
 
     # SWAP TOKEN1-TOKEN2
     try:
-        direct_tokens, _ = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
+        direct_tokens = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
         best_tokens = direct_tokens
     except:
         direct_tokens = 0
 
     # SWAP TOKEN1-ALGO-TOKEN2
     try:
-        algos, _ = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
+        algos = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
         # transactions commissions
         algos -= 0.002 * 2
-        res, _ = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
+        res = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
         if res > best_tokens:
             best_tokens = res
             best_path.append({
@@ -208,8 +212,8 @@ def get_best_swap(client, token1_id, token2_id, token1_amount):
 
     # SWAP DIFF IN USDC
     try:
-        algos_diff, _ = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, max(0, best_tokens - direct_tokens))
-        usdc_diff, _ = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos_diff)
+        algos_diff = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, max(0, best_tokens - direct_tokens))
+        usdc_diff = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos_diff)
     except:
         usdc_diff = 0
 
@@ -255,4 +259,109 @@ def zap(client: TinymanClient, user_address: str, asset_id: int, microalgos: int
     print(f'Share of pool: {share:.3f}%')
 
     return {'added_lp_tokens': info[pool.liquidity_asset]}
+
+
+def get_swap_transactions(client, asset1_id, asset2_id, asset1_amount):
+    transactions = []
+    tx_id = ''
+    optin_transactions = get_optin_transactions(client, asset2_id)
+    if len(optin_transactions) > 0:
+        transactions.append({
+            TXNS_FIELD: optin_transactions,
+            SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))]
+        })
+
+    best_tokens_swap = get_swap_data(client, asset1_id, asset2_id, asset1_amount)
+    for num, token in enumerate(best_tokens_swap['best_path'][:-1]):
+        cur_asset_id = token['asset_id']
+        cur_asset_amount = token['amount']
+        next_asset_id = best_tokens_swap['best_path'][num + 1]['asset_id']
+
+        # if we swap through algo then pay commission
+        # if cur_asset_id == 0 and len(best_tokens_swap['best_path']) > 2:
+        #     algo_amount = cur_asset_amount
+        #     TODO: fix calculation (Y - X) * 10% * A / Y
+        #     fee_amount = algo_amount * 0.01
+        #     cur_asset_amount -= fee_amount
+        #     fee_txn = get_fee_transaction(client, address, fee_amount)
+        #     encoded_fee_txn = encode_transactions([fee_txn])
+        #     transactions.append({
+        #         TXNS_FIELD: encoded_fee_txn,
+        #         SIGNED_TXNS_FIELD: [[]]
+        #     })
+
+        swap_transactions, swap_signed_transactions, tx_id = get_swap_asset_transactions(
+            client, cur_asset_id, next_asset_id, cur_asset_amount)
+        transactions.append({
+            TXNS_FIELD: swap_transactions,
+            SIGNED_TXNS_FIELD: swap_signed_transactions,
+            TX_ID_FIELD: tx_id
+        })
+
+    return {
+        'transactions': transactions,
+        'tx_id': tx_id
+    }
+
+
+def get_zap_pool(client, asset1_id, asset2_id, asset1_amount):
+    asset1 = client.fetch_asset(asset1_id)
+    asset2 = client.fetch_asset(asset2_id)
+    pool = client.fetch_pool(asset1, asset2)
+    quote = pool.fetch_mint_quote(asset1(get_micros(asset1_amount, asset1)), slippage=0.01)
+
+    return asset1, asset2, pool, quote
+
+
+def get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half):
+    asset1_amount = asset1_amount / 2 if swap_half else asset1_amount
+    asset1, asset2, pool, quote = get_zap_pool(client, asset1_id, asset2_id, asset1_amount)
+    pool_lp_id = pool.liquidity_asset.id
+
+    asset2_amount = get_amount(quote.amounts_in[asset2].amount, asset2)
+    lp_amount = get_amount(quote.liquidity_asset_amount.amount, quote.liquidity_asset_amount.asset)
+    print(asset2_amount, lp_amount)
+
+    return {
+        'asset1_amount': asset1_amount,
+        'asset2_amount': asset2_amount,
+        'lp_amount': lp_amount,
+        'pool_lp_id': pool_lp_id
+    }
+
+
+def get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half):
+    asset1_amount = asset1_amount / 2 if swap_half else asset1_amount
+    asset1, asset2, pool, quote = get_zap_pool(client, asset1_id, asset2_id, asset1_amount)
+    pool_lp_id = pool.liquidity_asset.id
+
+    transactions = []
+
+    if swap_half:
+        swap_transactions = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount)
+        transactions = swap_transactions['transactions']
+
+    optin_transactions = get_optin_transactions(client, pool_lp_id)
+    if len(optin_transactions) > 0:
+        transactions.append({
+            TXNS_FIELD: optin_transactions,
+            SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))]
+        })
+
+    transaction_group = pool.prepare_mint_transactions_from_quote(quote)
+
+    tx_id = transaction_group.transactions[0].get_txid()
+    encoded_transactions = encode_transactions(transaction_group.transactions)
+    encoded_signed_transactions = encode_transactions(transaction_group.signed_transactions)
+
+    transactions.append({
+        TXNS_FIELD: encoded_transactions,
+        SIGNED_TXNS_FIELD: encoded_signed_transactions,
+        TX_ID_FIELD: tx_id
+    })
+
+    return {
+        'transactions': transactions,
+        'tx_id': tx_id
+    }
 
