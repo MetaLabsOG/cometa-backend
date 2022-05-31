@@ -1,12 +1,28 @@
 import requests
 
-BASE_URL = 'https://algoexplorerapi.io/idx2'
+from env import settings
+
+BASE_URL = 'https://algoindexer.algoexplorerapi.io' if settings.is_mainnet() else 'https://algoindexer.testnet.algoexplorerapi.io'
 
 
 def get_asset(asset_id: int):
     # TODO: cache asset data
     url = f'{BASE_URL}/v2/assets/{asset_id}'
     return requests.get(url).json()['asset']
+
+
+def get_account_assets(address: str) -> dict:
+    url = f'{BASE_URL}/v2/accounts/{address}'
+    data = requests.get(url).json()
+    assets = data['account']['assets']
+    assets.append({
+        'asset-id': 0,
+        'amount': data['account']['amount'],
+        'deleted': False,
+        'is-frozen': False,
+        'opted-in-at-round': 0
+    })
+    return assets
 
 
 def get_asset_creator(asset_id: int) -> str:
