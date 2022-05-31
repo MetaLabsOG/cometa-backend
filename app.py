@@ -15,8 +15,8 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2
 
-from dexes.tinyman import get_swap_asset_transactions, init_tinyman_client, get_pool_info, zap, \
-    get_best_swap, get_optin_transactions, get_fee_transaction, encode_transactions
+from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
+    get_swap_transactions, get_zap_data
 from env import settings
 
 app = FastAPI(
@@ -134,59 +134,19 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
 
 # TINYMAN SWAP
 
-@app.get('/best_swap')
-async def best_swap(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+@app.get('/swap_data')
+async def swap_data(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
     # TODO
     client = init_tinyman_client(settings.algod_address)
-    return get_best_swap(client, asset1_id, asset2_id, asset1_amount)
+    return get_swap_data(client, asset1_id, asset2_id, asset1_amount)
 
 
-@app.get('/routing_transactions')
-async def routing_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
-    TXNS_FIELD = 'txns'
-    SIGNED_TXNS_FIELD = 'signed_txns'
-
+@app.get('/swap_transactions')
+async def swap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
     client = init_tinyman_client(address)
     try:
-        transactions = []
-        tx_id = ''
-        optin_transactions = get_optin_transactions(client, asset2_id)
-        if len(optin_transactions) > 0:
-            transactions.append({
-                TXNS_FIELD: optin_transactions,
-                SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))]
-            })
-
-        best_tokens_swap = get_best_swap(client, asset1_id, asset2_id, asset1_amount)
-        for num, token in enumerate(best_tokens_swap['best_path'][:-1]):
-            cur_asset_id = token['asset_id']
-            cur_asset_amount = token['amount']
-            next_asset_id = best_tokens_swap['best_path'][num + 1]['asset_id']
-
-            # if we swap through algo then pay commission
-            # if cur_asset_id == 0 and len(best_tokens_swap['best_path']) > 2:
-            #     algo_amount = cur_asset_amount
-            #     TODO: fix calculation (Y - X) * 10% * A / Y
-            #     fee_amount = algo_amount * 0.01
-            #     cur_asset_amount -= fee_amount
-            #     fee_txn = get_fee_transaction(client, address, fee_amount)
-            #     encoded_fee_txn = encode_transactions([fee_txn])
-            #     transactions.append({
-            #         TXNS_FIELD: encoded_fee_txn,
-            #         SIGNED_TXNS_FIELD: [[]]
-            #     })
-
-            swap_transactions, swap_signed_transactions, tx_id = get_swap_asset_transactions(
-                client, cur_asset_id, next_asset_id, cur_asset_amount)
-            transactions.append({
-                TXNS_FIELD: swap_transactions,
-                SIGNED_TXNS_FIELD: swap_signed_transactions
-            })
-
-        return {
-            'transactions': transactions,
-            'tx_id': tx_id
-        }
+        result = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount)
+        return result
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
@@ -197,10 +157,24 @@ async def pool(asset1_id: int, asset2_id: int) -> dict:
     return get_pool_info(client, asset1_id, asset2_id)
 
 
-@app.get('/zap')
-async def prepare_zap(user_address: str, asset_id: int, microalgos: int) -> dict:
-    client = init_tinyman_client()
-    return zap(client, user_address, asset_id, microalgos)
+@app.get('/zap_data')
+async def zap_data(asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool) -> dict:
+    client = init_tinyman_client(settings.algod_address)
+    try:
+        result = get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@app.get('/zap_transactions')
+async def zap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool) -> dict:
+    client = init_tinyman_client(address)
+    try:
+        result = get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 
 if __name__ == "__main__":
