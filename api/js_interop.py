@@ -12,7 +12,16 @@ COMETA_SOCK = '/tmp/cometa-js-interop.sock';
 
 def start_js_interop_server():
     jspath = path.join(DIR_PATH, "js", "index.js")
-    return subprocess.Popen([shutil.which("node"), jspath, COMETA_SOCK], encoding="utf-8")
+    proc = subprocess.Popen([shutil.which("node"), jspath, COMETA_SOCK], encoding="utf-8", stdout=subprocess.PIPE)
+    
+    # wait for the console log after listener setup
+    while True:
+        line = proc.stdout.readline()
+        print(line)
+        if line.startswith("JS INTEROP"):
+            break
+
+    return proc
 
 async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
     loop = asyncio.get_event_loop()
