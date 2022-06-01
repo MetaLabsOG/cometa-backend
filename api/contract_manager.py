@@ -27,15 +27,13 @@ def add_contract(type: str, id: int, version: str, description: Optional[str], m
     res = db.insert_one(contract.to_dict())
     return str(res.inserted_id)
 
-def update_contract(id: int, description: Optional[str], metadata: Optional[str]) -> bool:
+def update_contract(id: int, description: Optional[str], metadata: Optional[dict]) -> bool:
     upd_dict = {}
     if description is not None:
         upd_dict['description'] = description
     if metadata is not None:
         upd_dict['metadata'] = metadata
     
-    print(upd_dict)
-
     if len(upd_dict) > 0:
         res = db.update_one({'id': id}, {'$set': upd_dict});
         return res.acknowledged
