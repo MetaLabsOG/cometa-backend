@@ -1,6 +1,6 @@
 {
   "name": "@metalabsog/cometa-backend-scripts",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A package of CLI utilities to perform tasks on backend (like Reach contract deployment/interaction)",
   "main": "index.js",
   "scripts": {
@@ -16,6 +16,7 @@
   },
   "homepage": "https://github.com/MetaLabsOG/cometa-backend#readme",
   "dependencies": {
+    "@reach-sh/stdlib": "0.1.10-rc.4",
     "@metalabsog/crowdsale": "15.1.0",
     "@metalabsog/farm": "15.1.0",
     "dotenv": "^16.0.1"

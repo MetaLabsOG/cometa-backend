@@ -1,9 +1,13 @@
+import asyncio
+import multiprocessing
 import secrets
 import sys
+import os
 from typing import List, Optional, Dict
+from contextlib import contextmanager
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
@@ -14,12 +18,13 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts, update_contract
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2
-from api.js_interop import calljs
+from api.js_interop import calljs, start_js_interop_server
 
 from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
     get_swap_transactions, get_zap_data
 from env import settings
 
+spawn = multiprocessing.get_context('spawn')
 
 app = FastAPI(
     title="Cometa",
@@ -142,14 +147,14 @@ class DeployContract(BaseModel):
 @app.post('/contract/deploy')
 async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     check_password(password)
-    version = calljs("contractVersion", contractType=parameters.type)
-    contract_id = calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
+    version = await calljs("contractVersion", contractType=parameters.type)
+    contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
     added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
     return {'internal_id': added}
 
 @app.get('/contract_version')
 async def get_contract_version(type: str) -> dict:
-    version = calljs("contractVersion", contractType=type)
+    version = await calljs("contractVersion", contractType=type)
     return {'version': version}
 
 # TINYMAN SWAP
@@ -209,13 +214,54 @@ def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
 @app.put('/whitelist_confirm')
 async def whitelist_confirm(contract_id: int, address: str) -> bool:
     check_crowdsale_whitelist(contract_id, address)
-    return calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
+    return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
 
 @app.get('/whitelist_check')
 async def whitelist_check(contract_id: int, address: str) -> bool:
     check_crowdsale_whitelist(contract_id, address)
     return True
 
+# Tasks to run in the background
+
+async def update_contracts_cache(type: str) -> None:
+    contracts = get_contracts(type)
+    if len(contracts) > 0:
+        existing_metadatas = { info.id: info.metadata for info in contracts }
+        states = await calljs("fetchContractsGlobalViews", contractType=type, ids=list(existing_metadatas.keys()))
+
+        for s_id, state in states.items():
+            id = int(s_id)
+            old_metadata = existing_metadatas[id]
+            if old_metadata is None:
+                old_metadata = {}
+
+            new_metadata = {**old_metadata, "cache": state}
+            update_contract(id, None, new_metadata) 
+        
+        print(f'updated state cache for contracts: {type}')
+
+async def update_contracts_worker():
+    await update_contracts_cache('farm')
+    await update_contracts_cache('crowdsale')
+    await asyncio.sleep(60)  # once in a minute
+    await update_contracts_worker()
+
+# TODO: graceful shutdown here (with signal handling?)
+def run_background():
+    asyncio.run(update_contracts_worker())
+
+# Runs in a separate process to use a separate asyncio loop from uvicorn,
+# since reusing the uvicorn's one is hacky and sad
+@contextmanager
+def start_bg_tasks():
+    proc = spawn.Process(target=run_background)
+    proc.start()
+    print("STARTED BG TASKS", proc)
+    try:
+        yield proc
+    finally:
+        proc.terminate()
+        proc.join()
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
@@ -235,4 +281,6 @@ if __name__ == "__main__":
         print(f'Command "{command}" is unknown!')
         exit(1)
 
-    uvicorn.run(app, host="0.0.0.0", port=settings.server_port)
+    with start_js_interop_server():
+        with start_bg_tasks():
+            uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port)
