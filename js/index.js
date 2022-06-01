@@ -1,4 +1,5 @@
-const fs = require('fs/promises');
+"use strict";
+
 const path = require("path");
 const COMETA_ENV = process.env.COMETA_ENVIRONMENT || "test";
 
@@ -6,63 +7,81 @@ require("dotenv").config({
   path: path.resolve(__dirname, `../.env.${COMETA_ENV}`),
 });
 
-const COMMANDS = require("./commands");
+const net = require("net");
 
-function readJsonFromStdin() {
-  let stdin = process.stdin;
+// This is done like this to ensure that Reach is loaded on the start of the server,
+// but __after__ the dotenv require (so that all the env vars are loaded into the stdlib correctly).
+const COMMANDS_PROMISE = import("./commands.mjs");
+const COMETA_SOCK = process.argv[2] || "/tmp/cometa-js-interop.sock";
+
+const server = net.createServer({ allowHalfOpen: true });
+
+server.listen(COMETA_SOCK, async () => {
+  await COMMANDS_PROMISE; // pre-load before any calls
+  console.log(`JS INTEROP: server listens on ${COMETA_SOCK}`);
+});
+
+server.on("connection", async (c) => {
+  let response = {};
+  try {
+    const { command, body } = await readJsonFromSocket(c);
+    response = await main(command, body);
+  } catch (err) {
+    response = { error: err.message, stack: err.stack };
+  }
+
+  const strResponse = JSON.stringify(response);
+  c.write(`${strResponse}\n`);
+});
+
+server.on('close', () => {
+  console.log('JS INTEROP: shutting down')
+});
+
+server.on("error", (err) => {
+  server.close();
+  throw err;
+});
+
+process.on("exit", () => {
+  server.close();
+});
+
+const endHandler = (signal) => {
+  console.log(`Received signal: ${signal}`);
+  process.exit(0);
+};
+
+process.on("SIGINT", endHandler);
+process.on("SIGTERM", endHandler);
+process.on("disconnect", () => endHandler("disconnect"));
+
+function readJsonFromSocket(sock) {
   let inputChunks = [];
 
-  stdin.resume();
-  stdin.setEncoding("utf8");
+  sock.resume();
+  sock.setEncoding("utf8");
 
-  stdin.on("data", function (chunk) {
+  sock.on("data", function (chunk) {
     inputChunks.push(chunk);
   });
 
   return new Promise((resolve, reject) => {
-    stdin.on("end", function () {
+    sock.on("end", function () {
       let inputJSON = inputChunks.join();
       resolve(JSON.parse(inputJSON));
     });
-    stdin.on("error", function () {
+    sock.on("error", function () {
       reject(Error("error during read"));
     });
-    stdin.on("timeout", function () {
+    sock.on("timeout", function () {
       reject(Error("timout during read"));
     });
   });
 }
 
-let response = {};
-let outFile = null;
-
-fs.open(process.argv[2], 'w')
-  .then((filehandle) => {
-    outFile = filehandle;
-    return readJsonFromStdin()
-  })
-  .then((body) => {
-    return main(process.argv.slice(3), body);
-  })
-  .then((result) => {
-    response = result;
-  })
-  .catch((err) => {
-    response = { error: err.message, stack: err.stack };
-  })
-  .finally(() => {
-    const strResponse = JSON.stringify(response);
-    outFile.write(`${strResponse}\n`);
-  });
-
-const main = async (argv, params) => {
-  if (argv.length !== 1) {
-    throw new Error(
-      `script expects exactly one argument (command name), ${argv.length} given`
-    );
-  }
-
-  const cmd = argv[0];
+const main = async (cmd, params) => {
+  const COMMANDS = await COMMANDS_PROMISE; // should be already resolved here
   if (!(cmd in COMMANDS)) {
     throw new Error(
       `undefined command ${cmd}; expected one of ${JSON.stringify(
