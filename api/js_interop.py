@@ -1,31 +1,54 @@
-import shutil
+import asyncio
 import subprocess
+import shutil
+import socket
 import json
 import os
 
 from os import path
 from env import DIR_PATH
 
-# TODO: Loading up Reach for each interop call is wasteful and stupid. Should spawn 1 process
-# per the backend lifecycle and continually communicate with it. But it's not super necessary right now.
-# TODO: will need to create a writeout pipe separately for each request anyway.
-def calljs(cmd: str, **params):
+COMETA_SOCK = '/tmp/cometa-js-interop.sock';
+
+def start_js_interop_server():
     jspath = path.join(DIR_PATH, "js", "index.js")
-    inp = json.dumps(params)
+    proc = subprocess.Popen([shutil.which("node"), jspath, COMETA_SOCK], encoding="utf-8", stdout=subprocess.PIPE)
+    
+    # wait for the console log after listener setup
+    while True:
+        line = proc.stdout.readline()
+        print(line)
+        if line.startswith("JS INTEROP"):
+            break
 
-    # create a pipe (stdout gets clogged by Reach console logs)
-    fifo_path = "/tmp/.cometa_js_interop"
-    if not path.exists(fifo_path):
-        os.mkfifo(fifo_path)
+    return proc
 
-    with subprocess.Popen(["node", jspath, fifo_path, cmd], stdin=subprocess.PIPE, encoding='utf-8') as proc:
-        proc.stdin.write(inp)
-        proc.stdin.close()
-        with open(fifo_path, 'r') as f:
-            output = f.read()
+async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
+    loop = asyncio.get_event_loop()
+    buf = b''
+    while delimeter not in buf:
+        chunk = await loop.sock_recv(s, buf_size)
+        if not chunk:
+            raise RuntimeError("socket closed during recv")
+        buf += chunk
+    res, _, _ = buf.partition(delimeter)
+    return res
 
-    os.unlink(fifo_path)
-    response = json.loads(output)
+async def calljs(cmd: str, **params):
+    if not path.exists(COMETA_SOCK):
+        raise Exception(f"No Unix socket {COMETA_SOCK}; did you start js interop server?")
+
+    inp = json.dumps({"command": cmd, "body": params})
+    loop = asyncio.get_event_loop()
+
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        await loop.sock_connect(client, COMETA_SOCK)
+        await loop.sock_sendall(client, inp.encode('utf-8'))
+        client.shutdown(socket.SHUT_WR)
+        outp = await recv_until_delimeter(client, '\n'.encode('utf-8'))
+        client.shutdown(socket.SHUT_RD)
+    
+    response = json.loads(outp.decode('utf-8'))
 
     if "error" in response:
         print('js stack trace:', response["stack"])

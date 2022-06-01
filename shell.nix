@@ -7,8 +7,8 @@ stdenv.mkDerivation {
     readline
 
     # Python requirements (enough to get a virtualenv going).
-    python38Full
-    python38Packages.pyflakes
+    python39Full
+    python39Packages.pyflakes
     pipenv
 
     # Node (for running backend-based Reach scripts)
