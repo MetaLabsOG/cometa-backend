@@ -4,6 +4,7 @@ import shutil
 import socket
 import json
 import os
+import time
 
 from os import path
 from env import DIR_PATH
@@ -11,15 +12,17 @@ from env import DIR_PATH
 COMETA_SOCK = '/tmp/cometa-js-interop.sock';
 
 def start_js_interop_server():
+    if path.exists(COMETA_SOCK):
+        print(f'socket file {COMETA_SOCK} exists, cleaning...')
+        os.unlink(COMETA_SOCK)
+
     jspath = path.join(DIR_PATH, "js", "index.js")
-    proc = subprocess.Popen([shutil.which("node"), jspath, COMETA_SOCK], encoding="utf-8", stdout=subprocess.PIPE)
+    proc = subprocess.Popen([shutil.which("node"), jspath, COMETA_SOCK], encoding="utf-8")
     
-    # wait for the console log after listener setup
-    while True:
-        line = proc.stdout.readline()
-        print(line)
-        if line.startswith("JS INTEROP"):
-            break
+    # okay this is a HACK to achieve waiting for the node server to start fully
+    # while also redirecting its stdin/stdout fully back to console (enabling debugging)
+    while not path.exists(COMETA_SOCK):
+        time.sleep(0.1)
 
     return proc
 
