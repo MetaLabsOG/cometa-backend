@@ -224,24 +224,29 @@ async def whitelist_check(contract_id: int, address: str) -> bool:
 # Tasks to run in the background
 
 async def update_contracts_cache(type: str) -> None:
-    contracts = get_contracts(type)
-    if len(contracts) > 0:
-        existing_metadatas = { info.id: info.metadata for info in contracts }
-        states = await calljs("fetchContractsGlobalViews", contractType=type, ids=list(existing_metadatas.keys()))
+    try:
+        contracts = get_contracts(type)
+        if len(contracts) > 0:
+            existing_metadatas = { info.id: info.metadata for info in contracts }
+            states = await calljs("fetchContractsGlobalViews", contractType=type, ids=list(existing_metadatas.keys()))
 
-        for s_id, state in states.items():
-            id = int(s_id)
-            old_metadata = existing_metadatas[id]
-            if old_metadata is None:
-                old_metadata = {}
+            for s_id, state in states.items():
+                id = int(s_id)
+                old_metadata = existing_metadatas[id]
+                if old_metadata is None:
+                    old_metadata = {}
 
-            new_metadata = {**old_metadata, "cache": state}
-            update_contract(id, None, new_metadata) 
+                new_metadata = {**old_metadata, "cache": state}
+                update_contract(id, None, new_metadata) 
         
-        print(f'updated state cache for contracts: {type}')
+            print(f'updated state cache for contracts: {type}')
+    except Exception as e:
+        print(f'Error while updating cache for {type} contracts: ', e)
 
 async def update_contracts_worker():
+    print('updating contract caches...')
     await update_contracts_cache('farm')
+    await update_contracts_cache('distribution')
     await update_contracts_cache('crowdsale')
     await asyncio.sleep(60)  # once in a minute
     await update_contracts_worker()

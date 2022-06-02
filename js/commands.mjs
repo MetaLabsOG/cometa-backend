@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 import { loadStdlib } from "@reach-sh/stdlib";
 import * as crowdsale from "@metalabsog/crowdsale";
 import * as farm from "@metalabsog/farm";
+import * as distribution from "@metalabsog/distribution";
 import { NETWORK, MNEMONIC } from "./config.mjs";
 
 // This module is ES module because our contract modules are ES modules, and we want them
@@ -23,6 +24,7 @@ reach.setProviderByName(NETWORK);
 const CONTRACT_PKGS = {
   crowdsale,
   farm,
+  distribution,
 };
 
 // TODO: this shit is copypasted fucking everywhere, can we do something about it?
@@ -85,15 +87,23 @@ export const fetchContractsGlobalViews = async ({ contractType, ids }) => {
   const { backend } = CONTRACT_PKGS[contractType];
   const promises = ids.map(async (id) => {
     const ctc = account.contract(backend, id);
-    const initial = await ctc.views.initial().then(maybeToNullable).then(convertBns);
-    const global = await ctc.views.global().then(maybeToNullable).then(convertBns);
-    return { initial, global };
+    try {
+      const initial = await ctc.views.initial().then(maybeToNullable).then(convertBns);
+      const global = await ctc.views.global().then(maybeToNullable).then(convertBns);
+      return { initial, global };
+    } catch (e) {
+      console.log(e);
+      return null;
+    }
   });
 
   const results = await Promise.all(promises);
   const res = {};
   for (let i = 0; i < ids.length; i++) {
-    res[ids[i]] = results[i];
+    const curRes = results[i];
+    if (curRes !== null) {
+      res[ids[i]] = results[i];
+    }
   }
 
   return res;
