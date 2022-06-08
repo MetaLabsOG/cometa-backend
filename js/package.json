@@ -16,10 +16,10 @@
   },
   "homepage": "https://github.com/MetaLabsOG/cometa-backend#readme",
   "dependencies": {
-    "@reach-sh/stdlib": "0.1.10-rc.4",
-    "@metalabsog/crowdsale": "15.1.0",
-    "@metalabsog/farm": "15.1.0",
-    "@metalabsog/distribution": "15.0.3",
+    "@reach-sh/stdlib": "0.1.10-rc.7",
+    "@metalabsog/crowdsale": "16.0.0",
+    "@metalabsog/farm": "16.0.0",
+    "@metalabsog/distribution": "16.0.0",
     "dotenv": "^16.0.1"
   }
 }
