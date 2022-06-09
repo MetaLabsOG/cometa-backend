@@ -27,30 +27,6 @@ const CONTRACT_PKGS = {
   distribution,
 };
 
-// TODO: this issue is copypasted issue everywhere, can we do something about it?
-const maybeToNullable = (mb) => {
-  if (mb[0] === "Some") return mb[1];
-  return null;
-};
-
-const isBigNumber = (n) =>
-  Object.prototype.hasOwnProperty.call(n, "_isBigNumber");
-
-const convertBns = (obj) => {
-  if (isBigNumber(obj)) {
-    return obj.toNumber();
-  } else if (obj instanceof Array) {
-    return obj.map((e) => convertBns(e));
-  } else if (obj instanceof Object) {
-    return Object.keys(obj).reduce((o, k) => {
-      o[k] = convertBns(obj[k]);
-      return o;
-    }, {});
-  } else {
-    return obj;
-  }
-};
-
 // Export functions here and call them from Python by their name and arguments using `calljs`!
 
 export const crowdsaleWhitelist = async ({ contractId, addr }) => {
@@ -88,8 +64,8 @@ export const fetchContractsGlobalViews = async ({ contractType, ids }) => {
   const promises = ids.map(async (id) => {
     const ctc = account.contract(backend, id);
     try {
-      const initial = await ctc.views.initial().then(maybeToNullable).then(convertBns);
-      const global = await ctc.views.global().then(maybeToNullable).then(convertBns);
+      const initial = await ctc.unsafeViews.initial();
+      const global = await ctc.unsafeViews.global();
       return { initial, global };
     } catch (e) {
       console.log(e);
