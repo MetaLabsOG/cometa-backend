@@ -27,6 +27,10 @@ const CONTRACT_PKGS = {
   distribution,
 };
 
+const mapConcurrent = async (ls, fn) => {
+  return await Promise.all(ls.map(fn));
+}
+
 // Export functions here and call them from Python by their name and arguments using `calljs`!
 
 export const crowdsaleWhitelist = async ({ contractId, addr }) => {
@@ -61,7 +65,7 @@ export const fetchContractsGlobalViews = async ({ contractType, ids }) => {
   }
 
   const { backend } = CONTRACT_PKGS[contractType];
-  const promises = ids.map(async (id) => {
+  const results = await mapConcurrent(ids, async (id) => {
     const ctc = account.contract(backend, id);
     try {
       const initial = await ctc.unsafeViews.initial();
@@ -73,7 +77,6 @@ export const fetchContractsGlobalViews = async ({ contractType, ids }) => {
     }
   });
 
-  const results = await Promise.all(promises);
   const res = {};
   for (let i = 0; i < ids.length; i++) {
     const curRes = results[i];
@@ -84,3 +87,21 @@ export const fetchContractsGlobalViews = async ({ contractType, ids }) => {
 
   return res;
 };
+
+export const pingFarms = async ({ type, ids }) => {
+  if (type !== 'farm' && type !== 'distribution') {
+    throw new Error(`can only ping farms of 'farm' or 'distribution' type, not ${type}`);
+  }
+
+  const { backend } = CONTRACT_PKGS[contractType];
+  return await mapConcurrent(ids, async (id) => {
+    const ctc = account.contract(backend, id);
+    try {
+      await ctc.apis.recalculateRewards()
+      return true;
+    } catch (e) {
+      console.log('recalculateRewards', e);
+      return false;
+    }
+  });
+}
