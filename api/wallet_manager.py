@@ -125,6 +125,14 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'https://ipfs.io/ipfs/bafkreif6tzey3lh5yszyhtnr3lmh6lcdpx5txcm34ovlbnwujfb2sd24fa',
             Price(850 * algo_price, 850 * MICROALGOS_IN_ALGO),
             -12
+        ),
+        NftInfo(
+            708186273,
+            'Flemish Giant V2 FC1662',
+            'Flemish Clones',
+            'https://ipfsgateway.randgallery.com/ipfs/QmNdD53TzNc5AoGuD51EnkUQYHgxU9iDX7PeGL9U8htJkG',
+            Price(190 * algo_price, 190 * MICROALGOS_IN_ALGO),
+            0
         )
     ]
 
