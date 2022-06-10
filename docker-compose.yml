@@ -7,6 +7,8 @@ services:
         entrypoint: ./scripts/docker-entry.sh
         environment:
             COMETA_ENVIRONMENT: "prod"
+        env_file:
+            - ".env.prod"
         volumes:
             - .:/app
         ports:
@@ -19,6 +21,8 @@ services:
         entrypoint: ./scripts/docker-entry.sh
         environment:
             COMETA_ENVIRONMENT: "test"
+        env_file:
+            - ".env.test"
         volumes:
             - .:/app
         ports:
