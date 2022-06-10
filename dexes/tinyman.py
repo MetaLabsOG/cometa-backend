@@ -82,20 +82,20 @@ def get_price(client: TinymanClient, asset_id: int) -> float:
     return pool.asset1_price
 
 
-def get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount):
+def get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount, slippage: float):
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
     pool = client.fetch_pool(asset1, asset2)
 
-    quote = pool.fetch_fixed_input_swap_quote(asset1(get_micros(asset1_amount, asset1)), slippage=0.01)
+    quote = pool.fetch_fixed_input_swap_quote(asset1(get_micros(asset1_amount, asset1)), slippage=slippage)
 
     return pool, quote
 
 
-def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount):
+def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount, slippage: float):
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
-    pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount)
+    pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount, slippage)
 
     decimal1 = 10 ** asset1.decimals
     decimal2 = 10 ** asset2.decimals
@@ -155,8 +155,8 @@ def encode_transactions(transactions):
     return encode_trans
 
 
-def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount):
-    pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount)
+def get_swap_asset_transactions(client, asset1_id, asset2_id, asset1_amount, slippage: float):
+    pool, quote = get_asset_swap_pool(client, asset1_id, asset2_id, asset1_amount, slippage)
     transaction_group = pool.prepare_swap_transactions_from_quote(quote)
 
     tx_id = transaction_group.transactions[0].get_txid()
@@ -182,7 +182,7 @@ def get_fee_transaction(client, address, fee):
     )
 
 
-def get_swap_data(client, token1_id, token2_id, token1_amount):
+def get_swap_data(client, token1_id, token2_id, token1_amount, slippage: float):
     asset1 = client.fetch_asset(token1_id)
     asset2 = client.fetch_asset(token2_id)
 
@@ -195,17 +195,17 @@ def get_swap_data(client, token1_id, token2_id, token1_amount):
 
     # SWAP TOKEN1-TOKEN2
     try:
-        direct_tokens = get_asset_swap_cost(client, token1_id, token2_id, token1_amount)
+        direct_tokens = get_asset_swap_cost(client, token1_id, token2_id, token1_amount, slippage)
         best_tokens = direct_tokens
     except:
         direct_tokens = 0
 
     # SWAP TOKEN1-ALGO-TOKEN2
     try:
-        algos = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount)
+        algos = get_asset_swap_cost(client, token1_id, ALGO_ASA_ID, token1_amount, slippage)
         # transactions commissions
         algos -= 0.002 * 2
-        res = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos)
+        res = get_asset_swap_cost(client, ALGO_ASA_ID, token2_id, algos, slippage)
         if res > best_tokens:
             best_tokens = res
             best_path.append({
@@ -224,8 +224,8 @@ def get_swap_data(client, token1_id, token2_id, token1_amount):
 
     # SWAP DIFF IN USDC
     try:
-        algos_diff = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, max(0, best_tokens - direct_tokens))
-        usdc_diff = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos_diff)
+        algos_diff = get_asset_swap_cost(client, token2_id, ALGO_ASA_ID, max(0, best_tokens - direct_tokens), slippage)
+        usdc_diff = get_asset_swap_cost(client, ALGO_ASA_ID, USDC_ASA_ID, algos_diff, slippage)
     except:
         usdc_diff = 0
 
@@ -273,7 +273,7 @@ def zap(client: TinymanClient, user_address: str, asset_id: int, microalgos: int
     return {'added_lp_tokens': info[pool.liquidity_asset]}
 
 
-def get_swap_transactions(client, asset1_id, asset2_id, asset1_amount):
+def get_swap_transactions(client, asset1_id, asset2_id, asset1_amount, slippage: float):
     transactions = []
     tx_id = ''
     optin_transactions = get_optin_transactions(client, asset2_id)
@@ -283,7 +283,7 @@ def get_swap_transactions(client, asset1_id, asset2_id, asset1_amount):
             SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))]
         })
 
-    best_tokens_swap = get_swap_data(client, asset1_id, asset2_id, asset1_amount)
+    best_tokens_swap = get_swap_data(client, asset1_id, asset2_id, asset1_amount, slippage)
     for num, token in enumerate(best_tokens_swap['best_path'][:-1]):
         cur_asset_id = token['asset_id']
         cur_asset_amount = token['amount']
@@ -303,7 +303,7 @@ def get_swap_transactions(client, asset1_id, asset2_id, asset1_amount):
         #     })
 
         swap_transactions, swap_signed_transactions, tx_id = get_swap_asset_transactions(
-            client, cur_asset_id, next_asset_id, cur_asset_amount)
+            client, cur_asset_id, next_asset_id, cur_asset_amount, slippage)
         transactions.append({
             TXNS_FIELD: swap_transactions,
             SIGNED_TXNS_FIELD: swap_signed_transactions,
@@ -316,18 +316,18 @@ def get_swap_transactions(client, asset1_id, asset2_id, asset1_amount):
     }
 
 
-def get_zap_pool(client, asset1_id, asset2_id, asset1_amount):
+def get_zap_pool(client, asset1_id, asset2_id, asset1_amount, slippage: float):
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
     pool = client.fetch_pool(asset1, asset2)
-    quote = pool.fetch_mint_quote(asset1(get_micros(asset1_amount, asset1)), slippage=0.01)
+    quote = pool.fetch_mint_quote(asset1(get_micros(asset1_amount, asset1)), slippage=slippage)
 
     return asset1, asset2, pool, quote
 
 
-def get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half):
+def get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage: float):
     asset1_amount = asset1_amount / 2 if swap_half else asset1_amount
-    asset1, asset2, pool, quote = get_zap_pool(client, asset1_id, asset2_id, asset1_amount)
+    asset1, asset2, pool, quote = get_zap_pool(client, asset1_id, asset2_id, asset1_amount, slippage)
     pool_lp_id = pool.liquidity_asset.id
 
     asset2_amount = get_amount(quote.amounts_in[asset2].amount, asset2)
@@ -342,15 +342,15 @@ def get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half):
     }
 
 
-def get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half):
+def get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage: float):
     asset1_amount = asset1_amount / 2 if swap_half else asset1_amount
-    asset1, asset2, pool, quote = get_zap_pool(client, asset1_id, asset2_id, asset1_amount)
+    asset1, asset2, pool, quote = get_zap_pool(client, asset1_id, asset2_id, asset1_amount, slippage)
     pool_lp_id = pool.liquidity_asset.id
 
     transactions = []
 
     if swap_half:
-        swap_transactions = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount)
+        swap_transactions = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount, slippage)
         transactions = swap_transactions['transactions']
 
     optin_transactions = get_optin_transactions(client, pool_lp_id)

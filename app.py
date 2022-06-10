@@ -2,15 +2,13 @@ import asyncio
 import multiprocessing
 import secrets
 import sys
-import os
 from typing import List, Optional, Dict
 from contextlib import contextmanager
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
-
 
 from airdrop import airdrop, snapshot
 from api import nft_market
@@ -63,9 +61,11 @@ async def floor_price(asset_id: int) -> int:
 async def wallet_assets(address: str) -> List[AssetInfo]:
     return get_wallet_assets(address)
 
+
 @app.get('/wallet_assets2/{address}')
 async def wallet_assets(address: str) -> Dict[str, AssetInfo]:
     return get_wallet_assets2(address)
+
 
 @app.get('/total_cost/{address}')
 async def total_cost(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
@@ -107,7 +107,7 @@ async def update(contract: ModifyContract, password: str) -> dict:
     check_password(password)
     if get_contract(contract.id) is None:
         raise HTTPException(status_code=404, detail="Contract not found")
-    
+
     res = update_contract(contract.id, contract.description, contract.metadata)
     return {'updated': res}
 
@@ -138,11 +138,13 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
     cnt = remove_contracts(type=type)
     return {'deleted_count': cnt}
 
+
 class DeployContract(BaseModel):
     type: str
     settings: dict
     metadata: Optional[dict] = None
     description: Optional[str] = None
+
 
 @app.post('/contract/deploy')
 async def deploy_contract(password: str, parameters: DeployContract) -> dict:
@@ -152,25 +154,29 @@ async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
     return {'internal_id': added}
 
+
 @app.get('/contract_version')
 async def get_contract_version(type: str) -> dict:
     version = await calljs("contractVersion", contractType=type)
     return {'version': version}
 
+
 # TINYMAN SWAP
 
+
 @app.get('/swap_data')
-async def swap_data(asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+async def swap_data(asset1_id: int, asset2_id: int, asset1_amount: float, slippage: float = 0.01) -> dict:
     # TODO
     client = init_tinyman_client(settings.algod_address)
-    return get_swap_data(client, asset1_id, asset2_id, asset1_amount)
+    return get_swap_data(client, asset1_id, asset2_id, asset1_amount, slippage)
 
 
 @app.get('/swap_transactions')
-async def swap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float) -> dict:
+async def swap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float,
+                            slippage: float = 0.01) -> dict:
     client = init_tinyman_client(address)
     try:
-        result = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount)
+        result = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount, slippage)
         return result
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -183,25 +189,29 @@ async def pool(asset1_id: int, asset2_id: int) -> dict:
 
 
 @app.get('/zap_data')
-async def zap_data(asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool) -> dict:
+async def zap_data(asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool,
+                   slippage: float = 0.01) -> dict:
     client = init_tinyman_client(settings.algod_address)
     try:
-        result = get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half)
+        result = get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage)
         return result
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
 
 @app.get('/zap_transactions')
-async def zap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool) -> dict:
+async def zap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool,
+                           slippage: float = 0.01) -> dict:
     client = init_tinyman_client(address)
     try:
-        result = get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half)
+        result = get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage)
         return result
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
+
 # CROWDSALE
+
 def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
     contract = get_contract(contract_id)
     if contract is None or contract.type != 'crowdsale':
@@ -211,15 +221,18 @@ def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
     if address not in whitelist:
         raise HTTPException(status_code=403, detail="Address not whitelisted")
 
+
 @app.put('/whitelist_confirm')
 async def whitelist_confirm(contract_id: int, address: str) -> bool:
     check_crowdsale_whitelist(contract_id, address)
     return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
 
+
 @app.get('/whitelist_check')
 async def whitelist_check(contract_id: int, address: str) -> bool:
     check_crowdsale_whitelist(contract_id, address)
     return True
+
 
 # Tasks to run in the background
 
@@ -227,7 +240,7 @@ async def update_contracts_cache(type: str) -> None:
     try:
         contracts = get_contracts(type)
         if len(contracts) > 0:
-            existing_metadatas = { info.id: info.metadata for info in contracts }
+            existing_metadatas = {info.id: info.metadata for info in contracts}
             states = await calljs("fetchContractsGlobalViews", contractType=type, ids=list(existing_metadatas.keys()))
 
             for s_id, state in states.items():
@@ -237,11 +250,12 @@ async def update_contracts_cache(type: str) -> None:
                     old_metadata = {}
 
                 new_metadata = {**old_metadata, "cache": state}
-                update_contract(id, None, new_metadata) 
-        
+                update_contract(id, None, new_metadata)
+
             print(f'updated state cache for contracts: {type}')
     except Exception as e:
         print(f'Error while updating cache for {type} contracts: ', e)
+
 
 async def update_contracts_worker():
     print('updating contract caches...')
@@ -251,9 +265,11 @@ async def update_contracts_worker():
     await asyncio.sleep(60)  # once in a minute
     await update_contracts_worker()
 
+
 # TODO: graceful shutdown here (with signal handling?)
 def run_background():
     asyncio.run(update_contracts_worker())
+
 
 # Runs in a separate process to use a separate asyncio loop from uvicorn,
 # since reusing the uvicorn's one is hacky and sad
@@ -267,6 +283,7 @@ def start_bg_tasks():
     finally:
         proc.terminate()
         proc.join()
+
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
