@@ -1,9 +1,6 @@
-import asyncio
-import multiprocessing
 import secrets
 import sys
 from typing import List, Optional, Dict
-from contextlib import contextmanager
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -21,8 +18,7 @@ from api.js_interop import calljs, start_js_interop_server
 from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
     get_swap_transactions, get_zap_data
 from env import settings
-
-spawn = multiprocessing.get_context('spawn')
+from background import start_bg_tasks
 
 app = FastAPI(
     title="Cometa",
@@ -232,91 +228,6 @@ async def whitelist_confirm(contract_id: int, address: str) -> bool:
 async def whitelist_check(contract_id: int, address: str) -> bool:
     check_crowdsale_whitelist(contract_id, address)
     return True
-
-
-# Tasks to run in the background
-
-def safe_async_method(fn):
-    async def wrapper(*args, **kwargs):
-        try:
-            await fn(*args, **kwargs)
-        except Exception as e:
-            print(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: ', e)
-    return wrapper
-
-def repeat_every(seconds: int):
-    def decorator(fn):
-        async def wrapper(*args, **kwargs):
-            while True:
-                await fn(*args, **kwargs)
-                await asyncio.sleep(seconds)
-        return wrapper
-    return decorator
-
-@safe_async_method
-async def update_contracts_cache(type: str) -> None:
-    contracts = get_contracts(type)
-    if len(contracts) > 0:
-        existing_metadatas = { info.id: info.metadata for info in contracts }
-        states = await calljs("fetchContractsGlobalViews", contractType=type, ids=list(existing_metadatas.keys()))
-
-        for s_id, state in states.items():
-            id = int(s_id)
-            old_metadata = existing_metadatas[id]
-            if old_metadata is None:
-                old_metadata = {}
-
-            new_metadata = {**old_metadata, "cache": state}
-            update_contract(id, None, new_metadata) 
-    
-        print(f'updated state cache for contracts: {type}')
-
-@safe_async_method
-async def ping_farms(type: str):
-    contracts = get_contracts(type)
-    ids = [c.id for c in contracts]
-    if len(ids) > 0:
-        await calljs("pingFarms", type=type, ids=ids)
-        print(f'farms of type {type} pinged')
-
-
-@repeat_every(60) # once in a minute
-async def update_contracts_worker():
-    print('updating contract caches...')
-    await update_contracts_cache('farm')
-    await update_contracts_cache('distribution')
-    await update_contracts_cache('crowdsale')
-
-@repeat_every(300) # once in 5 mins
-async def ping_farms_worker():
-    print('pinging farms...')
-    await ping_farms('farm')
-    # TODO: uncomment when distribution contract supports pings
-    # await ping_farms('distribution')
-
-# TODO: graceful shutdown here (with signal handling?)
-def run_background():
-    async def tasks():
-        await asyncio.gather(
-            update_contracts_worker(),
-            ping_farms_worker(),
-        )
-
-    asyncio.run(tasks())
-
-
-# Runs in a separate process to use a separate asyncio loop from uvicorn,
-# since reusing the uvicorn's one is hacky and sad
-@contextmanager
-def start_bg_tasks():
-    proc = spawn.Process(target=run_background)
-    proc.start()
-    print("STARTED BG TASKS", proc)
-    try:
-        yield proc
-    finally:
-        proc.terminate()
-        proc.join()
 
 
 if __name__ == "__main__":
