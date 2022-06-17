@@ -126,8 +126,11 @@ def get_optin_transactions(client, asset_id):
         optin_txns.append(txn)
 
     transaction_group = TransactionGroup(optin_txns)
+    tx_id = ''
+    if len(transaction_group.transactions) > 0:
+        tx_id = transaction_group.transactions[0].get_txid()
 
-    return encode_transactions(transaction_group.transactions)
+    return encode_transactions(transaction_group.transactions), tx_id
 
 
 def check_optin(client: TinymanClient, asset_id: int, user_address: str):
@@ -276,11 +279,12 @@ def zap(client: TinymanClient, user_address: str, asset_id: int, microalgos: int
 def get_swap_transactions(client, asset1_id, asset2_id, asset1_amount, slippage: float):
     transactions = []
     tx_id = ''
-    optin_transactions = get_optin_transactions(client, asset2_id)
+    optin_transactions, tx_id = get_optin_transactions(client, asset2_id)
     if len(optin_transactions) > 0:
         transactions.append({
             TXNS_FIELD: optin_transactions,
-            SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))]
+            SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))],
+            TX_ID_FIELD: tx_id
         })
 
     best_tokens_swap = get_swap_data(client, asset1_id, asset2_id, asset1_amount, slippage)
@@ -353,11 +357,12 @@ def get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half,
         swap_transactions = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount, slippage)
         transactions = swap_transactions['transactions']
 
-    optin_transactions = get_optin_transactions(client, pool_lp_id)
+    optin_transactions, tx_id = get_optin_transactions(client, pool_lp_id)
     if len(optin_transactions) > 0:
         transactions.append({
             TXNS_FIELD: optin_transactions,
-            SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))]
+            SIGNED_TXNS_FIELD: ['' for _ in range(len(optin_transactions))],
+            TX_ID_FIELD: tx_id
         })
 
     transaction_group = pool.prepare_mint_transactions_from_quote(quote)
