@@ -18,7 +18,7 @@
   "dependencies": {
     "@reach-sh/stdlib": "0.1.11-rc.0",
     "@metalabsog/crowdsale": "17.0.0",
-    "@metalabsog/farm": "17.0.0",
+    "@metalabsog/farm": "17.0.2",
     "@metalabsog/distribution": "17.0.0",
     "dotenv": "^16.0.1"
   }
