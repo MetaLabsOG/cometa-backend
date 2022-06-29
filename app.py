@@ -97,6 +97,27 @@ async def add_new_contract(contract: AddContract, password: str) -> dict:
     added = add_contract(contract.type, contract.id, contract.version, contract.description, contract.metadata)
     return {'internal_id': added}
 
+# This method is NOT password-protected: it is intended to be used by users who add contracts themselves.
+# The only thing we do here to ensure that our database isn't spammed with bullshit is checking that the contract
+# really exists in the network, has a correct type and is fully deployed
+@app.post('/contract/register')
+async def register_contract(contract: AddContract) -> dict:
+    if get_contract(contract.id) is not None:
+        raise HTTPException(status_code=409, detail="Contract already exists")
+
+    global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type, ids=[contract.id])
+    if contract.id not in global_views:
+        raise HTTPException(status_code=409, detail="Contract with given ID is not present in the network or does not match the given type")
+    
+    view = global_views[contract.id]
+    # Cache the contract's state right away so that user sees that it is displayed correctly right after
+    # the contract is created even without connected wallet.
+    cache_metadata = {"cache": view}
+    metadata = cache_metadata if contract.metadata is None else {**contract.metadata, **cache_metadata}
+    added = add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
+
+    # I don't think that returning internal id to the users is anyhow useful, also probably discloses unnecessary info?
+    return {'added': contract.id}
 
 @app.patch('/contract/update')
 async def update(contract: ModifyContract, password: str) -> dict:
