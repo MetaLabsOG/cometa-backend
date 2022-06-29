@@ -106,10 +106,10 @@ async def register_contract(contract: AddContract) -> dict:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
     global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type, ids=[contract.id])
-    if contract.id not in global_views:
+    if str(contract.id) not in global_views:
         raise HTTPException(status_code=409, detail="Contract with given ID is not present in the network or does not match the given type")
     
-    view = global_views[contract.id]
+    view = global_views[str(contract.id)]
     # Cache the contract's state right away so that user sees that it is displayed correctly right after
     # the contract is created even without connected wallet.
     cache_metadata = {"cache": view}
