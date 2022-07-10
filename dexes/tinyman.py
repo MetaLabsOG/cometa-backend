@@ -106,10 +106,10 @@ def get_asset_swap_cost(client, asset1_id, asset2_id, asset1_amount, slippage: f
     return float(res_tokens)
 
 
-def get_optin_transactions(client, asset_id):
+def get_optin_transactions(client, asset_id, optin_client=True):
     optin_txns = []
     suggested_params = client.algod.suggested_params()
-    if not client.is_opted_in():
+    if optin_client and not client.is_opted_in():
         txn = ApplicationOptInTxn(
             sender=client.user_address,
             sp=suggested_params,
@@ -348,7 +348,10 @@ def get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half, slippag
 
 def get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage: float):
     asset1_amount = asset1_amount / 2 if swap_half else asset1_amount
-    asset1, asset2, pool, quote = get_zap_pool(client, asset1_id, asset2_id, asset1_amount, slippage)
+    asset2_amount = get_swap_data(client, asset1_id, asset2_id, asset1_amount, slippage)['best_swap']
+    # TODO: easy fix
+    asset2_amount *= (1 - slippage - 0.01)
+    asset1, asset2, pool, quote = get_zap_pool(client, asset2_id, asset1_id, asset2_amount, slippage)
     pool_lp_id = pool.liquidity_asset.id
 
     transactions = []
@@ -357,7 +360,7 @@ def get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half,
         swap_transactions = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount, slippage)
         transactions = swap_transactions['transactions']
 
-    optin_transactions, tx_id = get_optin_transactions(client, pool_lp_id)
+    optin_transactions, tx_id = get_optin_transactions(client, pool_lp_id, False)
     if len(optin_transactions) > 0:
         transactions.append({
             TXNS_FIELD: optin_transactions,
