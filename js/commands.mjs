@@ -2,6 +2,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { readFileSync } from "fs";
 import { loadStdlib } from "@reach-sh/stdlib";
+import { deployStandardContract } from "@metalabsog/common";
 import * as crowdsale from "@metalabsog/crowdsale";
 import * as farm from "@metalabsog/farm";
 import * as distribution from "@metalabsog/distribution";
@@ -29,7 +30,7 @@ const CONTRACT_PKGS = {
 
 const mapConcurrent = async (ls, fn) => {
   return await Promise.all(ls.map(fn));
-}
+};
 
 // Export functions here and call them from Python by their name and arguments using `calljs`!
 
@@ -54,8 +55,9 @@ export const deployContract = async ({ contractType, contractSettings }) => {
     throw new Error(`unknown contract type ${contractType}`);
   }
 
-  const { deploy } = CONTRACT_PKGS[contractType];
-  const { contractId } = await deploy(account, contractSettings);
+  const { backend } = CONTRACT_PKGS[contractType];
+  const ctc = account.contract(backend);
+  const contractId = await deployStandardContract(ctc, contractSettings);
   return contractId;
 };
 
@@ -89,19 +91,21 @@ export const fetchContractsGlobalViews = async ({ contractType, ids }) => {
 };
 
 export const pingFarms = async ({ type, ids }) => {
-  if (type !== 'farm' && type !== 'distribution') {
-    throw new Error(`can only ping farms of 'farm' or 'distribution' type, not ${type}`);
+  if (type !== "farm" && type !== "distribution") {
+    throw new Error(
+      `can only ping farms of 'farm' or 'distribution' type, not ${type}`
+    );
   }
 
   const { backend } = CONTRACT_PKGS[contractType];
   return await mapConcurrent(ids, async (id) => {
     const ctc = account.contract(backend, id);
     try {
-      await ctc.apis.recalculateRewards()
+      await ctc.apis.recalculateRewards();
       return true;
     } catch (e) {
-      console.log('recalculateRewards', e);
+      console.log("recalculateRewards", e);
       return false;
     }
   });
-}
+};
