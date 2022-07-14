@@ -45,11 +45,6 @@ def get_wallet_assets(address: str) -> List[AssetInfo]:
             asset_price = get_asset_price(asset_id)
             res.append(AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, asset_price, asset_id))
 
-    # TODO: get balance of staked tokens
-    if address == 'METAWEJ6MAPBIZBKZBX2RTGVEG4SFTB5BRJRKL3UYVXA6TT5YVWUAXV6PU':
-        for asset in res:
-            if asset.name == 'USDC':
-                asset.amount += 1439
     return res
 
 
@@ -128,11 +123,19 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
         ),
         NftInfo(
             708186273,
-            'Flemish Giant V2 FC1662',
+            'FC1662',
             'Flemish Clones',
-            'https://ipfsgateway.randgallery.com/ipfs/QmNdD53TzNc5AoGuD51EnkUQYHgxU9iDX7PeGL9U8htJkG',
-            Price(190 * algo_price, 190 * MICROALGOS_IN_ALGO),
-            0
+            'https://ipfs.infura.io/ipfs/QmNdD53TzNc5AoGuD51EnkUQYHgxU9iDX7PeGL9U8htJkG',
+            Price(165 * algo_price, 165 * MICROALGOS_IN_ALGO),
+            -5.5
+        ),
+        NftInfo(
+            779735087,
+            'Shep #5872',
+            'Shep',
+            'https://ipfs.io/ipfs/QmcVKMJHVPHgg8sqskfDzk9a3nTH7LeLTVNmHnYtsTzXtc',
+            Price(164 * algo_price, 164 * MICROALGOS_IN_ALGO),
+            -7
         )
     ]
 
