@@ -13,3 +13,9 @@ services:
         ports:
             - "5000:5000"
         network_mode: host
+        depends_on:
+            - mongodb-mainnet
+
+    mongodb-mainnet:
+        image: mongo
+        restart: always
