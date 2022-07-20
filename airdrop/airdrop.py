@@ -16,7 +16,7 @@ CURRENT_PERCENT = TOTAL_PERCENT / TOTAL_AIRDROPS
 AIRDROP_SUPPLY = META_TOTAL_SUPPLY * CURRENT_PERCENT
 
 
-db = MongoClient(port=settings.mongodb_port)[settings.db_name]
+db = MongoClient(host=settings.mongodb_host, port=settings.mongodb_port)[settings.db_name]
 
 algod_client = init_algod_client()
 tinyman_client = tinyman_from_algod(algod_client)

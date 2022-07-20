@@ -7,7 +7,7 @@ from pymongo import MongoClient
 
 from env import settings
 
-client = MongoClient(port=settings.mongodb_port)
+client = MongoClient(host=settings.mongodb_host, port=settings.mongodb_port)
 db = client[settings.algo_network].contract
 
 

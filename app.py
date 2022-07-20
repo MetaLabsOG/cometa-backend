@@ -6,6 +6,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
+from algosdk import account, mnemonic
 
 from airdrop import airdrop, snapshot
 from api import nft_market
@@ -13,6 +14,7 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
     remove_contracts, update_contract
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2
+from api.util import parse_bignum
 from api.js_interop import calljs, start_js_interop_server
 
 from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
@@ -108,8 +110,22 @@ async def register_contract(contract: AddContract) -> dict:
     global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type, ids=[contract.id])
     if str(contract.id) not in global_views:
         raise HTTPException(status_code=409, detail="Contract with given ID is not present in the network or does not match the given type")
-    
+
     view = global_views[str(contract.id)]
+
+    # Check that the contract's parameters are correct (beneficiary and creation fee are as we need them)    
+    # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
+    if contract.type == 'farm':
+        target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
+        target_creation_fee = 0  # make farm creation free for now. TODO: should be set up in some ENV variable which is 
+                                 # tied to the same variable on the frontend?
+
+        if view['initial']['beneficiary'] != target_beneficiary:
+            raise HTTPException(status_code=403, detail=f"Farm's beneficiary address is invaild (expected {target_beneficiary}")
+
+        if parse_bignum(view['initial']['creationFee']) != target_creation_fee:
+            raise HTTPException(status_code=403, detail=f"Farm's creation fee is invalid (expected {target_creation_fee}")
+
     # Cache the contract's state right away so that user sees that it is displayed correctly right after
     # the contract is created even without connected wallet.
     cache_metadata = {"cache": view}
