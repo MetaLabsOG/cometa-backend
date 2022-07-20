@@ -2,8 +2,8 @@
 
 git pull
 
-pushd js
+pushd js || exit
 npm install
-popd
+popd || exit
 
-scripts/restart.sh
+scripts/restart.sh "$@"
