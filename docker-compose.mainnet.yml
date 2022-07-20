@@ -20,3 +20,6 @@ services:
         restart: always
         volumes:
             - "mongodb-mainnet:/data/db"
+
+volumes:
+    mongodb-mainnet:
