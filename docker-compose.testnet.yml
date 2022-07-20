@@ -1,0 +1,15 @@
+version: '3.3'
+
+services:
+    testnet:
+        build: .
+        restart: always
+        entrypoint: ./scripts/docker-entry.sh
+        environment:
+            COMETA_ENVIRONMENT: "testnet"
+            REACH_NO_WARN: "true"
+        volumes:
+            - .:/app
+        ports:
+            - "5001:5001"
+        network_mode: host
