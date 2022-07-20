@@ -18,3 +18,5 @@ services:
     mongodb-mainnet:
         image: mongo
         restart: always
+        volumes:
+            - "mongodb-mainnet:/data/db"

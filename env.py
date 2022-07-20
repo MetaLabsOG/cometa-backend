@@ -3,8 +3,9 @@ from functools import cached_property
 
 from pydantic import BaseSettings
 
-ENVIRONMENT = os.getenv('COMETA_ENVIRONMENT', default='test')
+ENVIRONMENT = os.getenv('COMETA_ENVIRONMENT', default='testnet')
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+
 
 class Settings(BaseSettings):
     algo_network: str
