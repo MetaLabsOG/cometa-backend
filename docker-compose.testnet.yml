@@ -18,3 +18,5 @@ services:
     mongodb-testnet:
         image: mongo
         restart: always
+        volumes:
+            - "mongodb-testnet:/data/db"
