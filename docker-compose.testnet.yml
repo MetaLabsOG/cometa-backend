@@ -20,3 +20,6 @@ services:
         restart: always
         volumes:
             - "mongodb-testnet:/data/db"
+
+volumes:
+    mongodb-testnet:
