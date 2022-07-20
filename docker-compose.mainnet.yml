@@ -1,0 +1,15 @@
+version: '3.3'
+
+services:
+    mainnet:
+        build: .
+        restart: always
+        entrypoint: ./scripts/docker-entry.sh
+        environment:
+            COMETA_ENVIRONMENT: "mainnet"
+            REACH_NO_WARN: "true"
+        volumes:
+            - .:/app
+        ports:
+            - "5000:5000"
+        network_mode: host

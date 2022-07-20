@@ -1,3 +1,5 @@
 #!/bin/bash
 
-docker-compose down -v && docker-compose up -d
+ENV=${1:-testnet}
+
+docker-compose -f "docker-compose.$ENV.yml" down && docker-compose -f "docker-compose.$ENV.yml" up -d
