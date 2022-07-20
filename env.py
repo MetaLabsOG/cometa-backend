@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     algod_token: str
 
     server_port: int
-    mongodb_host: str = 'localhost'
+    mongodb_host: str
     mongodb_port: int
 
     api_password: str
