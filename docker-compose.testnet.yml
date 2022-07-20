@@ -13,3 +13,9 @@ services:
         ports:
             - "5001:5001"
         network_mode: host
+        depends_on:
+            - mongodb-testnet
+
+    mongodb-testnet:
+        image: mongo
+        restart: always
