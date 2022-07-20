@@ -6,7 +6,7 @@ from api import metapunks
 from blockchain.node import get_current_round
 from env import settings
 
-db = MongoClient(port=settings.mongodb_port)[settings.db_name]
+db = MongoClient(host=settings.mongodb_host, port=settings.mongodb_port)[settings.db_name]
 
 
 def mock_snapshot(snapshot_id: str):
