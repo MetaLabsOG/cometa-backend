@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const COMETA_ENV = process.env.COMETA_ENVIRONMENT || "test";
+const COMETA_ENV = process.env.COMETA_ENVIRONMENT || "testnet";
 
 require("dotenv").config({
   path: path.resolve(__dirname, `../.env.${COMETA_ENV}`),
@@ -34,8 +34,8 @@ server.on("connection", async (c) => {
   c.write(`${strResponse}\n`);
 });
 
-server.on('close', () => {
-  console.log('JS INTEROP: shutting down')
+server.on("close", () => {
+  console.log("JS INTEROP: shutting down");
 });
 
 server.on("error", (err) => {
