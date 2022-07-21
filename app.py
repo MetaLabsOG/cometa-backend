@@ -6,7 +6,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
-from algosdk import account, mnemonic
+from algosdk import account, mnemonic, encoding
 
 from airdrop import airdrop, snapshot
 from api import nft_market
@@ -117,11 +117,13 @@ async def register_contract(contract: AddContract) -> dict:
     # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
     if contract.type == 'farm':
         target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
+        target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
         target_creation_fee = 0  # make farm creation free for now. TODO: should be set up in some ENV variable which is 
                                  # tied to the same variable on the frontend?
 
-        if view['initial']['beneficiary'] != target_beneficiary:
-            raise HTTPException(status_code=403, detail=f"Farm's beneficiary address is invaild (expected {target_beneficiary}")
+        contract_beneficiary = view['initial']['beneficiary']
+        if contract_beneficiary != target_beneficiary_hex:
+            raise HTTPException(status_code=403, detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary}")
 
         if parse_bignum(view['initial']['creationFee']) != target_creation_fee:
             raise HTTPException(status_code=403, detail=f"Farm's creation fee is invalid (expected {target_creation_fee}")
