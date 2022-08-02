@@ -28,6 +28,8 @@ class AssetInfo:
 
 @cached(cache=TTLCache(maxsize=1024, ttl=settings.asset_prices_ttl))
 def get_asset_price(asset_id: int) -> Price:
+    if asset_id == 0:
+        return Price(tinychart.get_algo_price(), MICROALGOS_IN_ALGO)
     tinyman_client = init_tinyman_client()
     price_in_algo = get_price(tinyman_client, asset_id)
     algo_price = tinychart.get_algo_price()
