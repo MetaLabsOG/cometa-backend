@@ -19,8 +19,8 @@
     "@reach-sh/stdlib": "0.1.11-rc.0",
     "@metalabsog/common": "^17.0.0",
     "@metalabsog/crowdsale": "17.0.0",
-    "@metalabsog/farm": "17.2.3",
-    "@metalabsog/distribution": "17.0.2",
+    "@metalabsog/farm": "17.2.4",
+    "@metalabsog/distribution": "17.0.3",
     "dotenv": "^16.0.1"
   }
 }
