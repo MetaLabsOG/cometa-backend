@@ -1,5 +1,3 @@
 #!/bin/bash
 
-ENV=${1:-testnet}
-
-docker-compose -f "docker-compose.$ENV.yml" up -d
+docker-compose up -d "$@"

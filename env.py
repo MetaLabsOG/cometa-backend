@@ -3,7 +3,6 @@ from functools import cached_property
 
 from pydantic import BaseSettings
 
-ENVIRONMENT = os.getenv('COMETA_ENVIRONMENT', default='testnet')
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -26,16 +25,19 @@ class Settings(BaseSettings):
     asset_prices_ttl: int
 
     class Config:
-        env_file = f'.env.{ENVIRONMENT}'
+        env_file = '.env'
         arbitrary_types_allowed = True
         keep_untouched = (cached_property,)
 
     def is_mainnet(self):
-        return self.algo_network == 'MAINNET'
+        return self.algo_network == 'mainnet'
 
     @property
     def db_name(self):
-        return self.algo_network
+        return self.algo_network.upper()
 
 
 settings = Settings()
+
+print(f'Algo Network = {settings.algo_network}')
+print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')
