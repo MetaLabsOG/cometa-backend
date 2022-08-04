@@ -80,7 +80,7 @@ async def wallet_nfts(address: str) -> List[NftInfo]:
 class AddContract(BaseModel):
     type: str
     id: int = ...
-    VERSION: str
+    version: str
     description: Optional[str] = None
     metadata: Optional[dict] = None
 
