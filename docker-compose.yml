@@ -1,0 +1,24 @@
+version: '3.3'
+
+services:
+    app:
+        build: .
+        restart: always
+        entrypoint: ./scripts/docker-entry.sh
+        environment:
+            REACH_NO_WARN: "${REACH_NO_WARN}"
+        volumes:
+            - .:/app
+        ports:
+            - "${SERVER_PORT}:${SERVER_PORT}"
+        depends_on:
+            - mongodb
+
+    mongodb:
+        image: mongo
+        restart: always
+        command: mongod --port ${MONGODB_PORT}
+        ports:
+            - "${MONGODB_PORT}:${MONGODB_PORT}"
+        volumes:
+            - "/var/lib/mongodb-${ALGO_NETWORK}:/data/db"
