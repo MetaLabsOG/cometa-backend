@@ -96,15 +96,15 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'Yieldling Rare #013',
             'Yieldlings',
             'https://ipfs.io/ipfs/bafkreifrnteqwajm53rshk654c3bhz6vdoyduegz5xsqfohft5zq5rpomy',
-            Price(1000 * algo_price, 1000 * MICROALGOS_IN_ALGO),
-            -12
+            Price(1500 * algo_price, 1500 * MICROALGOS_IN_ALGO),
+            14.5
         ),
         NftInfo(
             359028119,
             'M.N.G.O #1540',
             'M.N.G.O',
             'https://ipfs.io/ipfs/QmU9etNk15tZKXug4qEL6YDRQPEUhY67yZ1prFXvzmULpo',
-            Price(700 * algo_price, 700 * MICROALGOS_IN_ALGO),
+            Price(1000 * algo_price, 1000 * MICROALGOS_IN_ALGO),
             -8
         ),
         NftInfo(
@@ -112,7 +112,7 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'Pixel Guy #128',
             'Pixel Guys',
             'https://ipfs.io/ipfs/QmNNffZu5wYHKjfpxwpKHXF79sbbe2boz2fwU5gEyy7ArZ/128.png',
-            Price(350 * algo_price, 350 * MICROALGOS_IN_ALGO),
+            Price(70 * algo_price, 70 * MICROALGOS_IN_ALGO),
             -60
         ),
         NftInfo(
@@ -120,7 +120,7 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'Astro #170',
             'AlgoAstros',
             'https://ipfs.io/ipfs/bafkreif6tzey3lh5yszyhtnr3lmh6lcdpx5txcm34ovlbnwujfb2sd24fa',
-            Price(850 * algo_price, 850 * MICROALGOS_IN_ALGO),
+            Price(999 * algo_price, 999 * MICROALGOS_IN_ALGO),
             -12
         ),
         NftInfo(
@@ -128,15 +128,15 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'FC1662',
             'Flemish Clones',
             'https://ipfs.infura.io/ipfs/QmNdD53TzNc5AoGuD51EnkUQYHgxU9iDX7PeGL9U8htJkG',
-            Price(165 * algo_price, 165 * MICROALGOS_IN_ALGO),
-            -5.5
+            Price(185 * algo_price, 185 * MICROALGOS_IN_ALGO),
+            5.5
         ),
         NftInfo(
             779735087,
             'Shep #5872',
             'Shep',
             'https://ipfs.io/ipfs/QmcVKMJHVPHgg8sqskfDzk9a3nTH7LeLTVNmHnYtsTzXtc',
-            Price(164 * algo_price, 164 * MICROALGOS_IN_ALGO),
+            Price(293 * algo_price, 293 * MICROALGOS_IN_ALGO),
             -7
         )
     ]

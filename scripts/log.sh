@@ -1,5 +1,9 @@
 #!/bin/bash
 
-ENV=${1:-testnet}
+source .env
+if [ "$ALGO_NETWORK" = "testnet" ];
+then
+  PREF="-testnet"
+fi
 
-docker logs "cometa-backend_${ENV}_1" -f
+docker logs "cometa-backend${PREF}_app_1" -f
