@@ -7,4 +7,4 @@ export const META_ASA_IDS = {
 };
 
 export const META_TOKEN = META_ASA_IDS[NETWORK];
-export const MNEMONIC = process.env.DEPLOY_MNEMONIC;
+export const MNEMONIC = process.env.ALGO_MNEMONIC;
