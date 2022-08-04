@@ -8,7 +8,8 @@ from pymongo import MongoClient
 from env import settings
 
 client = MongoClient(host=settings.mongodb_host, port=settings.mongodb_port)
-db = client[settings.algo_network].contract
+# TODO: rename client name
+db = client[settings.db_name].contract
 
 
 @dataclass_json
@@ -21,11 +22,13 @@ class ContractInfo:
     description: Optional[str] = None
     metadata: Optional[dict] = None
 
+
 def add_contract(type: str, id: int, version: str, description: Optional[str], metadata: Optional[dict]) -> str:
     cur_time = time.time()
     contract = ContractInfo(type, id, version, cur_time, description, metadata)
     res = db.insert_one(contract.to_dict())
     return str(res.inserted_id)
+
 
 def update_contract(id: int, description: Optional[str], metadata: Optional[dict]) -> bool:
     upd_dict = {}
@@ -58,14 +61,3 @@ def remove_contract(contract_id: int) -> int:
 def remove_contracts(type: str) -> int:
     res = db.delete_many({'type': type})
     return res.deleted_count
-
-
-if __name__ == '__main__':
-    pass
-    # contract = ContractInfo('fomo', 12369, '1.0', datetime.timestamp())
-    # print(add_contract(contract))
-    # print(get_contract(12369))
-    # print(get_contract(123))
-    # print(get_contracts('fomo'))
-    # print(list(get_contracts('fomo')))
-

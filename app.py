@@ -22,9 +22,10 @@ from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get
 from env import settings
 from background import start_bg_tasks
 
+VERSION = "0.1.5"
 app = FastAPI(
     title="Cometa",
-    version="0.1.5"
+    version=VERSION
 )
 app.add_middleware(
     CORSMiddleware,
@@ -46,6 +47,7 @@ def check_password(password: str) -> None:
 @app.get('/status')
 async def status() -> dict:
     return {
+        'version': VERSION,
         'algo_network': settings.algo_network
     }
 
@@ -78,7 +80,7 @@ async def wallet_nfts(address: str) -> List[NftInfo]:
 class AddContract(BaseModel):
     type: str
     id: int = ...
-    version: str
+    VERSION: str
     description: Optional[str] = None
     metadata: Optional[dict] = None
 
@@ -98,6 +100,7 @@ async def add_new_contract(contract: AddContract, password: str) -> dict:
 
     added = add_contract(contract.type, contract.id, contract.version, contract.description, contract.metadata)
     return {'internal_id': added}
+
 
 # This method is NOT password-protected: it is intended to be used by users who add contracts themselves.
 # The only thing we do here to ensure that our database isn't spammed with bullshit is checking that the contract
@@ -136,6 +139,7 @@ async def register_contract(contract: AddContract) -> dict:
 
     # I don't think that returning internal id to the users is anyhow useful, also probably discloses unnecessary info?
     return {'added': contract.id}
+
 
 @app.patch('/contract/update')
 async def update(contract: ModifyContract, password: str) -> dict:
