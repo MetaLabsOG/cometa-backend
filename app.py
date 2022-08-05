@@ -1,3 +1,4 @@
+import logging
 import secrets
 import sys
 from typing import List, Optional, Dict
@@ -36,6 +37,12 @@ app.add_middleware(
     ],
     allow_methods=['*'],
     allow_headers=['*'],
+)
+
+logging.basicConfig(
+    format='[%(asctime)s][%(levelname)s] %(message)s',
+    datefmt='%I:%M:%S',
+    level=settings.logging_level
 )
 
 

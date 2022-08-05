@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     mongodb_port: int
 
     api_password: str
+    logging_level: str = 'INFO'
 
     algo_price_ttl: int
     asset_prices_ttl: int
