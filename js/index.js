@@ -1,10 +1,9 @@
 "use strict";
 
 const path = require("path");
-const COMETA_ENV = process.env.COMETA_ENVIRONMENT || "testnet";
 
 require("dotenv").config({
-  path: path.resolve(__dirname, `../.env.${COMETA_ENV}`),
+  path: path.resolve(__dirname, `../.env`),
 });
 
 const net = require("net");
