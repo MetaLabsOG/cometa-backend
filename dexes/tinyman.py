@@ -18,7 +18,7 @@ from env import settings
 ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
 
 
-private_key = mnemonic.to_private_key(settings.tinyman_mnemonic)
+private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
 TXNS_FIELD = 'txns'
