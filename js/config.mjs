@@ -1,4 +1,4 @@
-export const COMETA_ENV = process.env.COMETA_ENVIRONMENT || "testnet";
+export const COMETA_ENV = process.env.ALGO_NETWORK || "testnet";
 export const NETWORK = COMETA_ENV === "testnet" ? "TestNet" : "MainNet";
 
 export const META_ASA_IDS = {
