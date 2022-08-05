@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from algosdk import account, mnemonic, encoding
+from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import nft_market
@@ -20,10 +21,10 @@ from api.js_interop import calljs, start_js_interop_server
 
 from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
     get_swap_transactions, get_zap_data
-from env import settings
+from env import settings, LOG_FORMAT, DATE_FORMAT
 from background import start_bg_tasks
 
-VERSION = "0.1.5"
+VERSION = "0.1.6"
 app = FastAPI(
     title="Cometa",
     version=VERSION
@@ -37,12 +38,6 @@ app.add_middleware(
     ],
     allow_methods=['*'],
     allow_headers=['*'],
-)
-
-logging.basicConfig(
-    format='[%(asctime)s][%(levelname)s] %(message)s',
-    datefmt='%I:%M:%S',
-    level=settings.logging_level
 )
 
 
@@ -286,6 +281,24 @@ async def whitelist_check(contract_id: int, address: str) -> bool:
 async def whitelist_check(asset_id: int) -> Price:
     price = get_asset_price(asset_id)
     return price
+
+
+@app.on_event("startup")
+async def startup_event():
+    logging.basicConfig(
+        format=LOG_FORMAT,
+        datefmt=DATE_FORMAT,
+        level=settings.logging_level
+    )
+
+    logger = logging.getLogger("uvicorn.access")
+    console_formatter = ColourizedFormatter(
+        fmt=LOG_FORMAT,
+        style="[",
+        datefmt=DATE_FORMAT,
+        use_colors=True
+    )
+    logger.handlers[0].setFormatter(console_formatter)
 
 
 if __name__ == "__main__":
