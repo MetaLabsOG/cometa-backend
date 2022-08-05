@@ -8,9 +8,7 @@ DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 class Settings(BaseSettings):
     algo_network: str
-
     algo_mnemonic: str
-    tinyman_mnemonic: str
 
     algod_address: str
     algod_token: str
