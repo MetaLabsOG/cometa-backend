@@ -294,7 +294,6 @@ async def startup_event():
     logger = logging.getLogger("uvicorn.access")
     console_formatter = ColourizedFormatter(
         fmt=LOG_FORMAT,
-        style="[",
         datefmt=DATE_FORMAT,
         use_colors=True
     )
