@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     algod_token: str
 
     server_port: int
+    workers_num: int
+
     mongodb_host: str
     mongodb_port: int
 
