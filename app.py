@@ -320,4 +320,4 @@ if __name__ == "__main__":
 
     with start_js_interop_server():
         with start_bg_tasks():
-            uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port)
+            uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
