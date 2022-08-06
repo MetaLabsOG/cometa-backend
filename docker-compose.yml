@@ -18,7 +18,5 @@ services:
         image: mongo
         restart: always
         command: mongod --port ${MONGODB_PORT}
-        ports:
-            - "${MONGODB_PORT}:${MONGODB_PORT}"
         volumes:
             - "/var/lib/mongodb-${ALGO_NETWORK}:/data/db"
