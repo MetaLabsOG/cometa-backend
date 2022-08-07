@@ -14,6 +14,8 @@ from .marketplace import Sale, Marketplace
 # }
 class AlgoGems(Marketplace):
     def get_sales(self, creator: str) -> List[Sale]:
+        # TODO: fix Algogems rate limiting
+        return []
         url = f'https://algogems.io/api/nftexplorer/sales?address={creator}'
         sales = requests.get(url).json()['metadata']
         return [Sale(
