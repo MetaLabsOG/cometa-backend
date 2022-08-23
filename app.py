@@ -14,13 +14,14 @@ from airdrop import airdrop, snapshot
 from api import nft_market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts, update_contract
+from api.stats import get_tvl_for_type
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2, get_asset_price, Price
 from api.util import parse_bignum
 from api.js_interop import calljs, start_js_interop_server
 
 from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
-    get_swap_transactions, get_zap_data
+    get_swap_transactions, get_zap_data, PoolInfo
 from env import settings, LOG_FORMAT, DATE_FORMAT
 from background import start_bg_tasks
 
@@ -224,7 +225,7 @@ async def swap_transactions(address: str, asset1_id: int, asset2_id: int, asset1
 
 
 @app.get('/pool')
-async def pool(asset1_id: int, asset2_id: int) -> dict:
+async def pool(asset1_id: int, asset2_id: int) -> PoolInfo:
     client = init_tinyman_client()
     return get_pool_info(client, asset1_id, asset2_id)
 
@@ -282,6 +283,21 @@ async def whitelist_check(asset_id: int) -> Price:
     price = get_asset_price(asset_id)
     return price
 
+
+# Statistics
+
+@app.get('/stats/tvl')
+async def tvl() -> dict:
+    farm_tvl = get_tvl_for_type('farm')
+    distribution_tvl = get_tvl_for_type('distribution')
+    return {
+        'farm': farm_tvl,
+        'distribution': distribution_tvl,
+        'total': farm_tvl + distribution_tvl
+    }
+
+
+# Events
 
 @app.on_event("startup")
 async def startup_event():

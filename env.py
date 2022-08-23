@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     algo_price_ttl: int
     asset_prices_ttl: int
+    total_tvl_ttl: int
 
     class Config:
         env_file = '.env'
