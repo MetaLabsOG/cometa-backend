@@ -1,5 +1,6 @@
 import json
 import urllib.request
+from dataclasses import dataclass
 from typing import Optional
 
 from algosdk import account, encoding, mnemonic
@@ -48,7 +49,15 @@ def get_micros(amount: float, asset: Asset) -> int:
     return int(amount * decimals)
 
 
-def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict:
+@dataclass
+class PoolInfo:
+    name: str
+    asset1_reserve: float
+    asset2_reserve: float
+    total_lp_tokens: float
+
+
+def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> PoolInfo:
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
 
@@ -64,12 +73,7 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> dict
         asset1_reserve = asset2_reserve
         asset2_reserve = tmp
 
-    return {
-        'name': pool.liquidity_asset.name,
-        'asset1_reserve': asset1_reserve,
-        'asset2_reserve': asset2_reserve,
-        'total_lp_tokens': total_lp_tokens
-    }
+    return PoolInfo(pool.liquidity_asset.name, asset1_reserve, asset2_reserve, total_lp_tokens)
 
 
 def get_price(client: TinymanClient, asset_id: int) -> float:
