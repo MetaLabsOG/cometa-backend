@@ -105,7 +105,7 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'M.N.G.O',
             'https://ipfs.io/ipfs/QmU9etNk15tZKXug4qEL6YDRQPEUhY67yZ1prFXvzmULpo',
             Price(1000 * algo_price, 1000 * MICROALGOS_IN_ALGO),
-            -8
+            -8.2
         ),
         NftInfo(
             391839995,
@@ -113,7 +113,7 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'Pixel Guys',
             'https://ipfs.io/ipfs/QmNNffZu5wYHKjfpxwpKHXF79sbbe2boz2fwU5gEyy7ArZ/128.png',
             Price(70 * algo_price, 70 * MICROALGOS_IN_ALGO),
-            -60
+            -60.7
         ),
         NftInfo(
             656165674,
@@ -121,7 +121,7 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'AlgoAstros',
             'https://ipfs.io/ipfs/bafkreif6tzey3lh5yszyhtnr3lmh6lcdpx5txcm34ovlbnwujfb2sd24fa',
             Price(999 * algo_price, 999 * MICROALGOS_IN_ALGO),
-            -12
+            -13.1
         ),
         NftInfo(
             708186273,
@@ -137,7 +137,15 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             'Shep',
             'https://ipfs.io/ipfs/QmcVKMJHVPHgg8sqskfDzk9a3nTH7LeLTVNmHnYtsTzXtc',
             Price(293 * algo_price, 293 * MICROALGOS_IN_ALGO),
-            -7
+            -7.7
+        ),
+        NftInfo(
+            834757311,
+            'Fracctal Tamer 024',
+            'Fracctal Tamers',
+            'https://ipfs.io/ipfs/bafybeicobcmmyunmkliogvs7rjopckd5uhsrzcs2ppfxlworojxome54di',
+            Price(279 * algo_price, 279 * MICROALGOS_IN_ALGO),
+            4.5
         )
     ]
 
