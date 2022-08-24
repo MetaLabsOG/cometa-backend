@@ -4,8 +4,10 @@ import multiprocessing
 from contextlib import contextmanager
 from api.contract_manager import get_contracts, update_contract
 from api.js_interop import calljs
+from api.stats import calculate_tvl_for_type, save_snapshot
 
 spawn = multiprocessing.get_context('spawn')
+
 
 # Decorators (for convenience)
 
@@ -17,6 +19,7 @@ def safe_async_method(fn):
             print(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: ', e)
     return wrapper
 
+
 def repeat_every(seconds: int):
     def decorator(fn):
         async def wrapper(*args, **kwargs):
@@ -25,6 +28,7 @@ def repeat_every(seconds: int):
                 await asyncio.sleep(seconds)
         return wrapper
     return decorator
+
 
 # Task logic
 
@@ -46,12 +50,23 @@ async def update_contracts_cache(type: str) -> None:
     
         print(f'updated state cache for contracts: {type}')
 
-@repeat_every(60) # once in a minute
+
+@safe_async_method
+async def record_contracts_stats() -> None:
+    farm_tvl = calculate_tvl_for_type('farm')
+    distribution_tvl = calculate_tvl_for_type('distribution')
+    save_snapshot(farm_tvl, distribution_tvl)
+
+
+@repeat_every(60)  # once in a minute
 async def update_contracts_worker():
     print('updating contract caches...')
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
     await update_contracts_cache('crowdsale')
+
+    await record_contracts_stats()
+
 
 # TODO: graceful shutdown here (with signal handling?)
 def run_background():
