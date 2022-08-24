@@ -15,8 +15,9 @@ from api import nft_market
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts, update_contract
 from api.stats import get_tvl_for_type
+from api.tinychart import get_asset_price_full
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
-    NftInfo, get_wallet_assets2, get_asset_price, Price
+    NftInfo, get_wallet_assets2, Price
 from api.util import parse_bignum
 from api.js_interop import calljs, start_js_interop_server
 
@@ -279,8 +280,8 @@ async def whitelist_check(contract_id: int, address: str) -> bool:
 # ASAs
 
 @app.get('/asset/{asset_id}/price')
-async def whitelist_check(asset_id: int) -> Price:
-    price = get_asset_price(asset_id)
+async def asset_price(asset_id: int) -> Price:
+    price = get_asset_price_full(asset_id)
     return price
 
 
