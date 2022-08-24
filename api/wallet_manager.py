@@ -32,7 +32,7 @@ def get_wallet_assets(address: str) -> List[AssetInfo]:
                     asset_info['name'],
                     asset_info['unit_name'],
                     asset_amount,
-                    asset_price.multiply(asset_amount),
+                    asset_price,
                     asset_id
                 )
             )
