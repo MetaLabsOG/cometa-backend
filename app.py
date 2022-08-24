@@ -11,10 +11,9 @@ from algosdk import account, mnemonic, encoding
 from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
-from api import nft_market
+from api import nft_market, stats
 from api.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
     remove_contracts, update_contract
-from api.stats import get_tvl_for_type
 from api.tinychart import get_asset_price_full
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2, Price
@@ -289,13 +288,7 @@ async def asset_price(asset_id: int) -> Price:
 
 @app.get('/stats/tvl')
 async def tvl() -> dict:
-    farm_tvl = get_tvl_for_type('farm')
-    distribution_tvl = get_tvl_for_type('distribution')
-    return {
-        'farm': farm_tvl,
-        'distribution': distribution_tvl,
-        'total': farm_tvl + distribution_tvl
-    }
+    return stats.get_tvl()
 
 
 # Events
