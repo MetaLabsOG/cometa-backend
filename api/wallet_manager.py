@@ -3,15 +3,10 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict
 
 from api import tinychart
+from api.tinychart import Price
 from blockchain.assets import MICROALGOS_IN_ALGO
 from blockchain.indexer import get_account_assets
 from dexes.tinyman import get_all_assets, get_asset_info
-
-
-@dataclass
-class Price:
-    usd: float
-    microalgo: int
 
 
 @dataclass
@@ -32,8 +27,7 @@ def get_wallet_assets(address: str) -> List[AssetInfo]:
         asset_info = get_asset_info(asset_id)
         if asset_info is not None and asset['amount'] and not asset['deleted']:
             asset_amount = asset['amount'] / 10 ** asset_info['decimals']
-            asset_usd_price = tinychart.get_asset_price(asset_id)
-            asset_price = Price(asset_usd_price, int(asset_usd_price / algo_price * MICROALGOS_IN_ALGO))
+            asset_price = tinychart.get_asset_price_full(asset_id)
             res.append(AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, asset_price, asset_id))
 
     return res
