@@ -21,14 +21,21 @@ class AssetInfo:
 def get_wallet_assets(address: str) -> List[AssetInfo]:
     wallet_assets = get_account_assets(address)
     res = []
-    algo_price = tinychart.get_algo_price()
     for asset in wallet_assets:
         asset_id = asset['asset-id']
         asset_info = get_asset_info(asset_id)
         if asset_info is not None and asset['amount'] and not asset['deleted']:
             asset_amount = asset['amount'] / 10 ** asset_info['decimals']
             asset_price = tinychart.get_asset_price_full(asset_id)
-            res.append(AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, asset_price, asset_id))
+            res.append(
+                AssetInfo(
+                    asset_info['name'],
+                    asset_info['unit_name'],
+                    asset_amount,
+                    asset_price.multiply(asset_amount),
+                    asset_id
+                )
+            )
 
     return res
 

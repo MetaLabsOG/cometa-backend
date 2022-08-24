@@ -14,6 +14,9 @@ class Price:
     usd: float
     microalgo: int
 
+    def multiply(self, mul: float) -> 'Price':
+        return Price(self.usd * mul, int(self.microalgo * mul))
+
 
 @cached(cache=TTLCache(maxsize=1, ttl=settings.algo_price_ttl))
 def get_algo_price() -> float:
