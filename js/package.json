@@ -16,11 +16,14 @@
   },
   "homepage": "https://github.com/MetaLabsOG/cometa-backend#readme",
   "dependencies": {
-    "@reach-sh/stdlib": "0.1.11-rc.0",
     "@metalabsog/common": "^17.0.0",
     "@metalabsog/crowdsale": "17.0.0",
-    "@metalabsog/farm": "17.2.4",
-    "@metalabsog/distribution": "17.0.4",
-    "dotenv": "^16.0.1"
+    "@reach-sh/stdlib": "0.1.11-rc.0",
+    "dotenv": "^16.0.1",
+    "metalabsog-distribution-17_0_4": "npm:@metalabsog/distribution@^17.0.4",
+    "metalabsog-distribution-17_0_5": "npm:@metalabsog/distribution@^17.0.5",
+    "metalabsog-farm-17_2_4": "npm:@metalabsog/farm@17.2.4",
+    "metalabsog-farm-17_2_5": "npm:@metalabsog/farm@17.2.5",
+    "semver": "^7.3.7"
   }
 }
