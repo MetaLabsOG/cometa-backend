@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     algo_network: str
     algo_mnemonic: str
 
+    farm_creation_fee: int
+    farm_flat_algo_creation_fee: int
+
     algod_address: str
     algod_token: str
 
