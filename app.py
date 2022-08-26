@@ -17,7 +17,7 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
 from api.tinychart import get_asset_price_full
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2, Price
-from api.util import parse_bignum
+from api.util import parse_bignum, strip_version
 from api.js_interop import calljs, start_js_interop_server
 
 from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
@@ -113,7 +113,8 @@ async def register_contract(contract: AddContract) -> dict:
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
-    global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type, ids=[contract.id])
+    global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
+                                idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
     if str(contract.id) not in global_views:
         raise HTTPException(status_code=409, detail="Contract with given ID is not present in the network or does not match the given type")
 
