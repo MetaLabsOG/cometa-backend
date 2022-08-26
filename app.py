@@ -124,8 +124,8 @@ async def register_contract(contract: AddContract) -> dict:
     if contract.type == 'farm':
         target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
-        target_creation_fee = 0  # make farm creation free for now. TODO: should be set up in some ENV variable which is 
-                                 # tied to the same variable on the frontend?
+        target_creation_fee = settings.farm_creation_fee
+        target_flat_algo_creation_fee = settings.farm_flat_algo_creation_fee * 1000000  # in microtokens
 
         contract_beneficiary = view['initial']['beneficiary']
         if contract_beneficiary != target_beneficiary_hex:
@@ -133,6 +133,10 @@ async def register_contract(contract: AddContract) -> dict:
 
         if parse_bignum(view['initial']['creationFee']) != target_creation_fee:
             raise HTTPException(status_code=403, detail=f"Farm's creation fee is invalid (expected {target_creation_fee}")
+
+        if parse_bignum(view['initial']['flatAlgoCreationFee']) != target_flat_algo_creation_fee:
+            raise HTTPException(status_code=403, detail=f"Farm's flat algo creation fee is invalid (expected {target_flat_algo_creation_fee})")
+        
 
     # Cache the contract's state right away so that user sees that it is displayed correctly right after
     # the contract is created even without connected wallet.
