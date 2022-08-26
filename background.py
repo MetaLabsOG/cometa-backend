@@ -3,6 +3,7 @@ import multiprocessing
 
 from contextlib import contextmanager
 from api.contract_manager import get_contracts, update_contract
+from api.util import strip_version
 from api.js_interop import calljs
 from api.stats import calculate_tvl_for_type, save_snapshot
 
@@ -36,8 +37,9 @@ def repeat_every(seconds: int):
 async def update_contracts_cache(type: str) -> None:
     contracts = get_contracts(type)
     if len(contracts) > 0:
+        ids_and_versions = [{ 'id': info.id, 'version': strip_version(info.version) } for info in contracts]
         existing_metadatas = { info.id: info.metadata for info in contracts }
-        states = await calljs("fetchContractsGlobalViews", contractType=type, ids=list(existing_metadatas.keys()))
+        states = await calljs("fetchContractsGlobalViews", contractType=type, idVersions=ids_and_versions)
 
         for s_id, state in states.items():
             id = int(s_id)
