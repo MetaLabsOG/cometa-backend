@@ -17,7 +17,7 @@ from api.contract_manager import ContractInfo, get_contract, add_contract, get_c
 from api.tinychart import get_asset_price_full
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
     NftInfo, get_wallet_assets2, Price
-from api.util import parse_bignum
+from api.util import parse_bignum, strip_version
 from api.js_interop import calljs, start_js_interop_server
 
 from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
@@ -113,7 +113,8 @@ async def register_contract(contract: AddContract) -> dict:
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
-    global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type, ids=[contract.id])
+    global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
+                                idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
     if str(contract.id) not in global_views:
         raise HTTPException(status_code=409, detail="Contract with given ID is not present in the network or does not match the given type")
 
@@ -124,8 +125,8 @@ async def register_contract(contract: AddContract) -> dict:
     if contract.type == 'farm':
         target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
-        target_creation_fee = 0  # make farm creation free for now. TODO: should be set up in some ENV variable which is 
-                                 # tied to the same variable on the frontend?
+        target_creation_fee = settings.farm_creation_fee
+        target_flat_algo_creation_fee = settings.farm_flat_algo_creation_fee * 1000000  # in microtokens
 
         contract_beneficiary = view['initial']['beneficiary']
         if contract_beneficiary != target_beneficiary_hex:
@@ -133,6 +134,10 @@ async def register_contract(contract: AddContract) -> dict:
 
         if parse_bignum(view['initial']['creationFee']) != target_creation_fee:
             raise HTTPException(status_code=403, detail=f"Farm's creation fee is invalid (expected {target_creation_fee}")
+
+        if parse_bignum(view['initial']['flatAlgoCreationFee']) != target_flat_algo_creation_fee:
+            raise HTTPException(status_code=403, detail=f"Farm's flat algo creation fee is invalid (expected {target_flat_algo_creation_fee})")
+        
 
     # Cache the contract's state right away so that user sees that it is displayed correctly right after
     # the contract is created even without connected wallet.
