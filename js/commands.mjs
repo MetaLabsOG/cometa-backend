@@ -111,10 +111,10 @@ export const fetchContractsGlobalViews = async ({
   });
 
   const res = {};
-  for (let i = 0; i < ids.length; i++) {
+  for (let i = 0; i < idVersions.length; i++) {
     const curRes = results[i];
     if (curRes !== null) {
-      res[ids[i]] = results[i];
+      res[idVersions[i].id] = results[i];
     }
   }
 
