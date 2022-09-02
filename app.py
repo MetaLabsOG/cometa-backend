@@ -116,7 +116,8 @@ async def register_contract(contract: AddContract) -> dict:
     global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
                                 idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
     if str(contract.id) not in global_views:
-        raise HTTPException(status_code=409, detail="Contract with given ID is not present in the network or does not match the given type")
+        raise HTTPException(status_code=409,
+                            detail="Contract with given ID is not present in the network or does not match the given type")
 
     view = global_views[str(contract.id)]
 
@@ -130,14 +131,16 @@ async def register_contract(contract: AddContract) -> dict:
 
         contract_beneficiary = view['initial']['beneficiary']
         if contract_beneficiary != target_beneficiary_hex:
-            raise HTTPException(status_code=403, detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary}")
+            raise HTTPException(status_code=403,
+                                detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary}")
 
         if parse_bignum(view['initial']['creationFee']) != target_creation_fee:
-            raise HTTPException(status_code=403, detail=f"Farm's creation fee is invalid (expected {target_creation_fee}")
+            raise HTTPException(status_code=403,
+                                detail=f"Farm's creation fee is invalid (expected {target_creation_fee}")
 
         if parse_bignum(view['initial']['flatAlgoCreationFee']) != target_flat_algo_creation_fee:
-            raise HTTPException(status_code=403, detail=f"Farm's flat algo creation fee is invalid (expected {target_flat_algo_creation_fee})")
-        
+            raise HTTPException(status_code=403,
+                                detail=f"Farm's flat algo creation fee is invalid (expected {target_flat_algo_creation_fee})")
 
     # Cache the contract's state right away so that user sees that it is displayed correctly right after
     # the contract is created even without connected wallet.
@@ -294,6 +297,19 @@ async def asset_price(asset_id: int) -> Price:
 @app.get('/stats/tvl')
 async def tvl() -> dict:
     return stats.get_tvl()
+
+
+@app.get('/stats/local_state')
+async def get_local_states(type: str, address: str) -> dict:
+    contracts = get_contracts(type)
+    if len(contracts) > 0:
+        ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
+        states = await calljs("fetchContractsGlobalViews",
+                              contractType=type,
+                              idVersions=ids_and_versions,
+                              walletAddress=address)
+        return states
+    return {}
 
 
 # Events

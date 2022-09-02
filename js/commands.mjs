@@ -120,3 +120,35 @@ export const fetchContractsGlobalViews = async ({
 
   return res;
 };
+
+export const fetchContractsLocalViews = async ({
+  contractType,
+  idVersions,
+  walletAddress
+}) => {
+  if (!contractType in CONTRACT_PKGS) {
+    throw new Error(`unknown contract type ${contractType}`);
+  }
+
+  const results = await mapConcurrent(idVersions, async ({ id, version }) => {
+    try {
+      const { backend } = CONTRACT_PKGS[contractType][version];
+      const ctc = account.contract(backend, id);
+      const local = await ctc.unsafeViews.local(walletAddress);
+      return local;
+    } catch (e) {
+      console.log(e);
+      return null;
+    }
+  });
+
+  const res = {};
+  for (let i = 0; i < idVersions.length; i++) {
+    const curRes = results[i];
+    if (curRes !== null) {
+      res[idVersions[i].id] = results[i];
+    }
+  }
+
+  return res;
+};
