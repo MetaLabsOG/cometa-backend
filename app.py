@@ -304,7 +304,7 @@ async def get_local_states(type: str, address: str) -> dict:
     contracts = get_contracts(type)
     if len(contracts) > 0:
         ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
-        states = await calljs("fetchContractsGlobalViews",
+        states = await calljs("fetchContractsLocalViews",
                               contractType=type,
                               idVersions=ids_and_versions,
                               walletAddress=address)
