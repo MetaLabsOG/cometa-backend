@@ -2,8 +2,8 @@ import time
 from dataclasses import dataclass
 from typing import List, Optional, Dict
 
-from api import tinychart
-from api.tinychart import Price
+from core import tinychart
+from core.tinychart import Price
 from blockchain.assets import MICROALGOS_IN_ALGO
 from blockchain.indexer import get_account_assets
 from dexes.tinyman import get_all_assets, get_asset_info

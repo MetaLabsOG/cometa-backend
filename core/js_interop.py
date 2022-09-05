@@ -9,7 +9,7 @@ import time
 from os import path
 from env import DIR_PATH
 
-COMETA_SOCK = '/tmp/cometa-js-interop.sock';
+COMETA_SOCK = '/tmp/cometa-js-interop.sock'
 
 def start_js_interop_server():
     if path.exists(COMETA_SOCK):
