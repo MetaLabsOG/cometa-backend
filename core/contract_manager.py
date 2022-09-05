@@ -4,8 +4,7 @@ from typing import List, Optional
 
 from dataclasses_json import dataclass_json
 
-from api import mongodb
-
+from core import mongodb
 
 contracts = mongodb.database.contract
 
