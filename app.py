@@ -123,7 +123,7 @@ async def register_contract(contract: AddContract) -> dict:
 
     # Check that the contract's parameters are correct (beneficiary and creation fee are as we need them)    
     # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
-    if contract.type == 'farm':
+    if contract.type in ('farm', 'distribution'):
         target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
         target_creation_fee = settings.farm_creation_fee
@@ -352,3 +352,4 @@ if __name__ == "__main__":
     with start_js_interop_server():
         with start_bg_tasks():
             uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
+A
