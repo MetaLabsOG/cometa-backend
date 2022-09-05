@@ -2,9 +2,9 @@ import asyncio
 import multiprocessing
 
 from contextlib import contextmanager
-from api.contract_manager import get_contracts, update_contract
-from api.util import strip_version
-from api.js_interop import calljs
+from core.contract_manager import get_contracts, update_contract
+from core.util import strip_version
+from core.js_interop import calljs
 from api.stats import calculate_tvl_for_type, save_snapshot
 
 spawn = multiprocessing.get_context('spawn')
