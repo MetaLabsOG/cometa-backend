@@ -1,4 +1,3 @@
-import os
 from datetime import timedelta
 
 from pydantic import BaseSettings
@@ -28,7 +27,7 @@ class Settings(BaseSettings):
     support_chat_id: int
 
     class Config:
-        env_file = '.env'
+        env_file = 'bot/.env'
         arbitrary_types_allowed = True
 
 
