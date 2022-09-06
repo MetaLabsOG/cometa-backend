@@ -6,14 +6,19 @@ name = "pypi"
 [packages]
 cachetools = "5.0.0"
 dataclasses-json = "0.5.7"
-requests = "2.27.1"
+discord = "1.7.3"
+discord-components = "2.1.2"
 fastapi = "0.70.1"
-uvicorn = "0.16.0"
+tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git"}
 py-algorand-sdk = "1.8.0"
+pyairtable = "1.2.0"
 pydantic = "1.9.0"
 pymongo = "4.1.0"
 python-dotenv = "0.19.2"
-tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git"}
+python-telegram-bot = "13.13"
+requests = "2.27.1"
+schedule = "1.1.0"
+uvicorn = "0.16.0"
 
 [dev-packages]
 

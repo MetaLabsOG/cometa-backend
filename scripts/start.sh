@@ -1,3 +1,4 @@
 #!/bin/bash
 
-docker-compose up -d "$@"
+source .env
+docker-compose --profile "$ALGO_NETWORK" up -d "$@"
