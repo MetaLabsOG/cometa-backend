@@ -1,10 +1,9 @@
 from discord.ext import commands
-from discord_components import DiscordComponents
 
-from env import settings
+from bot.env import settings
 
 client = commands.Bot(command_prefix='!')
-DiscordComponents(client)
+# TODO: add DiscordComponents
 
 
 @client.event

@@ -5,10 +5,10 @@ from typing import Optional
 import schedule
 from pyairtable import Base
 
-from db import events, users
-from db.events import get_event
-from db.model import EventType
-from env import settings, AIRTABLE_UPDATE_DELAY_SECONDS
+from bot.db import events, users
+from bot.db.events import get_event
+from bot.db.model import EventType
+from bot.env import settings, AIRTABLE_UPDATE_DELAY_SECONDS
 
 base = Base(settings.airtable_api_key, settings.airtable_base_id)
 airtable = base.get_table('farm')
