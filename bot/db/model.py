@@ -5,7 +5,7 @@ from typing import Dict, Optional
 
 from dataclasses_json import dataclass_json
 
-from env import BEST_COMPOUNDING_DELAY, REMIND_AGAIN_DELAY
+from bot.env import BEST_COMPOUNDING_DELAY, REMIND_AGAIN_DELAY
 
 
 class EventType(str, Enum):
