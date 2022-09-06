@@ -48,7 +48,7 @@ async def update_contracts_cache(type: str) -> None:
                 old_metadata = {}
 
             new_metadata = {**old_metadata, "cache": state}
-            update_contract(id, None, new_metadata) 
+            update_contract(id, metadata=new_metadata)
     
         print(f'updated state cache for contracts: {type}')
 
