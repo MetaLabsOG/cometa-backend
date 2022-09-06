@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 
-from env import settings
+from bot.env import settings
 
 cluster = MongoClient(host=settings.mongodb_host, port=settings.mongodb_port)
 
