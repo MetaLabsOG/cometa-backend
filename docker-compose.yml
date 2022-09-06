@@ -14,6 +14,19 @@ services:
         depends_on:
             - mongodb
 
+    bot:
+        build: .
+        restart: always
+        entrypoint: scripts/run_bot.sh
+        environment:
+            PYTHONUNBUFFERED: 1
+        volumes:
+            - .:/app
+        depends_on:
+            - mongodb
+        profiles:
+            - "mainnet"
+
     mongodb:
         image: mongo
         restart: always
