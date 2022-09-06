@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pipenv run python bot/telegram_bot.py
+pipenv run python telegram_bot.py
