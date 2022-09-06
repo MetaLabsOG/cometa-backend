@@ -1,0 +1,159 @@
+import atexit
+import logging
+
+from algosdk.encoding import is_valid_address
+from telegram import Update, ParseMode
+from telegram.ext import CallbackContext, CommandHandler
+
+from cometa import schedule_airtable_updates
+from context import app_context
+from db.events import get_events
+from db.users import create_user, get_user_by_tg, update_user
+from env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
+from log import setup_logging
+from notifier import schedule_notifications
+
+
+# TODO: make commands async
+# TODO: move commands to separate files
+
+def start(update: Update, context: CallbackContext):
+    update.message.reply_html(f'I am glad to see you, {update.message.from_user.name}!\n'
+                              'I will notify you to compound your rewards❤\n\n'
+                              'Please register first with\n'
+                              '<code>/register YOUR_ALGO_ADDRESS</code>')
+
+
+def track_address(update: Update, context: CallbackContext):
+    tg_user = update.message.from_user
+    if not context.args:
+        update.message.reply_text('Please provide address!')
+        return
+
+    address = context.args[0]
+    if not is_valid_address(address):
+        update.message.reply_text(f'Oh no... Please {tg_user.name}! Provide your Algorand address👆')
+        return
+
+    user_events = get_events({'address': address})
+
+    user = get_user_by_tg(tg_user.id)
+    if user is None:
+        user = create_user(address, tg_user.id, tg_user.id)
+    else:
+        user.pools = {}
+        user.algo_address = address
+
+    for e in user_events:
+        # time in ascending order
+        user.update(e)
+    update_user(user)
+    print(f'Recorded {len(user_events)} old events.')
+
+    update.message.reply_html(f'Great, {tg_user.name}!\nTracking <code>{address}</code>.')
+
+
+def get_feedback(update: Update, context: CallbackContext):
+    if not context.args:
+        update.message.reply_text('Please provide the feedback!')
+        return
+    tg_user = update.message.from_user
+
+    text_title = f'New feedback from {tg_user.name}'
+    logging.info(text_title)
+
+    feedback_text = update.message.text_markdown[len(FEEDBACK_COMMAND) + 2:]
+    feedback = f'{text_title}:\n\n{feedback_text}'
+    context.bot.send_message(settings.feedback_chat_id, feedback)
+
+    update.message.reply_text(f'Thank you, {tg_user.name}, your feedback is submitted!❤')
+
+
+def get_support(update: Update, context: CallbackContext):
+    if not context.args:
+        update.message.reply_text('Please describe your problem!')
+        return
+    tg_user = update.message.from_user
+
+    text_title = f'New ticket from {tg_user.name}'
+    logging.info(text_title)
+
+    support_text = update.message.text_markdown[len(SUPPORT_COMMAND) + 2:]
+    support = f'{text_title}:\n\n{support_text}'
+    context.bot.send_message(settings.support_chat_id, support)
+
+    update.message.reply_text(f'Thank you, {tg_user.name}, one of our admins will contact you ASAP!❤')
+
+
+# TODO: log new users to airtable
+def register(update: Update, context: CallbackContext):
+    tg_user = update.message.from_user
+    user = get_user_by_tg(tg_user.id)
+    if user is not None:
+        update.message.reply_html(f'You are already registered!\n'
+                                  f'My apologies, I am too young, I can track only one address. But I will learn soon😏\n'
+                                  f'\nFor now I am tracking <code>{user.algo_address}</code> for you.')
+        return
+
+    print(f'Registering {tg_user.name}.')
+
+    track_address(update, context)
+
+
+def change_address(update: Update, context: CallbackContext):
+    tg_user = update.message.from_user
+    user = get_user_by_tg(tg_user.id)
+    if user is None:
+        update.message.reply_text(f'Please register first.')
+        return
+
+    track_address(update, context)
+
+
+def show_help(update: Update, context: CallbackContext):
+    text = f'Hello, {update.message.from_user.name}, it is a pleasure to assist you!' \
+           f'\n\n' \
+           f'To change the address to track:\n' \
+           f'<code>/change_address NEW_ADDRESS</code>' \
+           f'\n\n' \
+           f'To share any feedback about Cometa:\n' \
+           f'<code>/feedback YOUR_FEEDBACK</code>' \
+           f'\n\n' \
+           f'If you have any problems, describe it and <b>our team will contact you ASAP</b>:\n' \
+           f'<code>/support DESCRIPTION</code>'
+
+    update.message.reply_html(text, disable_web_page_preview=True)
+
+
+def start_bot():
+    setup_logging()
+
+    # TODO: implement Command class
+    app_context.updater.dispatcher.add_handler(CommandHandler('start', start))
+    app_context.updater.dispatcher.add_handler(CommandHandler('register', register))
+    app_context.updater.dispatcher.add_handler(CommandHandler('change_address', change_address))
+
+    app_context.updater.dispatcher.add_handler(CommandHandler(FEEDBACK_COMMAND, get_feedback))
+    app_context.updater.dispatcher.add_handler(CommandHandler(SUPPORT_COMMAND, get_support))
+
+    app_context.updater.dispatcher.add_handler(CommandHandler('help', show_help))
+
+    schedule_airtable_updates()
+    schedule_notifications()
+
+    app_context.updater.start_polling()
+
+    print('Bot started!')
+
+
+def tear_down():
+    logging.info('EXIT BOT\n\nBye!\n')
+
+
+if __name__ == '__main__':
+    atexit.register(tear_down)
+
+    try:
+        start_bot()
+    except Exception as ex:
+        logging.exception(ex)
