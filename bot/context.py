@@ -4,7 +4,7 @@ from functools import cached_property
 from telegram import Bot
 from telegram.ext import Updater
 
-from env import settings
+from bot.env import settings
 
 
 @dataclass

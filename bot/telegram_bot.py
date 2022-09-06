@@ -2,16 +2,16 @@ import atexit
 import logging
 
 from algosdk.encoding import is_valid_address
-from telegram import Update, ParseMode
+from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler
 
-from cometa import schedule_airtable_updates
-from context import app_context
-from db.events import get_events
-from db.users import create_user, get_user_by_tg, update_user
-from env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
-from log import setup_logging
-from notifier import schedule_notifications
+from bot.cometa import schedule_airtable_updates
+from bot.context import app_context
+from bot.db.events import get_events
+from bot.db.users import create_user, get_user_by_tg, update_user
+from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
+from bot.log import setup_logging
+from bot.notifier import schedule_notifications
 
 
 # TODO: make commands async

@@ -5,11 +5,11 @@ from typing import Dict
 
 from telegram import ParseMode
 
-from context import app_context
-from db import users
-from db.model import PoolInfo, CometaUser
-from env import MONITOR_LOG_DELAY
-from utils import td_format
+from bot.context import app_context
+from bot.db import users
+from bot.db.model import PoolInfo, CometaUser
+from bot.env import MONITOR_LOG_DELAY
+from bot.utils import td_format
 
 
 def pool_info(info: PoolInfo):
