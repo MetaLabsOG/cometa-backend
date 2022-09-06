@@ -152,6 +152,22 @@ async def register_contract(contract: AddContract) -> dict:
     return {'added': contract.id}
 
 
+class DeployContract(BaseModel):
+    type: str
+    settings: dict
+    metadata: Optional[dict] = None
+    description: Optional[str] = None
+
+
+@app.post('/contract/deploy')
+async def deploy_contract(password: str, parameters: DeployContract) -> dict:
+    check_password(password)
+    version = await calljs("contractVersion", contractType=parameters.type)
+    contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
+    added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
+    return {'internal_id': added}
+
+
 @app.patch('/contract/update')
 async def update(contract: ModifyContract, password: str) -> dict:
     check_password(password)
@@ -189,27 +205,20 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
     return {'deleted_count': cnt}
 
 
-class DeployContract(BaseModel):
-    type: str
-    settings: dict
-    metadata: Optional[dict] = None
-    description: Optional[str] = None
-
-
-@app.post('/contract/deploy')
-async def deploy_contract(password: str, parameters: DeployContract) -> dict:
-    check_password(password)
-    version = await calljs("contractVersion", contractType=parameters.type)
-    contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
-    added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
-    return {'internal_id': added}
-
-
 @app.get('/contract_version')
 async def get_contract_version(type: str) -> dict:
     version = await calljs("contractVersion", contractType=type)
     return {'version': version}
 
+
+@app.patch('/pools/verify')
+async def verify_pool(pool_id: int) -> str:
+    contract = get_contract(pool_id)
+    if contract.metadata.get('verified'):
+        return 'Already verified!'
+    new_metadata = {**contract.metadata, 'verified': True}
+    update_contract(pool_id, metadata=new_metadata)
+    return 'Success!'
 
 # TINYMAN SWAP
 
@@ -230,12 +239,6 @@ async def swap_transactions(address: str, asset1_id: int, asset2_id: int, asset1
         return result
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
-
-
-@app.get('/pool')
-async def pool(asset1_id: int, asset2_id: int) -> PoolInfo:
-    client = init_tinyman_client()
-    return get_pool_info(client, asset1_id, asset2_id)
 
 
 @app.get('/zap_data')
@@ -352,4 +355,3 @@ if __name__ == "__main__":
     with start_js_interop_server():
         with start_bg_tasks():
             uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
-A
