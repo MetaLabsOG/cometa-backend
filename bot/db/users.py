@@ -1,7 +1,7 @@
 from typing import Optional, List
 
-from bot.db.model import CometaUser, CometaEvent
-from bot.db.mongo import get_collection
+from model import CometaUser, CometaEvent
+from mongo import get_collection
 
 
 collection = get_collection('users')

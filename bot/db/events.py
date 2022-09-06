@@ -1,7 +1,7 @@
 from typing import List, Optional
 
-from bot.db.model import CometaEvent
-from bot.db.mongo import get_collection
+from model import CometaEvent
+from mongo import get_collection
 
 
 collection = get_collection('events')
