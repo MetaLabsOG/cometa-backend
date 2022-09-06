@@ -27,7 +27,7 @@ def add_contract(type: str, id: int, version: str, description: Optional[str], m
     return str(res.inserted_id)
 
 
-def update_contract(id: int, description: Optional[str], metadata: Optional[dict]) -> bool:
+def update_contract(id: int, description: Optional[str] = None, metadata: Optional[dict] = None) -> bool:
     upd_dict = {}
     if description is not None:
         upd_dict['description'] = description
