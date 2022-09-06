@@ -4,7 +4,7 @@ services:
     app:
         build: .
         restart: always
-        entrypoint: ./scripts/docker-entry.sh
+        entrypoint: ./scripts/run_backend.sh
         environment:
             REACH_NO_WARN: "${REACH_NO_WARN}"
         volumes:
