@@ -20,8 +20,8 @@ from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wall
 from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
 
-from dexes.tinyman import init_tinyman_client, get_pool_info, get_swap_data, get_zap_transactions, \
-    get_swap_transactions, get_zap_data, PoolInfo
+from dexes.tinyman import init_tinyman_client, get_swap_data, get_zap_transactions, \
+    get_swap_transactions, get_zap_data
 from env import settings, LOG_FORMAT, DATE_FORMAT
 from background import start_bg_tasks
 
@@ -212,7 +212,8 @@ async def get_contract_version(type: str) -> dict:
 
 
 @app.patch('/pools/verify')
-async def verify_pool(pool_id: int) -> str:
+async def verify_pool(pool_id: int, password: str) -> str:
+    check_password(password)
     contract = get_contract(pool_id)
     if contract.metadata.get('verified'):
         return 'Already verified!'
