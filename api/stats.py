@@ -60,6 +60,8 @@ def calculate_tvl_for_type(type: str) -> float:
     res = 0
     for contract in contracts:
         try:
+            print(f'Calculating {contract.description} TVL!\n')
+
             cache = contract.metadata['cache']
             total_microtokens = int(cache['global']['totalStaked']['hex'], 16)
             if type == 'farm' and 'asset_1_id' in contract.metadata:  # TODO: refactor metadata to have different classes
@@ -77,7 +79,7 @@ def calculate_tvl_for_type(type: str) -> float:
                 asset_price = get_asset_price(asset_id)
                 total_cost = total_tokens * asset_price
 
-            print(f'{contract.description} has TVL: {total_cost}')
+            print(f'TVL is {total_cost}')
             res += total_cost
         except Exception:
             print(traceback.print_exc(), '\n')
