@@ -60,7 +60,7 @@ def calculate_tvl_for_type(type: str) -> float:
     res = 0
     for contract in contracts:
         try:
-            print(f'Calculating {contract.description} TVL!\n')
+            print(f'\nCalculating {contract.description} TVL!')
 
             cache = contract.metadata['cache']
             total_microtokens = int(cache['global']['totalStaked']['hex'], 16)
@@ -82,6 +82,7 @@ def calculate_tvl_for_type(type: str) -> float:
             print(f'TVL is {total_cost}')
             res += total_cost
         except Exception:
+            print(f'Exception for {contract.description}')
             print(traceback.print_exc(), '\n')
     return res
 
