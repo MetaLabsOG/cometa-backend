@@ -29,7 +29,7 @@ def get_algo_price() -> float:
 def get_asset_price(asset_id: int) -> float:
     if asset_id == 0:
         return get_algo_price()
-    print(f'Getting price for {asset_id}!\n')
+    print(f'Getting price for {asset_id}!')
     url = f'{BASE_URL}/asset/{asset_id}/price'
     data = requests.get(url).json()
     return data['USD']
