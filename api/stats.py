@@ -1,3 +1,4 @@
+import logging
 import time
 import traceback
 from dataclasses import dataclass
@@ -26,6 +27,8 @@ class CometaSnapshot:
 tiny_client = init_tinyman_client(settings.algod_address)
 algod = init_algod_client()
 snapshots = mongodb.database.snapshot
+
+logger = logging.getLogger(__name__)
 
 
 def save_snapshot(farm_tvl: float, distribution_tvl: float) -> CometaSnapshot:
@@ -60,8 +63,6 @@ def calculate_tvl_for_type(type: str) -> float:
     res = 0
     for contract in contracts:
         try:
-            print(f'\nCalculating {contract.description} TVL!')
-
             cache = contract.metadata['cache']
             total_microtokens = int(cache['global']['totalStaked']['hex'], 16)
             if type == 'farm' and 'asset_1_id' in contract.metadata:  # TODO: refactor metadata to have different classes
@@ -79,11 +80,10 @@ def calculate_tvl_for_type(type: str) -> float:
                 asset_price = get_asset_price(asset_id)
                 total_cost = total_tokens * asset_price
 
-            print(f'TVL is {total_cost}')
             res += total_cost
         except Exception:
-            print(f'Exception for {contract.description}')
-            print(traceback.print_exc(), '\n')
+            logger.error(f'Exception for {contract.description}')
+            logger.error(traceback.print_exc(), '\n')
     return res
 
 
