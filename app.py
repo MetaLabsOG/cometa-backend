@@ -12,7 +12,7 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import nft_market, stats
-from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts, remove_contract, \
+from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.tinychart import get_asset_price_full
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
@@ -188,7 +188,7 @@ async def get_contract_by_id(contract_id: int) -> ContractInfo:
 
 @app.get('/contracts')
 async def get_contracts_by_type(type: str) -> List[ContractInfo]:
-    return get_contracts(type)
+    return get_contracts_by_type(type)
 
 
 @app.delete('/contract/{contract_id}')
@@ -305,7 +305,7 @@ async def tvl() -> dict:
 
 @app.get('/stats/local_state')
 async def get_local_states(type: str, address: str) -> dict:
-    contracts = get_contracts(type)
+    contracts = get_contracts_by_type(type)
     if len(contracts) > 0:
         ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
         states = await calljs("fetchContractsLocalViews",
