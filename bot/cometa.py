@@ -1,6 +1,7 @@
 import time
+from dataclasses import dataclass
 from threading import Thread
-from typing import Optional
+from typing import Optional, List
 
 import schedule
 from pyairtable import Base
@@ -9,9 +10,45 @@ from bot.db import events, users
 from bot.db.events import get_event
 from bot.db.model import EventType
 from bot.env import settings, AIRTABLE_UPDATE_DELAY_SECONDS
+from core.contract_manager import get_contracts
+from core.js_interop import calljs
+from core.util import strip_version
 
 base = Base(settings.airtable_api_key, settings.airtable_base_id)
 airtable = base.get_table('farm')
+
+
+@dataclass
+class CometaLocalState:
+    pool_id: int
+    staked: int
+    current_reward: int
+    lock_timestamp: int
+
+
+def bignumber_to_int(number: dict) -> int:
+    return int(number['hex'], 16)
+
+
+def get_user_pools(address: str) -> List[CometaLocalState]:
+    all_contracts = get_contracts({})
+    if not all_contracts:
+        return []
+
+    ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in all_contracts]
+    states = await calljs("fetchContractsLocalViews",
+                          contractType=type,
+                          idVersions=ids_and_versions,
+                          walletAddress=address)
+    pools = []
+    for pool_id, state in states.items():
+        current_reward = bignumber_to_int(state['reward'])
+        staked = bignumber_to_int(state['staked'])
+        if current_reward == 0 and staked == 0:
+            continue
+        lock_timestamp = bignumber_to_int(state['lockTimestamp'])
+        pools.append(CometaLocalState(pool_id, staked, current_reward, lock_timestamp))
+    return pools
 
 
 def get_last_event_time() -> Optional[int]:
