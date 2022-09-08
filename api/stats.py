@@ -8,7 +8,7 @@ from cachetools import cached, TTLCache, FIFOCache
 from dataclasses_json import dataclass_json
 
 from core import mongodb
-from core.contract_manager import get_contracts
+from core.contract_manager import get_contracts_by_type
 from core.tinychart import get_asset_price
 from blockchain.indexer import get_asset
 from blockchain.node import init_algod_client
@@ -59,7 +59,7 @@ def get_asset_info(asset_id: int) -> dict:
 
 
 def calculate_tvl_for_type(type: str) -> float:
-    contracts = get_contracts(type)
+    contracts = get_contracts_by_type(type)
     res = 0
     for contract in contracts:
         try:

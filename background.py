@@ -2,7 +2,7 @@ import asyncio
 import multiprocessing
 
 from contextlib import contextmanager
-from core.contract_manager import get_contracts, update_contract
+from core.contract_manager import get_contracts_by_type, update_contract
 from core.util import strip_version
 from core.js_interop import calljs
 from api.stats import calculate_tvl_for_type, save_snapshot
@@ -35,7 +35,7 @@ def repeat_every(seconds: int):
 
 @safe_async_method
 async def update_contracts_cache(type: str) -> None:
-    contracts = get_contracts(type)
+    contracts = get_contracts_by_type(type)
     if len(contracts) > 0:
         ids_and_versions = [{ 'id': info.id, 'version': strip_version(info.version) } for info in contracts]
         existing_metadatas = { info.id: info.metadata for info in contracts }
