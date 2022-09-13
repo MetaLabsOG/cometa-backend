@@ -6,6 +6,10 @@ require("dotenv").config({
   path: path.resolve(__dirname, `../.env`),
 });
 
+// This is background worker on the JS side. Currently it is only used for updating
+// the MongoDB cache with Humble pools information.
+const BACKGROUND_PROMISE = import("./background.mjs");
+
 const net = require("net");
 
 // This is done like this to ensure that Reach is loaded on the start of the server,
