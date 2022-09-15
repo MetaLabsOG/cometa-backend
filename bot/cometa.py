@@ -14,7 +14,7 @@ from bot.db.model import EventType
 from bot.env import settings, AIRTABLE_UPDATE_DELAY_SECONDS
 from core.contract_manager import get_contracts
 from core.js_interop import calljs
-from core.util import strip_version, parse_bignum
+from core.util import strip_version, parse_bignum, blocks_to_seconds
 
 base = Base(settings.airtable_api_key, settings.airtable_base_id)
 airtable = base.get_table('farm')
@@ -23,13 +23,14 @@ airtable = base.get_table('farm')
 @dataclass
 class UserPool:
     pool_id: int
-    staked: int
+    name: str
+    staked_usd: float
     current_reward: int
     lock_timestamp: int
-    ended: bool
+    ended_duration: Optional[float]
 
 
-def get_user_pools(address: str) -> List[UserPool]:
+async def get_user_pools(address: str) -> List[UserPool]:
     all_contracts = get_contracts({})
     if not all_contracts:
         return []
@@ -39,7 +40,7 @@ def get_user_pools(address: str) -> List[UserPool]:
                                 contractType=type,
                                 idVersions=ids_and_versions,
                                 walletAddress=address)
-    metadata = {c.id: c.metadata for c in all_contracts}
+    contract_by_id = {c.id: c for c in all_contracts}
     pools = []
     for pool_id, state in local_states.items():
         current_reward = parse_bignum(state['reward'])
@@ -48,15 +49,23 @@ def get_user_pools(address: str) -> List[UserPool]:
             continue
         lock_timestamp = parse_bignum(state['lockTimestamp'])
 
-        pool_state = get_pool_state(metadata[pool_id])
+        contract = contract_by_id[pool_id]
+        pool_state = get_pool_state(contract)
+
         current_block = get_current_round()
+        ended_duration = None
+        if current_block > pool_state.end_block:
+            ended_duration = blocks_to_seconds(pool_state.end_block, current_block)
+
+        staked_usd = pool_state.total_cost_usd * staked / pool_state.microtokens_staked
 
         pools.append(UserPool(
             pool_id,
-            staked,
+            contract.description,
+            staked_usd,
             current_reward,
             lock_timestamp,
-            ended=current_block < pool_state.end_block
+            ended_duration
         )
         )
 
@@ -70,7 +79,7 @@ def get_last_event_time() -> Optional[int]:
     return all_events[-1].timestamp
 
 
-last_processed_entry_time = get_last_event_time()
+# last_processed_entry_time = get_last_event_time()
 
 
 def get_last_updates():
@@ -144,9 +153,9 @@ def updater_thread():
 
 def schedule_airtable_updates():
     # TODO: use executor
-    daemon = Thread(target=updater_thread, args=(), daemon=True, name='Updater')
-    daemon.start()
-
+    # daemon = Thread(target=updater_thread, args=(), daemon=True, name='Updater')
+    # daemon.start()
+    pass
 
 if __name__ == '__main__':
     process_updates()

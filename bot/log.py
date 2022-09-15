@@ -3,16 +3,16 @@ import os
 import sys
 from logging.handlers import TimedRotatingFileHandler
 
+from bot.env import settings
+
 LOGGING_LEVEL = logging.DEBUG
 TELEGRAM_API_LOGGING_LEVEL = logging.INFO
 
-LOGS_DIR = f'/srv/logs/cometa-bot'
-
 
 def setup_logging():
-    os.makedirs(LOGS_DIR, exist_ok=True)
+    os.makedirs(settings.logs_dir, exist_ok=True)
     # 10000 here means infinity
-    rotating_file_handler = TimedRotatingFileHandler(f'{LOGS_DIR}/bot.log', backupCount=10000, when='D', interval=1)
+    rotating_file_handler = TimedRotatingFileHandler(f'{settings.logs_dir}/bot.log', backupCount=10000, when='D', interval=1)
     console_handler = logging.StreamHandler(sys.stdout)
 
     logging.basicConfig(

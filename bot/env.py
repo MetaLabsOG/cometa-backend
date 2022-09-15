@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     feedback_chat_id: int
     support_chat_id: int
 
+    logs_dir: str
+
     class Config:
         env_file = 'bot/.env'
         arbitrary_types_allowed = True
