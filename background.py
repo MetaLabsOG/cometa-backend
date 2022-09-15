@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import multiprocessing
 
 from contextlib import contextmanager
@@ -8,16 +9,17 @@ from core.js_interop import calljs
 from api.stats import calculate_tvl_for_type, save_snapshot
 
 spawn = multiprocessing.get_context('spawn')
-
+logger = logging.getLogger(__name__)
 
 # Decorators (for convenience)
+
 
 def safe_async_method(fn):
     async def wrapper(*args, **kwargs):
         try:
             await fn(*args, **kwargs)
         except Exception as e:
-            print(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: ', e)
+            logger.error(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: ', e)
     return wrapper
 
 
@@ -50,7 +52,7 @@ async def update_contracts_cache(type: str) -> None:
             new_metadata = {**old_metadata, "cache": state}
             update_contract(id, metadata=new_metadata)
     
-        print(f'updated state cache for contracts: {type}')
+        logger.info(f'updated state cache for contracts: {type}')
 
 
 @safe_async_method
@@ -62,7 +64,7 @@ async def record_contracts_stats() -> None:
 
 @repeat_every(60)  # once in a minute
 async def update_contracts_worker():
-    print('updating contract caches...')
+    logger.info('updating contract caches...')
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
     await update_contracts_cache('crowdsale')
@@ -86,7 +88,7 @@ def run_background():
 def start_bg_tasks():
     proc = spawn.Process(target=run_background)
     proc.start()
-    print("STARTED BG TASKS", proc)
+    logger.info("STARTED BG TASKS", proc)
     try:
         yield proc
     finally:

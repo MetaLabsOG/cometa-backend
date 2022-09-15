@@ -1,5 +1,7 @@
 import json
 
+from env import settings
+
 
 def pretty(json_smth) -> str:
     return json.dumps(json_smth, indent=4)
@@ -12,6 +14,11 @@ def get_second_arg(*args, **kwargs):
 def parse_bignum(obj: dict) -> int:
     assert 'type' in obj and 'hex' in obj and obj['type'] == 'BigNumber'
     return int(obj['hex'], 16)
+
+
+def blocks_to_seconds(start_block: int, last_block: int) -> float:
+    assert last_block >= start_block
+    return (last_block - start_block + 1) / settings.block_time
 
 
 def strip_version(version: str) -> str:
