@@ -12,7 +12,6 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import nft_market, stats
-from api.stats import calculate_tvl_for_type_2
 from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.tinychart import get_asset_price_full
@@ -302,15 +301,6 @@ async def asset_price(asset_id: int) -> Price:
 @app.get('/stats/tvl')
 async def tvl() -> dict:
     return stats.get_tvl()
-
-
-# TODO: remove, test purposes
-@app.get('/stats/tvl2')
-async def tvl2() -> dict:
-    return {
-        'farm': calculate_tvl_for_type_2('farm'),
-        'distr': calculate_tvl_for_type_2('distribution'),
-    }
 
 
 @app.get('/stats/local_state')

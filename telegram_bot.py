@@ -1,13 +1,15 @@
 import atexit
 import logging
+from typing import Optional
 
 from algosdk.encoding import is_valid_address
-from telegram import Update
+from telegram import Update, User
 from telegram.ext import CallbackContext, CommandHandler
 
-from bot.cometa import schedule_airtable_updates
+from bot.cometa import schedule_airtable_updates, get_user_pools
 from bot.context import app_context
 from bot.db.events import get_events
+from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg, update_user
 from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
 from bot.log import setup_logging
@@ -22,6 +24,15 @@ def start(update: Update, context: CallbackContext):
                               'I will notify you to compound your rewards❤\n\n'
                               'Please register first with\n'
                               '<code>/register YOUR_ALGO_ADDRESS</code>')
+
+
+def check_registration(update: Update) -> Optional[CometaUser]:
+    tg_user = update.message.from_user
+    user = get_user_by_tg(tg_user.id)
+    if user is None:
+        update.message.reply_text(f'Please register first.')
+        return None
+    return user
 
 
 def track_address(update: Update, context: CallbackContext):
@@ -51,6 +62,23 @@ def track_address(update: Update, context: CallbackContext):
     print(f'Recorded {len(user_events)} old events.')
 
     update.message.reply_html(f'Great, {tg_user.name}!\nTracking <code>{address}</code>.')
+
+
+def show_pools(update: Update, context: CallbackContext):
+    user = check_registration(update)
+    if user is None:
+        return
+
+    pools = get_user_pools(user.algo_address)
+    reply_text = 'Your pools:\n\n'
+    for pool in pools:
+        reply_text += f'<b>{pool.name}</b>\n' \
+                      f'Staked: ${pool.staked_usd}\n'
+        if pool.ended_duration is not None:
+            reply_text += f'It ended {pool.ended_duration}s ago :('
+        reply_text += '\n'
+
+    update.message.reply_html(reply_text)
 
 
 def get_feedback(update: Update, context: CallbackContext):
@@ -101,10 +129,7 @@ def register(update: Update, context: CallbackContext):
 
 
 def change_address(update: Update, context: CallbackContext):
-    tg_user = update.message.from_user
-    user = get_user_by_tg(tg_user.id)
-    if user is None:
-        update.message.reply_text(f'Please register first.')
+    if check_registration(update) is None:
         return
 
     track_address(update, context)
@@ -132,6 +157,7 @@ def start_bot():
     app_context.updater.dispatcher.add_handler(CommandHandler('start', start))
     app_context.updater.dispatcher.add_handler(CommandHandler('register', register))
     app_context.updater.dispatcher.add_handler(CommandHandler('change_address', change_address))
+    app_context.updater.dispatcher.add_handler(CommandHandler('my_pools', show_pools))
 
     app_context.updater.dispatcher.add_handler(CommandHandler(FEEDBACK_COMMAND, get_feedback))
     app_context.updater.dispatcher.add_handler(CommandHandler(SUPPORT_COMMAND, get_support))
