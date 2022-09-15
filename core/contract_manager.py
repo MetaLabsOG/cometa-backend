@@ -42,8 +42,7 @@ def update_contract(id: int, description: Optional[str] = None, metadata: Option
 
 
 def get_contracts(args: dict) -> List[ContractInfo]:
-    res = contracts.find(args)
-    return [ContractInfo.from_dict(c) for c in res]
+    return list(map(ContractInfo.from_dict, contracts.find(args)))
 
 
 def get_contracts_by_type(type: str) -> List[ContractInfo]:
