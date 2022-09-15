@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     api_password: str
     logging_level: str = 'INFO'
 
+    block_time: float = 4.1
+
     algo_price_ttl: int
     asset_prices_ttl: int
     total_tvl_ttl: int
