@@ -16,11 +16,11 @@ class ContractInfo:
     id: int
     version: str
     deployed_timestamp: float
-    description: Optional[str] = None
+    description: str
     metadata: Optional[dict] = None
 
 
-def add_contract(type: str, id: int, version: str, description: Optional[str], metadata: Optional[dict]) -> str:
+def add_contract(type: str, id: int, version: str, description: str, metadata: Optional[dict]) -> str:
     cur_time = time.time()
     contract = ContractInfo(type, id, version, cur_time, description, metadata)
     res = contracts.insert_one(contract.to_dict())

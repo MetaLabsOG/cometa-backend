@@ -97,42 +97,13 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     )
 
 
-def calculate_tvl_for_type_2(type: str) -> float:
+def calculate_tvl_for_type(type: str) -> float:
     contracts = get_contracts_by_type(type)
     res = 0
     for contract in contracts:
         try:
             pool_state = get_pool_state(contract)
             res += pool_state.total_cost_usd
-        except Exception:
-            logger.error(f'Exception for {contract.description}')
-            logger.error(traceback.print_exc(), '\n')
-    return res
-
-
-def calculate_tvl_for_type(type: str) -> float:
-    contracts = get_contracts_by_type(type)
-    res = 0
-    for contract in contracts:
-        try:
-            cache = contract.metadata['cache']
-            total_microtokens = parse_bignum(cache['global']['totalStaked'])
-            if type == 'farm' and 'asset_1_id' in contract.metadata:  # TODO: refactor metadata to have different classes
-                total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
-                lp_price = get_lp_price(contract.metadata['asset_1_id'], contract.metadata['asset_2_id'])
-                total_cost = total_tokens * lp_price
-            else:
-                if type == 'farm':  # TODO: ну это пиздец, рефачить метадату срочно нахуй
-                    asset_id_field_name = 'stakeToken'
-                else:
-                    asset_id_field_name = 'token'
-                asset_id = int(cache['initial'][asset_id_field_name]['hex'], 16)
-                asset_info = get_asset(asset_id)
-                total_tokens = total_microtokens / (10 ** asset_info['params']['decimals'])
-                asset_price = get_asset_price(asset_id)
-                total_cost = total_tokens * asset_price
-
-            res += total_cost
         except Exception:
             logger.error(f'Exception for {contract.description}')
             logger.error(traceback.print_exc(), '\n')
