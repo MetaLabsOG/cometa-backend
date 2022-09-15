@@ -4,5 +4,5 @@ COPY . /app
 WORKDIR /app
 
 RUN pip install pipenv
-RUN pipenv install --deploy --pre
-RUN pipenv install python-telegram-bot --pre
+RUN pipenv install --deploy
+RUN pip install python-telegram-bot==20.0a0
