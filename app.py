@@ -188,7 +188,7 @@ async def get_contract_by_id(contract_id: int) -> ContractInfo:
 
 
 @app.get('/contracts')
-async def get_contracts_by_type(type: str) -> List[ContractInfo]:
+async def get_contracts(type: str) -> List[ContractInfo]:
     return get_contracts_by_type(type)
 
 
