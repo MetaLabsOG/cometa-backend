@@ -79,7 +79,7 @@ def get_last_event_time() -> Optional[int]:
     return all_events[-1].timestamp
 
 
-last_processed_entry_time = get_last_event_time()
+# last_processed_entry_time = get_last_event_time()
 
 
 def get_last_updates():
@@ -153,9 +153,9 @@ def updater_thread():
 
 def schedule_airtable_updates():
     # TODO: use executor
-    daemon = Thread(target=updater_thread, args=(), daemon=True, name='Updater')
-    daemon.start()
-
+    # daemon = Thread(target=updater_thread, args=(), daemon=True, name='Updater')
+    # daemon.start()
+    pass
 
 if __name__ == '__main__':
     process_updates()
