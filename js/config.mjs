@@ -1,5 +1,8 @@
-export const COMETA_ENV = process.env.ALGO_NETWORK || "testnet";
+export const COMETA_ENV = process.env.ALGO_NETWORK.toLowerCase() || "testnet";
 export const NETWORK = COMETA_ENV === "testnet" ? "TestNet" : "MainNet";
+
+export const MONGO_HOST = process.env.MONGODB_HOST;
+export const MONGO_PORT = process.env.MONGODB_PORT;
 
 export const META_ASA_IDS = {
   MainNet: 712012773,
