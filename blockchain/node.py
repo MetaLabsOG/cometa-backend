@@ -2,6 +2,7 @@ import json
 
 import requests
 from algosdk.v2client.algod import AlgodClient
+from cachetools import cached, TTLCache
 
 from env import settings
 
@@ -17,6 +18,7 @@ def init_algod_client() -> AlgodClient:
                        })
 
 
+@cached(cache=TTLCache(maxsize=1, ttl=settings.block_time))
 def get_current_round():
     url = f'{BASE_URL}/v2/status'
     data = requests.get(url).json()

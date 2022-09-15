@@ -12,6 +12,7 @@ from core.contract_manager import get_contracts_by_type
 from core.tinychart import get_asset_price
 from blockchain.indexer import get_asset
 from blockchain.node import init_algod_client
+from core.util import parse_bignum
 from dexes.tinyman import init_tinyman_client, get_pool_info
 from env import settings
 
@@ -58,13 +59,62 @@ def get_asset_info(asset_id: int) -> dict:
     return tiny_client.fetch_asset(asset_id)
 
 
+@dataclass
+class PoolState:
+    microtokens_staked: int
+    total_cost_usd: float
+    reward_token_id: int
+    end_block: int
+    lock_length_blocks: int
+
+
+def get_pool_state(metadata: dict) -> PoolState:
+    cache = metadata['cache']
+    total_microtokens = parse_bignum(cache['global']['totalStaked'])
+    if type == 'farm' and 'asset_1_id' in metadata:  # TODO: refactor metadata to have different classes
+        total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
+        lp_price = get_lp_price(metadata['asset_1_id'], metadata['asset_2_id'])
+        total_cost = total_tokens * lp_price
+    else:
+        if type == 'farm':  # TODO: ну это technical debt, рефачить метадату срочно promptly
+            asset_id_field_name = 'stakeToken'
+        else:
+            asset_id_field_name = 'token'
+        asset_id = parse_bignum(cache['initial'][asset_id_field_name])
+        asset_info = get_asset(asset_id)
+        total_tokens = total_microtokens / (10 ** asset_info['params']['decimals'])
+        asset_price = get_asset_price(asset_id)
+        total_cost = total_tokens * asset_price
+
+    return PoolState(
+        total_microtokens,
+        total_cost,
+        reward_token_id=parse_bignum(cache['initial']['rewardToken']),
+        end_block=parse_bignum(cache['initial']['endBlock']),
+        lock_length_blocks=parse_bignum(cache['initial']['lockLengthBlocks'])
+    )
+
+
+def calculate_tvl_for_type_2(type: str) -> float:
+    contracts = get_contracts_by_type(type)
+    res = 0
+    for contract in contracts:
+        try:
+            pool_state = get_pool_state(contract.metadata)
+            res += pool_state.total_cost_usd
+        except Exception:
+            logger.error(f'Exception for {contract.description}')
+            logger.error(traceback.print_exc(), '\n')
+    return res
+
+
 def calculate_tvl_for_type(type: str) -> float:
     contracts = get_contracts_by_type(type)
     res = 0
     for contract in contracts:
         try:
             cache = contract.metadata['cache']
-            total_microtokens = int(cache['global']['totalStaked']['hex'], 16)
+            total_microtokens = parse_bignum(cache['global']['totalStaked'])
             if type == 'farm' and 'asset_1_id' in contract.metadata:  # TODO: refactor metadata to have different classes
                 total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
                 lp_price = get_lp_price(contract.metadata['asset_1_id'], contract.metadata['asset_2_id'])
