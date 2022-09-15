@@ -6,48 +6,60 @@ from typing import Optional, List
 import schedule
 from pyairtable import Base
 
+from api.stats import get_pool_state
+from blockchain.node import get_current_round
 from bot.db import events, users
 from bot.db.events import get_event
 from bot.db.model import EventType
 from bot.env import settings, AIRTABLE_UPDATE_DELAY_SECONDS
 from core.contract_manager import get_contracts
 from core.js_interop import calljs
-from core.util import strip_version
+from core.util import strip_version, parse_bignum
 
 base = Base(settings.airtable_api_key, settings.airtable_base_id)
 airtable = base.get_table('farm')
 
 
 @dataclass
-class CometaLocalState:
+class UserPool:
     pool_id: int
     staked: int
     current_reward: int
     lock_timestamp: int
+    ended: bool
 
 
-def bignumber_to_int(number: dict) -> int:
-    return int(number['hex'], 16)
-
-
-def get_user_pools(address: str) -> List[CometaLocalState]:
+def get_user_pools(address: str) -> List[UserPool]:
     all_contracts = get_contracts({})
     if not all_contracts:
         return []
 
     ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in all_contracts]
-    states = await calljs("fetchContractsLocalViews",
-                          contractType=type,
-                          idVersions=ids_and_versions,
-                          walletAddress=address)
+    local_states = await calljs("fetchContractsLocalViews",
+                                contractType=type,
+                                idVersions=ids_and_versions,
+                                walletAddress=address)
+    metadata = {c.id: c.metadata for c in all_contracts}
     pools = []
-    for pool_id, state in states.items():
-        current_reward = bignumber_to_int(state['reward'])
-        staked = bignumber_to_int(state['staked'])
+    for pool_id, state in local_states.items():
+        current_reward = parse_bignum(state['reward'])
+        staked = parse_bignum(state['staked'])
         if current_reward == 0 and staked == 0:
             continue
-        lock_timestamp = bignumber_to_int(state['lockTimestamp'])
-        pools.append(CometaLocalState(pool_id, staked, current_reward, lock_timestamp))
+        lock_timestamp = parse_bignum(state['lockTimestamp'])
+
+        pool_state = get_pool_state(metadata[pool_id])
+        current_block = get_current_round()
+
+        pools.append(UserPool(
+            pool_id,
+            staked,
+            current_reward,
+            lock_timestamp,
+            ended=current_block < pool_state.end_block
+        )
+        )
+
     return pools
 
 
