@@ -30,7 +30,7 @@ class UserPool:
     ended_duration: Optional[float]
 
 
-def get_user_pools(address: str) -> List[UserPool]:
+async def get_user_pools(address: str) -> List[UserPool]:
     all_contracts = get_contracts({})
     if not all_contracts:
         return []

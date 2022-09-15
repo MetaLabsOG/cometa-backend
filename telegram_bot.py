@@ -19,14 +19,14 @@ from bot.notifier import schedule_notifications
 # TODO: make commands async
 # TODO: move commands to separate files
 
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: CallbackContext):
     update.message.reply_html(f'I am glad to see you, {update.message.from_user.name}!\n'
                               'I will notify you to compound your rewards❤\n\n'
                               'Please register first with\n'
                               '<code>/register YOUR_ALGO_ADDRESS</code>')
 
 
-def check_registration(update: Update) -> Optional[CometaUser]:
+async def check_registration(update: Update) -> Optional[CometaUser]:
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
     if user is None:
@@ -35,7 +35,7 @@ def check_registration(update: Update) -> Optional[CometaUser]:
     return user
 
 
-def track_address(update: Update, context: CallbackContext):
+async def track_address(update: Update, context: CallbackContext):
     tg_user = update.message.from_user
     if not context.args:
         update.message.reply_text('Please provide address!')
@@ -64,12 +64,12 @@ def track_address(update: Update, context: CallbackContext):
     update.message.reply_html(f'Great, {tg_user.name}!\nTracking <code>{address}</code>.')
 
 
-def show_pools(update: Update, context: CallbackContext):
+async def show_pools(update: Update, context: CallbackContext):
     user = check_registration(update)
     if user is None:
         return
 
-    pools = get_user_pools(user.algo_address)
+    pools = await get_user_pools(user.algo_address)
     reply_text = 'Your pools:\n\n'
     for pool in pools:
         reply_text += f'<b>{pool.name}</b>\n' \
@@ -81,7 +81,7 @@ def show_pools(update: Update, context: CallbackContext):
     update.message.reply_html(reply_text)
 
 
-def get_feedback(update: Update, context: CallbackContext):
+async def get_feedback(update: Update, context: CallbackContext):
     if not context.args:
         update.message.reply_text('Please provide the feedback!')
         return
@@ -97,7 +97,7 @@ def get_feedback(update: Update, context: CallbackContext):
     update.message.reply_text(f'Thank you, {tg_user.name}, your feedback is submitted!❤')
 
 
-def get_support(update: Update, context: CallbackContext):
+async def get_support(update: Update, context: CallbackContext):
     if not context.args:
         update.message.reply_text('Please describe your problem!')
         return
@@ -114,7 +114,7 @@ def get_support(update: Update, context: CallbackContext):
 
 
 # TODO: log new users to airtable
-def register(update: Update, context: CallbackContext):
+async def register(update: Update, context: CallbackContext):
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
     if user is not None:
@@ -125,17 +125,17 @@ def register(update: Update, context: CallbackContext):
 
     print(f'Registering {tg_user.name}.')
 
-    track_address(update, context)
+    await track_address(update, context)
 
 
-def change_address(update: Update, context: CallbackContext):
+async def change_address(update: Update, context: CallbackContext):
     if check_registration(update) is None:
         return
 
     track_address(update, context)
 
 
-def show_help(update: Update, context: CallbackContext):
+async def show_help(update: Update, context: CallbackContext):
     text = f'Hello, {update.message.from_user.name}, it is a pleasure to assist you!' \
            f'\n\n' \
            f'To change the address to track:\n' \
