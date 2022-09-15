@@ -18,6 +18,8 @@ from bot.notifier import schedule_notifications
 
 # TODO: make commands async
 # TODO: move commands to separate files
+from core.js_interop import start_js_interop_server
+
 
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_html(f'I am glad to see you, {update.message.from_user.name}!\n'
@@ -30,7 +32,7 @@ async def check_registration(update: Update) -> Optional[CometaUser]:
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
     if user is None:
-        await update.message.reply_text(f'Please register first.\n\n'
+        await update.message.reply_html(f'Please register first.\n\n'
                                         f'<code>/register YOUR_ALGO_ADDRESS</code>')
         return None
     return user
@@ -181,6 +183,7 @@ if __name__ == '__main__':
     atexit.register(tear_down)
 
     try:
-        start_bot()
+        with start_js_interop_server():
+            start_bot()
     except Exception as ex:
         logging.exception(ex)
