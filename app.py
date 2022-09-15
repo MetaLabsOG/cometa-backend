@@ -20,6 +20,7 @@ from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wall
 from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
 
+import dexes.humble as humble
 from dexes.tinyman import init_tinyman_client, get_swap_data, get_zap_transactions, \
     get_swap_transactions, get_zap_data
 from env import settings, LOG_FORMAT, DATE_FORMAT
@@ -263,6 +264,15 @@ async def zap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
+# HUMBLE POOLS
+
+@app.get('/humble/pool/{pool_id}')
+async def humble_pool_by_id(pool_id: int) -> Optional[humble.HumblePool]:
+    return humble.get_pool_by_id(pool_id)
+
+@app.get('/humble/pools')
+async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.HumblePool]:
+    return humble.get_pools_by_assets(assetA, assetB)
 
 # CROWDSALE
 
