@@ -305,7 +305,7 @@ async def tvl() -> dict:
 
 
 # TODO: remove, test purposes
-@app.get('/stats/tvl')
+@app.get('/stats/tvl2')
 async def tvl2() -> dict:
     return {
         'farm': calculate_tvl_for_type_2('farm'),
