@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from algosdk.encoding import is_valid_address
-from telegram import Update, User
+from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler
 
 from bot.cometa import schedule_airtable_updates, get_user_pools
@@ -20,17 +20,18 @@ from bot.notifier import schedule_notifications
 # TODO: move commands to separate files
 
 async def start(update: Update, context: CallbackContext):
-    update.message.reply_html(f'I am glad to see you, {update.message.from_user.name}!\n'
-                              'I will notify you to compound your rewards❤\n\n'
-                              'Please register first with\n'
-                              '<code>/register YOUR_ALGO_ADDRESS</code>')
+    await update.message.reply_html(f'I am glad to see you, {update.message.from_user.name}!\n'
+                                    'I will notify you to compound your rewards❤\n\n'
+                                    'Please register first with\n'
+                                    '<code>/register YOUR_ALGO_ADDRESS</code>')
 
 
 async def check_registration(update: Update) -> Optional[CometaUser]:
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
     if user is None:
-        update.message.reply_text(f'Please register first.')
+        await update.message.reply_text(f'Please register first.\n\n'
+                                        f'<code>/register YOUR_ALGO_ADDRESS</code>')
         return None
     return user
 
@@ -38,12 +39,12 @@ async def check_registration(update: Update) -> Optional[CometaUser]:
 async def track_address(update: Update, context: CallbackContext):
     tg_user = update.message.from_user
     if not context.args:
-        update.message.reply_text('Please provide address!')
+        await update.message.reply_text('Please provide address!')
         return
 
     address = context.args[0]
     if not is_valid_address(address):
-        update.message.reply_text(f'Oh no... Please {tg_user.name}! Provide your Algorand address👆')
+        await update.message.reply_text(f'Oh no... Please {tg_user.name}! Provide your Algorand address👆')
         return
 
     user_events = get_events({'address': address})
@@ -61,11 +62,11 @@ async def track_address(update: Update, context: CallbackContext):
     update_user(user)
     print(f'Recorded {len(user_events)} old events.')
 
-    update.message.reply_html(f'Great, {tg_user.name}!\nTracking <code>{address}</code>.')
+    await update.message.reply_html(f'Great, {tg_user.name}!\nTracking <code>{address}</code>.')
 
 
 async def show_pools(update: Update, context: CallbackContext):
-    user = check_registration(update)
+    user = await check_registration(update)
     if user is None:
         return
 
@@ -78,12 +79,12 @@ async def show_pools(update: Update, context: CallbackContext):
             reply_text += f'It ended {pool.ended_duration}s ago :('
         reply_text += '\n'
 
-    update.message.reply_html(reply_text)
+    await update.message.reply_html(reply_text)
 
 
 async def get_feedback(update: Update, context: CallbackContext):
     if not context.args:
-        update.message.reply_text('Please provide the feedback!')
+        await update.message.reply_text('Please provide the feedback!')
         return
     tg_user = update.message.from_user
 
@@ -92,14 +93,14 @@ async def get_feedback(update: Update, context: CallbackContext):
 
     feedback_text = update.message.text_markdown[len(FEEDBACK_COMMAND) + 2:]
     feedback = f'{text_title}:\n\n{feedback_text}'
-    context.bot.send_message(settings.feedback_chat_id, feedback)
+    await context.bot.send_message(settings.feedback_chat_id, feedback)
 
-    update.message.reply_text(f'Thank you, {tg_user.name}, your feedback is submitted!❤')
+    await update.message.reply_text(f'Thank you, {tg_user.name}, your feedback is submitted!❤')
 
 
 async def get_support(update: Update, context: CallbackContext):
     if not context.args:
-        update.message.reply_text('Please describe your problem!')
+        await update.message.reply_text('Please describe your problem!')
         return
     tg_user = update.message.from_user
 
@@ -108,9 +109,9 @@ async def get_support(update: Update, context: CallbackContext):
 
     support_text = update.message.text_markdown[len(SUPPORT_COMMAND) + 2:]
     support = f'{text_title}:\n\n{support_text}'
-    context.bot.send_message(settings.support_chat_id, support)
+    await context.bot.send_message(settings.support_chat_id, support)
 
-    update.message.reply_text(f'Thank you, {tg_user.name}, one of our admins will contact you ASAP!❤')
+    await update.message.reply_text(f'Thank you, {tg_user.name}, one of our admins will contact you ASAP!❤')
 
 
 # TODO: log new users to airtable
@@ -118,12 +119,12 @@ async def register(update: Update, context: CallbackContext):
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
     if user is not None:
-        update.message.reply_html(f'You are already registered!\n'
-                                  f'My apologies, I am too young, I can track only one address. But I will learn soon😏\n'
-                                  f'\nFor now I am tracking <code>{user.algo_address}</code> for you.')
+        await update.message.reply_html(f'You are already registered!\n'
+                                        f'My apologies, I am too young, I can track only one address. But I will learn soon😏\n'
+                                        f'\nFor now I am tracking <code>{user.algo_address}</code> for you.')
         return
 
-    print(f'Registering {tg_user.name}.')
+    logging.info(f'Registering {tg_user.name}.')
 
     await track_address(update, context)
 
@@ -132,7 +133,7 @@ async def change_address(update: Update, context: CallbackContext):
     if check_registration(update) is None:
         return
 
-    track_address(update, context)
+    await track_address(update, context)
 
 
 async def show_help(update: Update, context: CallbackContext):
@@ -147,29 +148,29 @@ async def show_help(update: Update, context: CallbackContext):
            f'If you have any problems, describe it and <b>our team will contact you ASAP</b>:\n' \
            f'<code>/support DESCRIPTION</code>'
 
-    update.message.reply_html(text, disable_web_page_preview=True)
+    await update.message.reply_html(text, disable_web_page_preview=True)
 
 
 def start_bot():
     setup_logging()
 
     # TODO: implement Command class
-    app_context.updater.dispatcher.add_handler(CommandHandler('start', start))
-    app_context.updater.dispatcher.add_handler(CommandHandler('register', register))
-    app_context.updater.dispatcher.add_handler(CommandHandler('change_address', change_address))
-    app_context.updater.dispatcher.add_handler(CommandHandler('my_pools', show_pools))
+    app_context.application.add_handler(CommandHandler('start', start))
+    app_context.application.add_handler(CommandHandler('register', register))
+    app_context.application.add_handler(CommandHandler('change_address', change_address))
+    app_context.application.add_handler(CommandHandler('my_pools', show_pools))
 
-    app_context.updater.dispatcher.add_handler(CommandHandler(FEEDBACK_COMMAND, get_feedback))
-    app_context.updater.dispatcher.add_handler(CommandHandler(SUPPORT_COMMAND, get_support))
+    app_context.application.add_handler(CommandHandler(FEEDBACK_COMMAND, get_feedback))
+    app_context.application.add_handler(CommandHandler(SUPPORT_COMMAND, get_support))
 
-    app_context.updater.dispatcher.add_handler(CommandHandler('help', show_help))
+    app_context.application.add_handler(CommandHandler('help', show_help))
 
     schedule_airtable_updates()
     schedule_notifications()
 
-    app_context.updater.start_polling()
+    app_context.application.run_polling()
 
-    print('Bot started!')
+    logging.info('Bot started!')
 
 
 def tear_down():
