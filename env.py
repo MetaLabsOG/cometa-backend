@@ -5,7 +5,7 @@ from pydantic import BaseSettings
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
-LOG_FORMAT = '[%(asctime)s][%(levelname)s] %(message)s'
+LOG_FORMAT = '[%(asctime)s][%(levelname)s][%(filename)s] %(message)s'
 DATE_FORMAT = '%I:%M:%S'
 
 
