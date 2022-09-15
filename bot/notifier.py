@@ -3,6 +3,8 @@ from datetime import datetime
 from threading import Thread
 from typing import Dict
 
+from telegram.constants import ParseMode
+
 from bot.context import app_context
 from bot.db import users
 from bot.db.model import PoolInfo, CometaUser
@@ -27,7 +29,7 @@ def notify_user(user: CometaUser, pools: Dict[str, PoolInfo]):
     # TODO: save all notifications to DB
     print(text)
 
-    app_context.bot.send_html(text=text, chat_id=user.telegram_chat_id)
+    app_context.bot.send_message(text=text, chat_id=user.telegram_chat_id, parse_mode=ParseMode.HTML)
     user.last_reminded = int(time.time())
     users.update_user(user)
 
