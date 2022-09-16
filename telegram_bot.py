@@ -13,8 +13,7 @@ from bot.db.users import create_user, get_user_by_tg, update_user
 from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
 from bot.log import setup_logging
 from bot.notifier import schedule_notifications
-from bot.utils import seconds_format
-
+from bot.utils import seconds_format, usd_format
 
 # TODO: move commands to separate files
 from core.js_interop import start_js_interop_server
@@ -46,7 +45,7 @@ async def show_pools(update: Update, context: CallbackContext):
     reply_text = 'Your pools:\n\n'
     for pool in pools:
         reply_text += f'<b>{pool.name}</b>\n' \
-                      f'Staked = ${pool.staked_usd}, rewards = ${pool.reward_usd}\n'
+                      f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n'
         if pool.ended_duration is not None:
             reply_text += f'<i>It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
         reply_text += '\n'

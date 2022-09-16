@@ -12,7 +12,7 @@ from bot.db import users
 from bot.db.model import PoolInfo, CometaUser
 from bot.env import MONITOR_LOG_DELAY
 from bot.phrase_manager import Phrases
-from bot.utils import td_format, seconds_format
+from bot.utils import td_format, seconds_format, usd_format
 
 logger = logging.getLogger(__name__)
 
@@ -33,20 +33,24 @@ async def notify_user(user: CometaUser):
         text += f'You still have stake/reward in <b>{len(ended_pools)} ended</b> pools!\n\n'
         for pool in ended_pools:
             text += f'<b>{pool.name}</b>\n' \
-                    f'Staked = ${pool.staked_usd}, rewards = ${pool.reward_usd}\n' \
+                    f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n' \
                     f'<i>It ended {seconds_format(pool.ended_duration)} ago :(</i>\n\n'
 
     live_pools = list(filter(lambda p: p.ended_duration is None, pools))
+    compound_pools = []
+    for pool in live_pools:
+        percent = pool.reward_usd / pool.staked_usd
+        if percent > 0.01:  # TODO: user setting
+            compound_pools.append((pool, percent))
 
-    if live_pools:
+    if compound_pools:
         text += f'What about some compounding?😏\n\n'
-        for pool in live_pools:
-            percent = pool.reward_usd / pool.staked_usd
+        for pool, percent in live_pools:
             text += f'<b>{pool.name}</b>\n' \
-                    f'Staked = ${pool.staked_usd}, rewards = ${pool.reward_usd}\n' \
+                    f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n' \
                     f'<i>You\'ve already farmed {percent * 100}% from your stake! Good time for compounding!</i>\n\n'
 
-    if ended_pools or live_pools:
+    if ended_pools or compound_pools:
         text += 'It is the time.\nhttps://app.cometa.farm/\n\n'
         text += '<i>(really soon I will be showing your APY ;)</i>'
 
