@@ -12,6 +12,7 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import nft_market, stats
+from bot.cometa import UserPool, get_user_pools
 from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.tinychart import get_asset_price_full
@@ -324,6 +325,11 @@ async def get_local_states(type: str, address: str) -> dict:
                               walletAddress=address)
         return states
     return {}
+
+
+@app.get('/stats/user_pools')
+async def get_pools(address: str) -> List[UserPool]:
+    return await get_user_pools(address)
 
 
 # Events

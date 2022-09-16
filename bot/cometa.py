@@ -1,3 +1,4 @@
+import logging
 import time
 from dataclasses import dataclass
 from threading import Thread
@@ -16,6 +17,8 @@ from core.contract_manager import get_contracts
 from core.js_interop import calljs
 from core.util import strip_version, parse_bignum, blocks_to_seconds
 
+logger = logging.getLogger(__name__)
+
 base = Base(settings.airtable_api_key, settings.airtable_base_id)
 airtable = base.get_table('farm')
 
@@ -30,26 +33,34 @@ class UserPool:
     ended_duration: Optional[float]
 
 
-async def get_user_pools(address: str) -> List[UserPool]:
-    all_contracts = get_contracts({})
-    if not all_contracts:
+async def get_local_states(type: str, address: str):
+    contracts = get_contracts({'type': type})
+    if not contracts:
         return []
-
-    ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in all_contracts]
+    ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
     local_states = await calljs("fetchContractsLocalViews",
                                 contractType=type,
                                 idVersions=ids_and_versions,
                                 walletAddress=address)
-    contract_by_id = {c.id: c for c in all_contracts}
+    return local_states
+
+
+async def get_user_pools(address: str) -> List[UserPool]:
+    local_states = await get_local_states('farm', address) | await get_local_states('distribution', address)
+    all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
+    contract_by_id = {str(c.id): c for c in all_contracts}
     pools = []
     for pool_id, state in local_states.items():
         current_reward = parse_bignum(state['reward'])
         staked = parse_bignum(state['staked'])
+
+        # user doesn't have interest in such pools
         if current_reward == 0 and staked == 0:
             continue
+
         lock_timestamp = parse_bignum(state['lockTimestamp'])
 
-        contract = contract_by_id[pool_id]
+        contract = contract_by_id[str(pool_id)]
         pool_state = get_pool_state(contract)
 
         current_block = get_current_round()

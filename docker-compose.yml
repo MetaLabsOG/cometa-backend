@@ -4,7 +4,7 @@ services:
     app:
         build: .
         restart: always
-        entrypoint: ./scripts/run_backend.sh
+        entrypoint: scripts/run.sh
         environment:
             REACH_NO_WARN: "${REACH_NO_WARN}"
             PYTHONUNBUFFERED: 1
@@ -18,7 +18,7 @@ services:
     bot:
         build: .
         restart: always
-        entrypoint: scripts/run_bot.sh
+        entrypoint: scripts/bot/run.sh
         environment:
             PYTHONUNBUFFERED: 1
         volumes:
