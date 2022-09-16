@@ -72,7 +72,9 @@ async def get_user_pools(address: str) -> List[UserPool]:
 
         staked_usd = pool_state.total_cost_usd * staked / pool_state.microtokens_staked
 
+        logger.debug(contract.description)
         reward_asset = get_asset(pool_state.reward_token_id)
+        logger.debug(f'current_reward = {current_reward}')
         logger.debug(f'reward_token = {pool_state.reward_token_id}')
         reward_tokens = current_reward / (10 ** reward_asset['params']['decimals'])
         logger.debug(f'reward_tokens = {reward_tokens}')
@@ -80,7 +82,7 @@ async def get_user_pools(address: str) -> List[UserPool]:
         reward_usd = reward_tokens * reward_price
         logger.debug(f'reward_usd = {reward_usd}')
         reward_usd += current_reward  * pool_state.total_algo_rewards * get_algo_price() / pool_state.total_rewards
-        logger.debug(f'reward_usd_with_algo = {reward_usd}')
+        logger.debug(f'reward_usd_with_algo = {reward_usd}\n')
 
         pools.append(UserPool(
             pool_id,
