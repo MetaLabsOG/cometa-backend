@@ -49,7 +49,7 @@ async def notify_user(user: CometaUser):
         # TODO: save all notifications to DB
         logger.debug(text)
 
-        app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
+        await app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
 
     user.last_reminded = int(time.time())
     users.update_user(user)
