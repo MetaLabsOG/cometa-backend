@@ -96,8 +96,8 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         total_rewards = parse_bignum(cache['initial']['totalRewardAmount'])
         total_algo_rewards = parse_bignum(cache['initial']['totalAlgoRewardAmount'])
     else:
-        total_rewards = parse_bignum(cache['initial']['totalRewardAmount']) * (end_block - start_block)
-        total_algo_rewards = parse_bignum(cache['initial']['totalAlgoRewardAmount']) * (end_block - start_block)
+        total_rewards = parse_bignum(cache['initial']['rewardPerBlock']) * (end_block - start_block)
+        total_algo_rewards = parse_bignum(cache['initial']['extraAlgoRewardPerBlock']) * (end_block - start_block)
 
     reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
 
