@@ -23,3 +23,7 @@ def seconds_format(s: float):
 def td_format(td_object):
     seconds = int(td_object.total_seconds())
     return seconds_format(seconds)
+
+
+def usd_format(usd: float) -> str:
+    return format(usd, ".2f")
