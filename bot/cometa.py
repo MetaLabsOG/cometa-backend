@@ -1,3 +1,4 @@
+import logging
 import time
 from dataclasses import dataclass
 from threading import Thread
@@ -15,6 +16,8 @@ from bot.env import settings, AIRTABLE_UPDATE_DELAY_SECONDS
 from core.contract_manager import get_contracts
 from core.js_interop import calljs
 from core.util import strip_version, parse_bignum, blocks_to_seconds
+
+logger = logging.getLogger(__name__)
 
 base = Base(settings.airtable_api_key, settings.airtable_base_id)
 airtable = base.get_table('farm')
@@ -40,6 +43,8 @@ async def get_user_pools(address: str) -> List[UserPool]:
                                 contractType=type,
                                 idVersions=ids_and_versions,
                                 walletAddress=address)
+    logger.debug(f'Got {len(local_states)} local states.')
+
     contract_by_id = {c.id: c for c in all_contracts}
     pools = []
     for pool_id, state in local_states.items():
