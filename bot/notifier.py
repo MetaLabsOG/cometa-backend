@@ -33,7 +33,7 @@ async def notify_user(user: CometaUser):
         for pool in ended_pools:
             text += f'<b>{pool.name}</b>\n' \
                     f'Staked = ${pool.staked_usd}, rewards = ?\n' \
-                    f'<i>It ended {seconds_format(pool.ended_duration)} ago :(<\\i>\n\n'
+                    f'<i>It ended {seconds_format(pool.ended_duration)} ago :(</i>\n\n'
 
     live_pools = list(filter(lambda p: p.ended_duration is None, pools))
 
