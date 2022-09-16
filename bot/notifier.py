@@ -1,15 +1,19 @@
+import logging
 import time
 from datetime import datetime
 from threading import Thread
-from typing import Dict
 
 from telegram.constants import ParseMode
 
+from bot.cometa import get_user_pools
 from bot.context import app_context
 from bot.db import users
 from bot.db.model import PoolInfo, CometaUser
 from bot.env import MONITOR_LOG_DELAY
-from bot.utils import td_format
+from bot.phrase_manager import Phrases
+from bot.utils import td_format, seconds_format
+
+logger = logging.getLogger(__name__)
 
 
 def pool_info(info: PoolInfo):
@@ -18,23 +22,39 @@ def pool_info(info: PoolInfo):
            f'<i>You could be so rich...</i>\nAnd you still may be! Just compound ;)'
 
 
-def notify_user(user: CometaUser, pools: Dict[str, PoolInfo]):
-    text = f'Hey, beautiful!❤️\n'
-    text += f'What about some compounding?😏\n'
-    text += '\n'
-    text += '\n\n'.join(pool_info(info) for asa_id, info in pools.items())
-    text += '\n\nIt is the time.\nhttps://app.testnet.cometa.farm/'
-    text += '\n\n<i>(soon I will be showing your APY ;)</i>'
+async def notify_user(user: CometaUser):
+    pools = await get_user_pools(user.algo_address)
 
-    # TODO: save all notifications to DB
-    print(text)
+    text = f'{Phrases.greet()}️\n\n'
 
-    app_context.bot.send_message(text=text, chat_id=user.telegram_chat_id, parse_mode=ParseMode.HTML)
+    ended_pools = list(filter(lambda p: p.ended_duration is not None, pools))
+    if ended_pools:
+        text += f'You still have stake in {len(ended_pools)} pools!\n\n'
+        for pool in ended_pools:
+            text += f'<b>{pool.name}</b>\n' \
+                    f'Staked = ${pool.staked_usd}, rewards = ?\n' \
+                    f'<i>It ended {seconds_format(pool.ended_duration)} ago :(<\\i>\n\n'
+
+    live_pools = list(filter(lambda p: p.ended_duration is None, pools))
+
+    if live_pools:
+        text += f'What about some compounding?😏\n'
+        text += '\n'
+
+    if ended_pools or live_pools:
+        text += 'It is the time.\nhttps://app.cometa.farm/\n\n'
+        text += '<i>(really soon I will be showing your APY ;)</i>'
+
+        # TODO: save all notifications to DB
+        logger.debug(text)
+
+        app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
+
     user.last_reminded = int(time.time())
     users.update_user(user)
 
 
-def monitor_and_notify_all():
+async def monitor_and_notify_all():
     iterations = 0
     prev_log_time = datetime.utcnow()
     while True:
@@ -44,24 +64,14 @@ def monitor_and_notify_all():
             if not user.should_remind():
                 continue
 
-            user_notifications = {}
-
-            for lp_asa_id, info in user.pools.items():
-                if info.should_remind():
-                    user_notifications[lp_asa_id] = info
-                    continue  # iterating user pools
-
-            if not user_notifications:
-                continue  # iterating users
-
-            notify_user(user, user_notifications)
+            await notify_user(user)
 
         iterations += 1
         time.sleep(1)
 
         now = datetime.utcnow()
         if now - prev_log_time > MONITOR_LOG_DELAY:
-            print(f'Monitoring all the time. {iterations} iterations since start.')
+            logger.debug(f'Monitoring all the time. {iterations} iterations since start.')
             prev_log_time = now
 
 
@@ -69,4 +79,3 @@ def schedule_notifications():
     # TODO: use executor
     daemon = Thread(target=monitor_and_notify_all, args=(), daemon=True, name='Notifier')
     daemon.start()
-

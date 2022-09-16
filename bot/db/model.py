@@ -49,7 +49,6 @@ class CometaUser:
     algo_address: str
     # discord_id: int
     telegram_id: int
-    telegram_chat_id: int
     last_reminded: int = 0
     pools: Dict[str, PoolInfo] = field(default_factory=dict)
 
