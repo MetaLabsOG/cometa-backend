@@ -16,7 +16,7 @@ from bot.db.model import EventType
 from bot.env import settings, AIRTABLE_UPDATE_DELAY_SECONDS
 from core.contract_manager import get_contracts
 from core.js_interop import calljs
-from core.tinychart import get_asset_price
+from core.tinychart import get_asset_price, get_algo_price
 from core.util import strip_version, parse_bignum, blocks_to_seconds
 
 logger = logging.getLogger(__name__)
@@ -72,10 +72,18 @@ async def get_user_pools(address: str) -> List[UserPool]:
 
         staked_usd = pool_state.total_cost_usd * staked / pool_state.microtokens_staked
 
+        logger.debug(contract.description)
+        logger.debug(contract.id)
         reward_asset = get_asset(pool_state.reward_token_id)
+        logger.debug(f'current_reward = {current_reward}')
+        logger.debug(f'reward_token = {pool_state.reward_token_id}')
         reward_tokens = current_reward / (10 ** reward_asset['params']['decimals'])
+        logger.debug(f'reward_tokens = {reward_tokens}')
         reward_price = get_asset_price(pool_state.reward_token_id)
         reward_usd = reward_tokens * reward_price
+        logger.debug(f'reward_usd = {reward_usd}')
+        reward_usd += current_reward  * pool_state.total_algo_rewards * get_algo_price() / pool_state.total_rewards
+        logger.debug(f'reward_usd_with_algo = {reward_usd}\n')
 
         pools.append(UserPool(
             pool_id,
