@@ -42,7 +42,10 @@ async def show_pools(update: Update, context: CallbackContext):
         return
 
     pools = await get_user_pools(user.algo_address)
-    reply_text = 'Your pools:\n\n'
+    if pools:
+        reply_text = 'Your pools:\n\n'
+    else:
+        reply_text = 'You don\'t have any pools, that\'s strange...'
     for pool in pools:
         reply_text += '✅' if pool.ended_duration is None else '❌'  # TODO: facepalm
         reply_text += f'<b>{pool.name}</b>\n' \
@@ -50,6 +53,8 @@ async def show_pools(update: Update, context: CallbackContext):
         if pool.ended_duration is not None:
             reply_text += f'<i>It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
         reply_text += '\n'
+
+    reply_text += 'To get more visit https://app.cometa.farm/'
 
     await update.message.reply_html(reply_text)
 
