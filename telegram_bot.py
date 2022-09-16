@@ -48,7 +48,7 @@ async def show_pools(update: Update, context: CallbackContext):
         reply_text += f'<b>{pool.name}</b>\n' \
                       f'Staked: ${pool.staked_usd}\n'
         if pool.ended_duration is not None:
-            reply_text += f'<i>It ended {seconds_format(pool.ended_duration)}s ago :(<\i>\n'
+            reply_text += f'<i>It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
         reply_text += '\n'
 
     await update.message.reply_html(reply_text)
