@@ -34,7 +34,7 @@ class UserPool:
 
 
 async def get_user_pools(address: str) -> List[UserPool]:
-    all_contracts = get_contracts({})
+    all_contracts = get_contracts({'type': 'farm'})
     if not all_contracts:
         return []
 
