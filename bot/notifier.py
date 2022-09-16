@@ -32,7 +32,7 @@ async def notify_user(user: CometaUser):
     if ended_pools:
         text += f'You still have stake/reward in <b>{len(ended_pools)} ended</b> pools!\n\n'
         for pool in ended_pools:
-            text += f'<b>{pool.name}</b>\n' \
+            text += f'❌<b>{pool.name}</b>\n' \
                     f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n' \
                     f'<i>It ended {seconds_format(pool.ended_duration)} ago :(</i>\n\n'
 
@@ -46,7 +46,7 @@ async def notify_user(user: CometaUser):
     if compound_pools:
         text += f'What about some compounding?😏\n\n'
         for pool, percent in live_pools:
-            text += f'<b>{pool.name}</b>\n' \
+            text += f'✅<b>{pool.name}</b>\n' \
                     f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n' \
                     f'<i>You\'ve already farmed {percent * 100}% from your stake! Good time for compounding!</i>\n\n'
 
