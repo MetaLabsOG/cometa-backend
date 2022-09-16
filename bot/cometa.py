@@ -73,6 +73,7 @@ async def get_user_pools(address: str) -> List[UserPool]:
         staked_usd = pool_state.total_cost_usd * staked / pool_state.microtokens_staked
 
         logger.debug(contract.description)
+        logger.debug(contract.id)
         reward_asset = get_asset(pool_state.reward_token_id)
         logger.debug(f'current_reward = {current_reward}')
         logger.debug(f'reward_token = {pool_state.reward_token_id}')
