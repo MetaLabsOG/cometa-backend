@@ -149,7 +149,7 @@ async def show_help(update: Update, context: CallbackContext):
            f'<code>/change_address NEW_ADDRESS</code>' \
            f'\n\n' \
            f'To show your current Cometa pools:\n' \
-           f'<code>/my_pools</code>' \
+           f'/my_pools' \
            f'\n\n' \
            f'To share any feedback about Cometa:\n' \
            f'<code>/feedback YOUR_FEEDBACK</code>' \
