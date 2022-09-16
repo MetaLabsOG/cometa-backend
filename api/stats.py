@@ -89,21 +89,24 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         asset_price = get_asset_price(asset_id)
         total_cost = total_tokens * asset_price
 
-    start_block = parse_bignum(cache['initial']['startBlock'])
+    start_block = parse_bignum(cache['initial']['beginBlock'])
     end_block = parse_bignum(cache['initial']['endBlock'])
 
-    # if 'totalRewardAmount' in cache['initial']:
-    #     total_rewards = parse_bignum(cache['initial']['totalRewardAmount'])
-    #     total_algo_rewards = parse_bignum(cache['initial']['totalAlgoRewardAmount'])
-    # else:
-    #     total_rewards = parse_bignum(cache['initial']['totalRewardAmount'])
-    #     total_algo_rewards = parse_bignum(cache['initial']['totalAlgoRewardAmount'])
+    if 'totalRewardAmount' in cache['initial']:
+        total_rewards = parse_bignum(cache['initial']['totalRewardAmount'])
+        total_algo_rewards = parse_bignum(cache['initial']['totalAlgoRewardAmount'])
+    else:
+        total_rewards = parse_bignum(cache['initial']['totalRewardAmount']) * (end_block - start_block)
+        total_algo_rewards = parse_bignum(cache['initial']['totalAlgoRewardAmount']) * (end_block - start_block)
 
     reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
+
     return PoolState(
         total_microtokens,
         total_cost,
         reward_token_id=parse_bignum(cache['initial'][reward_token_field_name]),
+        total_rewards=total_rewards,
+        total_algo_rewards=total_algo_rewards,
         end_block=end_block,
         lock_length_blocks=parse_bignum(cache['initial']['lockLengthBlocks'])
     )
