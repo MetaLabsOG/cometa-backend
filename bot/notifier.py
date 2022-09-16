@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from datetime import datetime
@@ -77,5 +78,5 @@ async def monitor_and_notify_all():
 
 def schedule_notifications():
     # TODO: use executor
-    daemon = Thread(target=monitor_and_notify_all, args=(), daemon=True, name='Notifier')
+    daemon = Thread(target=asyncio.run, args=(monitor_and_notify_all(),), daemon=True, name='Notifier')
     daemon.start()
