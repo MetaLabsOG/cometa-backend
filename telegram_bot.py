@@ -44,6 +44,7 @@ async def show_pools(update: Update, context: CallbackContext):
     pools = await get_user_pools(user.algo_address)
     reply_text = 'Your pools:\n\n'
     for pool in pools:
+        reply_text += '✅' if pool.ended_duration is None else '❌'  # TODO: facepalm
         reply_text += f'<b>{pool.name}</b>\n' \
                       f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n'
         if pool.ended_duration is not None:
