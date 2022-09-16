@@ -34,7 +34,7 @@ class UserPool:
 
 
 async def get_local_states(type: str, address: str):
-    contracts = get_contracts({'type': 'farm'})
+    contracts = get_contracts({'type': type})
     if not contracts:
         return []
     ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
