@@ -8,15 +8,14 @@ from telegram.ext import CallbackContext, CommandHandler
 
 from bot.cometa import schedule_airtable_updates, get_user_pools
 from bot.context import app_context
-from bot.db.events import get_events
 from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg, update_user
 from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
 from bot.log import setup_logging
 from bot.notifier import schedule_notifications
+from bot.utils import seconds_format
 
 
-# TODO: make commands async
 # TODO: move commands to separate files
 from core.js_interop import start_js_interop_server
 
@@ -38,35 +37,6 @@ async def check_registration(update: Update) -> Optional[CometaUser]:
     return user
 
 
-async def track_address(update: Update, context: CallbackContext):
-    tg_user = update.message.from_user
-    if not context.args:
-        await update.message.reply_text('Please provide address!')
-        return
-
-    address = context.args[0]
-    if not is_valid_address(address):
-        await update.message.reply_text(f'Oh no... Please {tg_user.name}! Provide your Algorand address👆')
-        return
-
-    user_events = get_events({'address': address})
-
-    user = get_user_by_tg(tg_user.id)
-    if user is None:
-        user = create_user(address, tg_user.id, tg_user.id)
-    else:
-        user.pools = {}
-        user.algo_address = address
-
-    for e in user_events:
-        # time in ascending order
-        user.update(e)
-    update_user(user)
-    print(f'Recorded {len(user_events)} old events.')
-
-    await update.message.reply_html(f'Great, {tg_user.name}!\nTracking <code>{address}</code>.')
-
-
 async def show_pools(update: Update, context: CallbackContext):
     user = await check_registration(update)
     if user is None:
@@ -78,10 +48,40 @@ async def show_pools(update: Update, context: CallbackContext):
         reply_text += f'<b>{pool.name}</b>\n' \
                       f'Staked: ${pool.staked_usd}\n'
         if pool.ended_duration is not None:
-            reply_text += f'It ended {pool.ended_duration}s ago :('
+            reply_text += f'<i>It ended {seconds_format(pool.ended_duration)}s ago :(<\i>\n'
         reply_text += '\n'
 
     await update.message.reply_html(reply_text)
+
+
+async def track_address(update: Update, context: CallbackContext):
+    tg_user = update.message.from_user
+    if not context.args:
+        await update.message.reply_text('Please provide address!')
+        return
+
+    address = context.args[0]
+    if not is_valid_address(address):
+        await update.message.reply_text(f'Oh no... Please {tg_user.name}! Provide your Algorand address👆')
+        return
+
+    # user_events = get_events({'address': address})
+
+    user = get_user_by_tg(tg_user.id)
+    if user is None:
+        user = create_user(address, tg_user.id, tg_user.id)
+    else:
+        user.pools = {}
+        user.algo_address = address
+
+    # for e in user_events:
+    #     # time in ascending order
+    #     user.update(e)
+    # update_user(user)
+    # print(f'Recorded {len(user_events)} old events.')
+
+    await update.message.reply_html(f'Great, {tg_user.name}!\nTracking <code>{address}</code>.')
+    await show_pools(update, context)
 
 
 async def get_feedback(update: Update, context: CallbackContext):
@@ -122,7 +122,6 @@ async def register(update: Update, context: CallbackContext):
     user = get_user_by_tg(tg_user.id)
     if user is not None:
         await update.message.reply_html(f'You are already registered!\n'
-                                        f'My apologies, I am too young, I can track only one address. But I will learn soon😏\n'
                                         f'\nFor now I am tracking <code>{user.algo_address}</code> for you.')
         return
 
@@ -139,15 +138,18 @@ async def change_address(update: Update, context: CallbackContext):
 
 
 async def show_help(update: Update, context: CallbackContext):
-    text = f'Hello, {update.message.from_user.name}, it is a pleasure to assist you!' \
+    text = f'Hello, {update.message.from_user.name}, it is a pleasure to assist you! :)' \
            f'\n\n' \
            f'To change the address to track:\n' \
            f'<code>/change_address NEW_ADDRESS</code>' \
            f'\n\n' \
+           f'To show your current Cometa pools:\n' \
+           f'<code>/my_pools</code>' \
+           f'\n\n' \
            f'To share any feedback about Cometa:\n' \
            f'<code>/feedback YOUR_FEEDBACK</code>' \
            f'\n\n' \
-           f'If you have any problems, describe it and <b>our team will contact you ASAP</b>:\n' \
+           f'<b>If you have any problems</b>, describe it and <b>our team will contact you ASAP</b>:\n' \
            f'<code>/support DESCRIPTION</code>'
 
     await update.message.reply_html(text, disable_web_page_preview=True)
