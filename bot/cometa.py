@@ -46,7 +46,7 @@ async def get_local_states(type: str, address: str):
 
 
 async def get_user_pools(address: str) -> List[UserPool]:
-    local_states = await get_local_states('farm', address) + await get_local_states('distribution', address)
+    local_states = await get_local_states('farm', address) | await get_local_states('distribution', address)
     all_contracts = get_contracts({})
     contract_by_id = {c.id: c for c in all_contracts}
     pools = []
