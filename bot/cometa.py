@@ -33,18 +33,21 @@ class UserPool:
     ended_duration: Optional[float]
 
 
-async def get_user_pools(address: str) -> List[UserPool]:
-    all_contracts = get_contracts({'type': 'farm'})
-    if not all_contracts:
+async def get_local_states(type: str, address: str):
+    contracts = get_contracts({'type': 'farm'})
+    if not contracts:
         return []
-
-    ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in all_contracts]
+    ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
     local_states = await calljs("fetchContractsLocalViews",
                                 contractType=type,
                                 idVersions=ids_and_versions,
                                 walletAddress=address)
-    logger.debug(f'Got {len(local_states)} local states.')
+    return local_states
 
+
+async def get_user_pools(address: str) -> List[UserPool]:
+    local_states = await get_local_states('farm', address) + await get_local_states('distribution', address)
+    all_contracts = get_contracts({})
     contract_by_id = {c.id: c for c in all_contracts}
     pools = []
     for pool_id, state in local_states.items():
