@@ -30,17 +30,21 @@ async def notify_user(user: CometaUser):
 
     ended_pools = list(filter(lambda p: p.ended_duration is not None, pools))
     if ended_pools:
-        text += f'You still have stake in {len(ended_pools)} pools!\n\n'
+        text += f'You still have stake/reward in <b>{len(ended_pools)} ended</b> pools!\n\n'
         for pool in ended_pools:
             text += f'<b>{pool.name}</b>\n' \
-                    f'Staked = ${pool.staked_usd}, rewards = ?\n' \
+                    f'Staked = ${pool.staked_usd}, rewards = ${pool.reward_usd}\n' \
                     f'<i>It ended {seconds_format(pool.ended_duration)} ago :(</i>\n\n'
 
     live_pools = list(filter(lambda p: p.ended_duration is None, pools))
 
     if live_pools:
-        text += f'What about some compounding?😏\n'
-        text += '\n'
+        text += f'What about some compounding?😏\n\n'
+        for pool in live_pools:
+            percent = pool.reward_usd / pool.staked_usd
+            text += f'<b>{pool.name}</b>\n' \
+                    f'Staked = ${pool.staked_usd}, rewards = ${pool.reward_usd}\n' \
+                    f'<i>You\'ve already farmed {percent * 100}% from your stake! Good time for compounding!</i>\n\n'
 
     if ended_pools or live_pools:
         text += 'It is the time.\nhttps://app.cometa.farm/\n\n'
