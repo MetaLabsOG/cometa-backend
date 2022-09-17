@@ -20,18 +20,22 @@ from core.js_interop import start_js_interop_server
 
 
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_html(f'I am glad to see you, {update.message.from_user.name}!\n'
-                                    'I will notify you to compound your rewards❤\n\n'
-                                    'Please register first with\n'
-                                    '<code>/register YOUR_ALGO_ADDRESS</code>')
+    await update.message.reply_html(f'🤖 I\'m glad to see you, {update.message.from_user.name}, let\'s be friends!👀\n'
+                                    'I will try to make your DeFi experience on Cometa as easy as possible😉\n\n'
+                                    'Please register first with:\n'
+                                    '<code>/register YOUR_ALGO_ADDRESS</code>\n\n'
+                                    'To know all the cool stuff I can do use:\n'
+                                    '/help')
 
 
 async def check_registration(update: Update) -> Optional[CometaUser]:
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
     if user is None:
-        await update.message.reply_html(f'Please register first.\n\n'
-                                        f'<code>/register YOUR_ALGO_ADDRESS</code>')
+        await update.message.reply_html(f'🤖 Please register first with:\n'
+                                        f'<code>/register YOUR_ALGO_ADDRESS</code>\n\n'
+                                        f'To know more about me please use:\n'
+                                        f'/help')
         return None
     return user
 
@@ -43,18 +47,17 @@ async def show_pools(update: Update, context: CallbackContext):
 
     pools = await get_user_pools(user.algo_address)
     if pools:
-        reply_text = 'Your pools:\n\n'
+        reply_text = '🤖 Your pools:\n\n'
     else:
-        reply_text = 'You don\'t have any pools, that\'s strange...'
+        reply_text = 'You don\'t have any pools, that\'s strange...\n\n' \
+                     'Check out https://app.cometa.farm/ to get decent APRs with the best UX on Algorand😏'
     for pool in pools:
         reply_text += '✅' if pool.ended_duration is None else '❌'  # TODO: facepalm
         reply_text += f'<b>{pool.name}</b>\n' \
                       f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n'
         if pool.ended_duration is not None:
             reply_text += f'<i>It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
-        reply_text += '\n'
-
-    reply_text += 'To get more visit https://app.cometa.farm/'
+        reply_text += '\nTo manage your pools go to https://app.cometa.farm/'
 
     await update.message.reply_html(reply_text)
 
@@ -91,7 +94,7 @@ async def track_address(update: Update, context: CallbackContext):
 
 async def get_feedback(update: Update, context: CallbackContext):
     if not context.args:
-        await update.message.reply_text('Please provide the feedback!')
+        await update.message.reply_text('🤖 Please provide the feedback!')
         return
     tg_user = update.message.from_user
 
@@ -107,7 +110,7 @@ async def get_feedback(update: Update, context: CallbackContext):
 
 async def get_support(update: Update, context: CallbackContext):
     if not context.args:
-        await update.message.reply_text('Please describe your problem!')
+        await update.message.reply_text('🤖 Please describe your problem!')
         return
     tg_user = update.message.from_user
 
@@ -126,8 +129,11 @@ async def register(update: Update, context: CallbackContext):
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
     if user is not None:
-        await update.message.reply_html(f'You are already registered!\n'
-                                        f'\nFor now I am tracking <code>{user.algo_address}</code> for you.')
+        await update.message.reply_html(f'🤖 You are already registered!\n'
+                                        f'For now I am tracking <code>{user.algo_address}</code> for you😉'
+                                        f'To know more about me please use:\n'
+                                        f'/help'
+                                        )
         return
 
     logging.info(f'Registering {tg_user.name}.')
@@ -143,18 +149,30 @@ async def change_address(update: Update, context: CallbackContext):
 
 
 async def show_help(update: Update, context: CallbackContext):
-    text = f'Hello, {update.message.from_user.name}, it is a pleasure to assist you! :)' \
+    text = f'🤖 Hello, {update.message.from_user.name}, it is a pleasure to assist you!☺️' \
            f'\n\n' \
-           f'To change the address to track:\n' \
+           f'✅ I will notify you <b>to withdraw from ended pools</b>.' \
+           f'\n\n' \
+           f'✅ I will notify you <b>to compound</b> in pools where you farmed <b>more than 1% of your stake</b> ' \
+           f'(to get decent APY).' \
+           f'\n\n' \
+           f'<i>I will notify only once per day. ' \
+           f'Soon you will be able to manage the frequency as well as best compounding interest!</i>' \
+           f'\n\n'\
+           f'✏️ To change the address to track:' \
+           f'\n' \
            f'<code>/change_address NEW_ADDRESS</code>' \
            f'\n\n' \
-           f'To show your current Cometa pools:\n' \
+           f'🚀 To show your current Cometa pools:' \
+           f'\n' \
            f'/my_pools' \
            f'\n\n' \
-           f'To share any feedback about Cometa:\n' \
+           f'💁‍♀️ To share any feedback about Cometa:' \
+           f'\n' \
            f'<code>/feedback YOUR_FEEDBACK</code>' \
            f'\n\n' \
-           f'<b>If you have any problems</b>, describe it and <b>our team will contact you ASAP</b>:\n' \
+           f'<b>🚨 If you have any problems</b>, describe it and <b>our team will contact you ASAP</b>:' \
+           f'\n' \
            f'<code>/support DESCRIPTION</code>'
 
     await update.message.reply_html(text, disable_web_page_preview=True)
