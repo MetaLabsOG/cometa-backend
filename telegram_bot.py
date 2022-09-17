@@ -20,7 +20,7 @@ from core.js_interop import start_js_interop_server
 
 
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_html(f'🤖 I\'m glad to see you, {update.message.from_user.name}, let\'s be friends!👀\n'
+    await update.message.reply_html(f'🤖 I\'m glad to see you, {update.message.from_user.name}, let\'s be friends!👀\n\n'
                                     'I will try to make your DeFi experience on Cometa as easy as possible😉\n\n'
                                     'Please register first with:\n'
                                     '<code>/register YOUR_ALGO_ADDRESS</code>\n\n'
@@ -49,14 +49,14 @@ async def show_pools(update: Update, context: CallbackContext):
     if pools:
         reply_text = '🤖 Your pools:\n\n'
     else:
-        reply_text = 'You don\'t have any pools, that\'s strange...\n\n' \
+        reply_text = '🤖 You don\'t have any pools, that\'s strange...\n\n' \
                      'Check out https://app.cometa.farm/ to get decent APRs with the best UX on Algorand😏'
     for pool in pools:
         reply_text += '✅' if pool.ended_duration is None else '❌'  # TODO: facepalm
         reply_text += f'<b>{pool.name}</b>\n' \
                       f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n'
         if pool.ended_duration is not None:
-            reply_text += f'<i>It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
+            reply_text += f'<i>Withdraw ASAP! It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
         reply_text += '\nTo manage your pools go to https://app.cometa.farm/'
 
     await update.message.reply_html(reply_text)
@@ -65,12 +65,12 @@ async def show_pools(update: Update, context: CallbackContext):
 async def track_address(update: Update, context: CallbackContext):
     tg_user = update.message.from_user
     if not context.args:
-        await update.message.reply_text('Please provide address!')
+        await update.message.reply_text('🤖 Please provide address!')
         return
 
     address = context.args[0]
     if not is_valid_address(address):
-        await update.message.reply_text(f'Oh no... Please {tg_user.name}! Provide your Algorand address👆')
+        await update.message.reply_text(f'🤖 Oh no... Please {tg_user.name}! Provide your Algorand address👆')
         return
 
     # user_events = get_events({'address': address})
@@ -88,7 +88,7 @@ async def track_address(update: Update, context: CallbackContext):
     # update_user(user)
     # print(f'Recorded {len(user_events)} old events.')
 
-    await update.message.reply_html(f'Great, {tg_user.name}!\nTracking <code>{address}</code>.')
+    await update.message.reply_html(f'🤖 Great, {tg_user.name}!\nTracking <code>{address}</code>.')
     await show_pools(update, context)
 
 
@@ -105,7 +105,7 @@ async def get_feedback(update: Update, context: CallbackContext):
     feedback = f'{text_title}:\n\n{feedback_text}'
     await context.bot.send_message(settings.feedback_chat_id, feedback)
 
-    await update.message.reply_text(f'Thank you, {tg_user.name}, your feedback is submitted!❤')
+    await update.message.reply_text(f'🤖 Thank you, {tg_user.name}, your feedback is submitted!❤')
 
 
 async def get_support(update: Update, context: CallbackContext):
@@ -121,7 +121,7 @@ async def get_support(update: Update, context: CallbackContext):
     support = f'{text_title}:\n\n{support_text}'
     await context.bot.send_message(settings.support_chat_id, support)
 
-    await update.message.reply_text(f'Thank you, {tg_user.name}, one of our admins will contact you ASAP!❤')
+    await update.message.reply_text(f'🤖 Thank you, {tg_user.name}, one of our admins will contact you ASAP!❤')
 
 
 # TODO: log new users to airtable
@@ -151,29 +151,34 @@ async def change_address(update: Update, context: CallbackContext):
 async def show_help(update: Update, context: CallbackContext):
     text = f'🤖 Hello, {update.message.from_user.name}, it is a pleasure to assist you!☺️' \
            f'\n\n' \
-           f'✅ I will notify you <b>to withdraw from ended pools</b>.' \
+           f'✅ I will remind you <b>to withdraw from ended pools</b>.' \
            f'\n\n' \
-           f'✅ I will notify you <b>to compound</b> in pools where you farmed <b>more than 1% of your stake</b> ' \
+           f'✅ I will remind you <b>to compound</b> in pools where you farmed <b>more than 1% of your stake</b> ' \
            f'(to get decent APY).' \
            f'\n\n' \
            f'<i>I will notify only once per day. ' \
            f'Soon you will be able to manage the frequency as well as best compounding interest!</i>' \
+           f'\n\n' \
+           f'What else can I do?😏' \
            f'\n\n'\
-           f'✏️ To change the address to track:' \
+           f'✏️To change the address to track:' \
            f'\n' \
            f'<code>/change_address NEW_ADDRESS</code>' \
            f'\n\n' \
-           f'🚀 To show your current Cometa pools:' \
+           f'🚀To show your current Cometa pools:' \
            f'\n' \
            f'/my_pools' \
            f'\n\n' \
-           f'💁‍♀️ To share any feedback about Cometa:' \
+           f'💁‍♀️To share any feedback about Cometa:' \
            f'\n' \
            f'<code>/feedback YOUR_FEEDBACK</code>' \
            f'\n\n' \
-           f'<b>🚨 If you have any problems</b>, describe it and <b>our team will contact you ASAP</b>:' \
+           f'<b>🚨 If you have any problems with bot or Cometa</b>, please describe it and <b>our team will contact you ASAP</b>:' \
            f'\n' \
-           f'<code>/support DESCRIPTION</code>'
+           f'<code>/support DESCRIPTION</code>' \
+           f'\n\n' \
+           f'<i>And don\'t forget to farm</i>😉\n\n' \
+           f'https://app.cometa.farm/'
 
     await update.message.reply_html(text, disable_web_page_preview=True)
 
