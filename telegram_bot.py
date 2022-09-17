@@ -47,17 +47,21 @@ async def show_pools(update: Update, context: CallbackContext):
 
     pools = await get_user_pools(user.algo_address)
     if pools:
-        reply_text = '🤖 Your pools:\n\n'
-    else:
-        reply_text = '🤖 You don\'t have any pools, that\'s strange...\n\n' \
-                     'Check out https://app.cometa.farm/ to get decent APRs with the best UX on Algorand😏'
-    for pool in pools:
-        reply_text += '✅' if pool.ended_duration is None else '❌'  # TODO: facepalm
-        reply_text += f'<b>{pool.name}</b>\n' \
-                      f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n'
-        if pool.ended_duration is not None:
-            reply_text += f'<i>Withdraw ASAP! It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
+        reply_text = '🤖 <b>Your pools:</b>\n\n'
+
+        for pool in pools:
+            reply_text += '✅' if pool.ended_duration is None else '❌'  # TODO: facepalm
+            reply_text += f' <b>{pool.name}</b>\n' \
+                          f'Staked = <b>${usd_format(pool.staked_usd)}</b>, ' \
+                          f'rewards = <b>${usd_format(pool.reward_usd)}</b>\n'
+            if pool.ended_duration is not None:
+                reply_text += f'<i>Withdraw ASAP! It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
+
         reply_text += '\nTo manage your pools go to https://app.cometa.farm/'
+    else:
+        reply_text = '🤖 You don\'t have any pools, that\'s strange...' \
+                     '\n\n' \
+                     'Check out https://app.cometa.farm/ to get decent APRs with the best UX on Algorand😏'
 
     await update.message.reply_html(reply_text)
 
