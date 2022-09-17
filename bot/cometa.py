@@ -49,6 +49,7 @@ async def get_local_states(type: str, address: str) -> dict:
 # ffs
 BIG_NUM = 1000000000000000000
 
+
 def recalculate_reward(pool: PoolState, current_block: int, staked: int, reward: int,
                        reward_per_token_paid: int) -> int:
     if pool.last_update_block >= current_block or pool.total_staked == 0 or staked == 0:
@@ -106,7 +107,7 @@ async def get_user_pools(address: str) -> List[UserPool]:
             reward_usd = reward_tokens * reward_price
             logger.debug(f'reward_usd = {reward_usd}')
 
-            reward_usd += reward * pool_state.total_algo_rewards * get_algo_price() / pool_state.total_rewards
+            reward_usd += reward * pool_state.total_algo_rewards // pool_state.total_rewards * get_algo_price()
             logger.debug(f'reward_usd_with_algo = {reward_usd}\n')
 
             pools.append(UserPool(
