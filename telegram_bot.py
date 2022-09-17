@@ -58,7 +58,7 @@ async def show_pools(update: Update, context: CallbackContext):
                 reply_text += f'<i>Withdraw ASAP! It ended {seconds_format(pool.ended_duration)}s ago :(</i>\n'
             reply_text += '\n'
 
-        reply_text += '\nTo manage your pools go to https://app.cometa.farm/'
+        reply_text += 'To manage your pools go to https://app.cometa.farm/'
     else:
         reply_text = '🤖 You don\'t have any pools, that\'s strange...' \
                      '\n\n' \
