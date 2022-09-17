@@ -2,6 +2,7 @@ import logging
 import time
 import traceback
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Optional
 
 from cachetools import cached, TTLCache, FIFOCache
@@ -63,12 +64,16 @@ def get_asset_info(asset_id: int) -> dict:
 class PoolState:
     total_staked: int
     total_cost_usd: float
+    reward_token_id: int
+
     total_rewards: int
     total_algo_rewards: int
-
-    reward_token_id: int
     reward_per_block: int
+    algo_reward_per_block: int
+
+    start_block: int
     end_block: int
+    length_blocks: int
     lock_length_blocks: int
 
     last_update_block: int
@@ -96,14 +101,18 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
 
     start_block = parse_bignum(cache['initial']['beginBlock'])
     end_block = parse_bignum(cache['initial']['endBlock'])
-    reward_per_block = parse_bignum(cache['initial']['rewardPerBlock'])
+    length_blocks = end_block - start_block + 1
 
     if 'totalRewardAmount' in cache['initial']:
         total_rewards = parse_bignum(cache['initial']['totalRewardAmount'])
         total_algo_rewards = parse_bignum(cache['initial']['totalAlgoRewardAmount'])
+        reward_per_block = total_rewards // length_blocks
+        algo_reward_per_block = total_algo_rewards // length_blocks
     else:
-        total_rewards = reward_per_block * (end_block - start_block)
-        total_algo_rewards = parse_bignum(cache['initial']['extraAlgoRewardPerBlock']) * (end_block - start_block)
+        reward_per_block = parse_bignum(cache['initial']['rewardPerBlock'])
+        algo_reward_per_block = parse_bignum(cache['initial']['extraAlgoRewardPerBlock'])
+        total_rewards = reward_per_block * length_blocks
+        total_algo_rewards = algo_reward_per_block * length_blocks
 
     reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
 
@@ -113,11 +122,14 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         reward_token_id=parse_bignum(cache['initial'][reward_token_field_name]),
         total_rewards=total_rewards,
         total_algo_rewards=total_algo_rewards,
+        start_block=start_block,
         end_block=end_block,
         lock_length_blocks=parse_bignum(cache['initial']['lockLengthBlocks']),
         reward_per_block=reward_per_block,
         last_update_block=parse_bignum(cache['global']['lastUpdateBlock']),
         reward_per_token_stored=parse_bignum(cache['global']['rewardPerTokenStored']),
+        length_blocks=length_blocks,
+        algo_reward_per_block=algo_reward_per_block
     )
 
 
