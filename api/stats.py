@@ -61,13 +61,18 @@ def get_asset_info(asset_id: int) -> dict:
 
 @dataclass
 class PoolState:
-    microtokens_staked: int
+    total_staked: int
     total_cost_usd: float
-    reward_token_id: int
     total_rewards: int
     total_algo_rewards: int
+
+    reward_token_id: int
+    reward_per_block: int
     end_block: int
     lock_length_blocks: int
+
+    last_update_block: int
+    reward_per_token_stored: int
 
 
 def get_pool_state(contract: ContractInfo) -> PoolState:
@@ -102,13 +107,16 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
 
     return PoolState(
-        total_microtokens,
-        total_cost,
+        total_staked=total_microtokens,
+        total_cost_usd=total_cost,
         reward_token_id=parse_bignum(cache['initial'][reward_token_field_name]),
         total_rewards=total_rewards,
         total_algo_rewards=total_algo_rewards,
         end_block=end_block,
-        lock_length_blocks=parse_bignum(cache['initial']['lockLengthBlocks'])
+        lock_length_blocks=parse_bignum(cache['initial']['lockLengthBlocks']),
+        reward_per_block=parse_bignum(cache['initial']['rewardPerBlock']),
+        last_update_block=parse_bignum(cache['global']['lastUpdateBlock']),
+        reward_per_token_stored=parse_bignum(cache['global']['rewardPerTokenStored']),
     )
 
 
