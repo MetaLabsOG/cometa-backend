@@ -7,6 +7,7 @@ import schedule
 from pyairtable import Base
 
 from api.stats import get_pool_state, PoolState
+from blockchain.assets import MICROALGOS_IN_ALGO
 from blockchain.indexer import get_asset
 from blockchain.node import get_current_round
 from bot.db import events, users
@@ -107,7 +108,8 @@ async def get_user_pools(address: str) -> List[UserPool]:
             reward_usd = reward_tokens * reward_price
             logger.debug(f'reward_usd = {reward_usd}')
 
-            reward_usd += reward * pool_state.total_algo_rewards // pool_state.total_rewards * get_algo_price()
+            reward_usd += reward * pool_state.total_algo_rewards // \
+                          pool_state.total_rewards * get_algo_price() / MICROALGOS_IN_ALGO
             logger.debug(f'reward_usd_with_algo = {reward_usd}\n')
 
             pools.append(UserPool(
