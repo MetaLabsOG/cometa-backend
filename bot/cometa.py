@@ -68,55 +68,58 @@ async def get_user_pools(address: str) -> List[UserPool]:
     contract_by_id = {str(c.id): c for c in all_contracts}
     pools = []
     for pool_id, state in local_states.items():
-        reward = parse_bignum(state['reward'])
-        staked = parse_bignum(state['staked'])
+        try:
+            reward = parse_bignum(state['reward'])
+            staked = parse_bignum(state['staked'])
 
-        # user doesn't have interest in such pools
-        if reward == 0 and staked == 0:
-            continue
+            # user doesn't have interest in such pools
+            if reward == 0 and staked == 0:
+                continue
 
-        lock_timestamp = parse_bignum(state['lockTimestamp'])
+            lock_timestamp = parse_bignum(state['lockTimestamp'])
 
-        contract = contract_by_id[str(pool_id)]
-        pool_state = get_pool_state(contract)
+            contract = contract_by_id[str(pool_id)]
+            pool_state = get_pool_state(contract)
 
-        current_block = get_current_round()
-        ended_duration = None
-        if current_block > pool_state.end_block:
-            ended_duration = blocks_to_seconds(pool_state.end_block, current_block)
+            current_block = get_current_round()
+            ended_duration = None
+            if current_block > pool_state.end_block:
+                ended_duration = blocks_to_seconds(pool_state.end_block, current_block)
 
-        staked_usd = pool_state.total_cost_usd * staked / pool_state.total_staked
+            staked_usd = pool_state.total_cost_usd * staked / pool_state.total_staked
 
-        logger.debug(contract.description)
-        logger.debug(contract.id)
+            logger.debug(contract.description)
+            logger.debug(contract.id)
 
-        logger.debug(f'reward = {reward}')
-        reward_per_token_paid = parse_bignum(state['rewardPerTokenPaid'])
-        reward = recalculate_reward(pool_state, current_block, staked, reward, reward_per_token_paid)
-        logger.debug(f'new_reward = {reward}')
+            logger.debug(f'reward = {reward}')
+            reward_per_token_paid = parse_bignum(state['rewardPerTokenPaid'])
+            reward = recalculate_reward(pool_state, current_block, staked, reward, reward_per_token_paid)
+            logger.debug(f'new_reward = {reward}')
 
-        reward_asset = get_asset(pool_state.reward_token_id)
-        logger.debug(f'reward_token = {pool_state.reward_token_id}')
+            reward_asset = get_asset(pool_state.reward_token_id)
+            logger.debug(f'reward_token = {pool_state.reward_token_id}')
 
-        reward_tokens = reward / (10 ** reward_asset['params']['decimals'])
-        logger.debug(f'reward_tokens = {reward_tokens}')
+            reward_tokens = reward / (10 ** reward_asset['params']['decimals'])
+            logger.debug(f'reward_tokens = {reward_tokens}')
 
-        reward_price = get_asset_price(pool_state.reward_token_id)
-        reward_usd = reward_tokens * reward_price
-        logger.debug(f'reward_usd = {reward_usd}')
+            reward_price = get_asset_price(pool_state.reward_token_id)
+            reward_usd = reward_tokens * reward_price
+            logger.debug(f'reward_usd = {reward_usd}')
 
-        reward_usd += reward * pool_state.total_algo_rewards * get_algo_price() / pool_state.total_rewards
-        logger.debug(f'reward_usd_with_algo = {reward_usd}\n')
+            reward_usd += reward * pool_state.total_algo_rewards * get_algo_price() / pool_state.total_rewards
+            logger.debug(f'reward_usd_with_algo = {reward_usd}\n')
 
-        pools.append(UserPool(
-            pool_id,
-            contract.description,
-            staked_usd,
-            reward_usd,
-            lock_timestamp,
-            ended_duration
-        )
-        )
+            pools.append(UserPool(
+                pool_id,
+                contract.description,
+                staked_usd,
+                reward_usd,
+                lock_timestamp,
+                ended_duration
+            ))
+        except Exception as e:
+            logger.error(f'Failed to get info for pool {pool_id}')
+            logger.exception(e, exc_info=True)
 
     return pools
 
