@@ -16,6 +16,10 @@ async function sleep(time) {
 }
 
 async function upsertPool(collection, pool) {
+  if (pool.tokenAId === "0") {
+    pool.tokenAId = 0;
+  }
+
   const query = { poolAddress: pool.poolAddress };
   const update = { $set: pool };
   const options = { upsert: true };
@@ -63,10 +67,6 @@ async function runHumble(collection) {
   const streamPromise = humble.subscribeToPoolStream(account, {
     onPoolFetched: async ({ succeeded, data: { pool } }) => {
       if (succeeded && pool) {
-        if (pool.tokenAId === "0") {
-          pool.tokenAId = 0;
-        }
-
         console.log(`Humble pool: ${pool.poolAddress} fetched`);
         return upsertPool(collection, pool);
       }
