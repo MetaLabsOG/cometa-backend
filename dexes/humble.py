@@ -28,3 +28,6 @@ def get_pool_by_id(pool_id: int) -> Optional[HumblePool]:
 
 def get_pools_by_assets(assetA: int, assetB: int) -> List[HumblePool]:
     return list(map(HumblePool.from_dict, humble_pools.find({ 'tokenAId': assetA, 'tokenBId': assetB })))
+
+def get_all_pools() -> List[HumblePool]:
+    return list(map(HumblePool.from_dict, humble_pools.find()))
