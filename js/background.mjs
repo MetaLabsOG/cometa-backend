@@ -1,5 +1,5 @@
 import { MongoClient } from "mongodb";
-import humble from "@reach-sh/humble-sdk";
+import humble, { fetchLiquidityPool } from "@reach-sh/humble-sdk";
 
 import {
   MONGO_HOST,
@@ -11,40 +11,71 @@ import {
 
 const client = new MongoClient(`mongodb://${MONGO_HOST}:${MONGO_PORT}`);
 
+async function sleep(time) {
+  return new Promise((resolve) => setTimeout(resolve, time));
+}
+
+async function upsertPool(collection, pool) {
+  const query = { poolAddress: pool.poolAddress };
+  const update = { $set: pool };
+  const options = { upsert: true };
+  return collection.updateOne(query, update, options);
+}
+
+async function updateHumblePools(account, collection, waitSecs) {
+  while (true) {
+    await sleep(waitSecs * 1000);
+
+    const cursor = collection.find(
+      {},
+      { projection: { poolAddress: 1, n2nn: 1 } }
+    );
+
+    await cursor.forEach(async ({ poolAddress, n2nn }) => {
+      const { succeeded, data } = await fetchLiquidityPool(account, {
+        poolAddress,
+        n2nn,
+      });
+
+      if (succeeded) {
+        console.log(`updating Humble pool ${poolAddress}`);
+        return upsertPool(collection, data.pool);
+      }
+    });
+  }
+}
+
 async function runHumble(collection) {
   const humbleSettings = {
     network: NETWORK,
   };
 
   if (NETWORK === "TestNet") {
-    console.log("YES NETWORK IS TESTNET!");
     humbleSettings.customTriumvirateAddress =
       "XSWSQVQPFMTEQO7UTXGQA5CSSYCDBT2WEN5XWNQ76EBLT2CFRV2HBYKZBE";
     humbleSettings.customTriumvirateId = "93443561";
   }
-  console.log(process.env);
-  console.log(humbleSettings);
 
   humble.initHumbleSDK(humbleSettings);
   const reach = humble.createReachAPI();
   const account = await reach.newAccountFromMnemonic(MNEMONIC);
 
-  return humble.subscribeToPoolStream(account, {
+  const streamPromise = humble.subscribeToPoolStream(account, {
     onPoolFetched: async ({ succeeded, data: { pool } }) => {
       if (succeeded && pool) {
         if (pool.tokenAId === "0") {
           pool.tokenAId = 0;
         }
 
-        console.log("found Humble pool: ", pool);
-
-        const query = { poolAddress: pool.poolAddress };
-        const update = { $set: pool };
-        const options = { upsert: true };
-        return collection.updateOne(query, update, options);
+        console.log(`Humble pool: ${pool.poolAddress} fetched`);
+        return upsertPool(collection, pool);
       }
     },
   });
+
+  const updatePromise = updateHumblePools(account, collection, 60);
+
+  return Promise.all([streamPromise, updatePromise]);
 }
 
 try {
