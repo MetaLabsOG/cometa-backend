@@ -274,6 +274,10 @@ async def humble_pool_by_id(pool_id: int) -> Optional[humble.HumblePool]:
 async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.HumblePool]:
     return humble.get_pools_by_assets(assetA, assetB)
 
+@app.get('/humble/pools/all')
+async def humble_pools_all() -> List[humble.HumblePool]:
+    return humble.get_all_pools()
+
 # CROWDSALE
 
 def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
