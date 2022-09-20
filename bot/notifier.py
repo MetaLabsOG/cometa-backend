@@ -48,7 +48,7 @@ async def notify_user(user: CometaUser):
         for pool, percent in compound_pools:
             text += f'✅<b>{pool.name}</b>\n' \
                     f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n' \
-                    f'<i>You\'ve already farmed {percent * 100}% from your stake! Good time for compounding!</i>\n\n'
+                    f'<i>You\'ve already farmed {usd_format(percent * 100)}% from your stake! Good time for compounding!</i>\n\n'
 
     if ended_pools or compound_pools:
         text += 'It is the time.\nhttps://app.cometa.farm/\n\n'
