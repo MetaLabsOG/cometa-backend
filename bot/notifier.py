@@ -45,7 +45,7 @@ async def notify_user(user: CometaUser):
 
     if compound_pools:
         text += f'What about some compounding?😏\n\n'
-        for pool, percent in live_pools:
+        for pool, percent in compound_pools:
             text += f'✅<b>{pool.name}</b>\n' \
                     f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n' \
                     f'<i>You\'ve already farmed {percent * 100}% from your stake! Good time for compounding!</i>\n\n'
