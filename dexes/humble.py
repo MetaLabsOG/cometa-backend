@@ -22,9 +22,15 @@ class HumblePool:
     tokenBFees: str
     tokenBDecimals: int
 
+
 def get_pool_by_id(pool_id: int) -> Optional[HumblePool]:
     res = humble_pools.find_one({'poolAddress': pool_id })
     return HumblePool.from_dict(res) if res else None
 
+
+def get_pools(args: dict) -> List[HumblePool]:
+    return list(map(HumblePool.from_dict, humble_pools.find(args)))
+
+
 def get_pools_by_assets(assetA: int, assetB: int) -> List[HumblePool]:
-    return list(map(HumblePool.from_dict, humble_pools.find({ 'tokenAId': assetA, 'tokenBId': assetB })))
+    return get_pools({'tokenAId': assetA, 'tokenBId': assetB})
