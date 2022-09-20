@@ -103,7 +103,7 @@ async def get_feedback(update: Update, context: CallbackContext):
         return
     tg_user = update.message.from_user
 
-    text_title = f'New feedback from {tg_user.name}'
+    text_title = f'New #feedback from {tg_user.name}'
     logging.info(text_title)
 
     feedback_text = update.message.text_markdown[len(FEEDBACK_COMMAND) + 2:]
@@ -119,7 +119,7 @@ async def get_support(update: Update, context: CallbackContext):
         return
     tg_user = update.message.from_user
 
-    text_title = f'New ticket from {tg_user.name}'
+    text_title = f'New #ticket from {tg_user.name}'
     logging.info(text_title)
 
     support_text = update.message.text_markdown[len(SUPPORT_COMMAND) + 2:]
