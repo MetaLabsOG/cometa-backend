@@ -58,7 +58,7 @@ class CometaUser:
         return datetime.utcnow() - remind_time
 
     def should_remind(self) -> bool:
-        return self.no_remind_for > settings.remind_again_delay_minutes
+        return self.no_remind_for > settings.remind_again_delay
 
     def update(self, event: CometaEvent) -> None:
         # TODO: validate that event is earlier
