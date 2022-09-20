@@ -278,7 +278,7 @@ async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.Humble
 
 
 @app.get('/humble/pools/all')
-async def humble_pools_by_assets() -> List[humble.HumblePool]:
+async def humble_pools_all() -> List[humble.HumblePool]:
     return humble.get_pools({})
 
 # CROWDSALE
