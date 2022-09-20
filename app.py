@@ -271,9 +271,15 @@ async def zap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_
 async def humble_pool_by_id(pool_id: int) -> Optional[humble.HumblePool]:
     return humble.get_pool_by_id(pool_id)
 
+
 @app.get('/humble/pools')
 async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.HumblePool]:
     return humble.get_pools_by_assets(assetA, assetB)
+
+
+@app.get('/humble/pools/all')
+async def humble_pools_by_assets() -> List[humble.HumblePool]:
+    return humble.get_pools({})
 
 # CROWDSALE
 
