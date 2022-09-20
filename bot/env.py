@@ -4,7 +4,6 @@ from pydantic import BaseSettings
 
 # TODO: compute for each pool/user
 BEST_COMPOUNDING_DELAY = timedelta(minutes=5)
-REMIND_AGAIN_DELAY = timedelta(minutes=1340)
 
 MONITOR_LOG_DELAY = timedelta(seconds=10)
 AIRTABLE_UPDATE_DELAY_SECONDS = 30
@@ -25,6 +24,8 @@ class Settings(BaseSettings):
 
     feedback_chat_id: int
     support_chat_id: int
+
+    remind_again_delay_minutes: int
 
     logs_dir: str
 
