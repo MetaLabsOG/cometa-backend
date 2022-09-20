@@ -5,7 +5,7 @@ from typing import Dict, Optional
 
 from dataclasses_json import dataclass_json
 
-from bot.env import BEST_COMPOUNDING_DELAY, REMIND_AGAIN_DELAY
+from bot.env import BEST_COMPOUNDING_DELAY, settings
 
 
 class EventType(str, Enum):
@@ -58,7 +58,7 @@ class CometaUser:
         return datetime.utcnow() - remind_time
 
     def should_remind(self) -> bool:
-        return self.no_remind_for > REMIND_AGAIN_DELAY
+        return self.no_remind_for > settings.remind_again_delay_minutes
 
     def update(self, event: CometaEvent) -> None:
         # TODO: validate that event is earlier
