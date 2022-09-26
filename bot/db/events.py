@@ -3,7 +3,7 @@ from typing import List, Optional
 from bot.db.model import CometaEvent
 from bot.db.mongo import get_collection
 
-
+# TODO: remove events
 collection = get_collection('events')
 
 
