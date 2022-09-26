@@ -6,10 +6,10 @@ from algosdk.encoding import is_valid_address
 from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler
 
-from bot.cometa import schedule_airtable_updates, get_user_pools
+from core.cometa import get_user_pools
 from bot.context import app_context
 from bot.db.model import CometaUser
-from bot.db.users import create_user, get_user_by_tg, update_user
+from bot.db.users import create_user, get_user_by_tg
 from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
 from bot.log import setup_logging
 from bot.notifier import schedule_notifications
@@ -202,7 +202,6 @@ def start_bot():
 
     app_context.application.add_handler(CommandHandler('help', show_help))
 
-    schedule_airtable_updates()
     schedule_notifications()
 
     app_context.application.run_polling()

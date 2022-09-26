@@ -6,7 +6,7 @@ from threading import Thread
 
 from telegram.constants import ParseMode
 
-from bot.cometa import get_user_pools
+from core.cometa import get_user_pools
 from bot.context import app_context
 from bot.db import users
 from bot.db.model import PoolInfo, CometaUser
