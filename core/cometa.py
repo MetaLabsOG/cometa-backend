@@ -9,7 +9,11 @@ from blockchain.node import get_current_round
 from core.contract_manager import get_contracts
 from core.js_interop import calljs
 from core.tinychart import get_asset_price, get_algo_price
-from core.util import strip_version, parse_bignum, blocks_to_seconds
+from core.util import strip_version, parse_bignum, blocks_to_seconds, YEAR_SECONDS, BLOCK_TIME
+
+
+# ffs
+BIG_NUM = 1000000000000000000
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +38,6 @@ async def get_local_states(type: str, address: str) -> dict:
                                 idVersions=ids_and_versions,
                                 walletAddress=address)
     return local_states
-
-
-# ffs
-BIG_NUM = 1000000000000000000
 
 
 def recalculate_reward(pool: PoolState, current_block: int, staked: int, reward: int,
@@ -82,24 +82,17 @@ async def get_user_pools(address: str) -> List[UserPool]:
             logger.debug(contract.description)
             logger.debug(contract.id)
 
-            logger.debug(f'reward = {reward}')
             reward_per_token_paid = parse_bignum(state['rewardPerTokenPaid'])
             reward = recalculate_reward(pool_state, current_block, staked, reward, reward_per_token_paid)
-            logger.debug(f'new_reward = {reward}')
 
             reward_asset = get_asset(pool_state.reward_token_id)
-            logger.debug(f'reward_token = {pool_state.reward_token_id}')
-
             reward_tokens = reward / (10 ** reward_asset['params']['decimals'])
-            logger.debug(f'reward_tokens = {reward_tokens}')
 
             reward_price = get_asset_price(pool_state.reward_token_id)
             reward_usd = reward_tokens * reward_price
-            logger.debug(f'reward_usd = {reward_usd}')
 
             reward_usd += reward * pool_state.total_algo_rewards // \
                           pool_state.total_rewards * get_algo_price() / MICROALGOS_IN_ALGO
-            logger.debug(f'reward_usd_with_algo = {reward_usd}\n')
 
             pools.append(UserPool(
                 pool_id,
@@ -112,5 +105,32 @@ async def get_user_pools(address: str) -> List[UserPool]:
         except Exception as e:
             logger.error(f'Failed to get info for pool {pool_id}')
             logger.exception(e, exc_info=True)
+
+    return pools
+
+
+@dataclass
+class PoolInfo:
+    name: str
+    id: int
+    staked_usd: float
+    current_apr: float
+
+
+async def get_live_pools_info() -> List[PoolInfo]:
+    all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
+    current_block = get_current_round()
+    pools = []
+    for contract in all_contracts:
+        pool_state = get_pool_state(contract)
+        if pool_state.end_block < current_block or pool_state.start_block > current_block:
+            continue
+
+        pools.append(PoolInfo(
+            contract.description,
+            contract.id,
+            pool_state.total_cost_usd,
+            pool_state.current_apr
+        ))
 
     return pools

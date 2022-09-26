@@ -12,7 +12,7 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import nft_market, stats
-from core.cometa import UserPool, get_user_pools
+from core.cometa import UserPool, get_user_pools, PoolInfo, get_live_pools_info
 from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.tinychart import get_asset_price_full
@@ -22,8 +22,6 @@ from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
 
 import dexes.humble as humble
-from dexes.tinyman import init_tinyman_client, get_swap_data, get_zap_transactions, \
-    get_swap_transactions, get_zap_data
 from env import settings, LOG_FORMAT, DATE_FORMAT
 from background import start_bg_tasks
 
@@ -213,6 +211,13 @@ async def get_contract_version(type: str) -> dict:
     return {'version': version}
 
 
+# POOLS
+
+@app.get('/pools')
+async def get_pools() -> List[PoolInfo]:
+    return await get_live_pools_info()
+
+
 @app.patch('/pools/verify')
 async def verify_pool(pool_id: int, password: str) -> str:
     check_password(password)
@@ -223,47 +228,6 @@ async def verify_pool(pool_id: int, password: str) -> str:
     update_contract(pool_id, metadata=new_metadata)
     return 'Success!'
 
-# TINYMAN SWAP
-
-
-@app.get('/swap_data')
-async def swap_data(asset1_id: int, asset2_id: int, asset1_amount: float, slippage: float = 0.01) -> dict:
-    # TODO
-    client = init_tinyman_client(settings.algod_address)
-    return get_swap_data(client, asset1_id, asset2_id, asset1_amount, slippage)
-
-
-@app.get('/swap_transactions')
-async def swap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float,
-                            slippage: float = 0.01) -> dict:
-    client = init_tinyman_client(address)
-    try:
-        result = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount, slippage)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-
-@app.get('/zap_data')
-async def zap_data(asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool,
-                   slippage: float = 0.01) -> dict:
-    client = init_tinyman_client(settings.algod_address)
-    try:
-        result = get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-
-@app.get('/zap_transactions')
-async def zap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool,
-                           slippage: float = 0.01) -> dict:
-    client = init_tinyman_client(address)
-    try:
-        result = get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
 
 # HUMBLE POOLS
 
@@ -281,28 +245,29 @@ async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.Humble
 async def humble_pools_all() -> List[humble.HumblePool]:
     return humble.get_pools({})
 
+
 # CROWDSALE
 
-def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
-    contract = get_contract(contract_id)
-    if contract is None or contract.type != 'crowdsale':
-        raise HTTPException(status_code=404, detail="Contract not found")
-
-    whitelist = contract.metadata["whitelist"]
-    if address not in whitelist:
-        raise HTTPException(status_code=403, detail="Address not whitelisted")
-
-
-@app.put('/whitelist_confirm')
-async def whitelist_confirm(contract_id: int, address: str) -> bool:
-    check_crowdsale_whitelist(contract_id, address)
-    return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
-
-
-@app.get('/whitelist_check')
-async def whitelist_check(contract_id: int, address: str) -> bool:
-    check_crowdsale_whitelist(contract_id, address)
-    return True
+# def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
+#     contract = get_contract(contract_id)
+#     if contract is None or contract.type != 'crowdsale':
+#         raise HTTPException(status_code=404, detail="Contract not found")
+#
+#     whitelist = contract.metadata["whitelist"]
+#     if address not in whitelist:
+#         raise HTTPException(status_code=403, detail="Address not whitelisted")
+#
+#
+# @app.put('/whitelist_confirm')
+# async def whitelist_confirm(contract_id: int, address: str) -> bool:
+#     check_crowdsale_whitelist(contract_id, address)
+#     return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
+#
+#
+# @app.get('/whitelist_check')
+# async def whitelist_check(contract_id: int, address: str) -> bool:
+#     check_crowdsale_whitelist(contract_id, address)
+#     return True
 
 
 # ASAs
