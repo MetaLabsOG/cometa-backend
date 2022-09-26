@@ -3,6 +3,15 @@ import json
 from env import settings
 
 
+MINUTE_SECONDS = 60
+HOUR_SECONDS = 60 * MINUTE_SECONDS
+DAY_SECONDS = 24 * HOUR_SECONDS
+YEAR_SECONDS = 365 * DAY_SECONDS
+
+BLOCK_TIME = 3.7
+BLOCKS_IN_A_YEAR = YEAR_SECONDS / BLOCK_TIME
+
+
 def pretty(json_smth) -> str:
     return json.dumps(json_smth, indent=4)
 
