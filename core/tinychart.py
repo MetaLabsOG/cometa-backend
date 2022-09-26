@@ -8,7 +8,7 @@ from env import settings
 
 BASE_URL = 'https://free-api.vestige.fi'
 
-
+# https://free-api.vestige.fi/asset/773632446/price
 @dataclass
 class Price:
     usd: float
