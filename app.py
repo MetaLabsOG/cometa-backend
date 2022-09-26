@@ -12,7 +12,7 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import nft_market, stats
-from bot.cometa import UserPool, get_user_pools
+from core.cometa import UserPool, get_user_pools
 from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.tinychart import get_asset_price_full
@@ -27,7 +27,7 @@ from dexes.tinyman import init_tinyman_client, get_swap_data, get_zap_transactio
 from env import settings, LOG_FORMAT, DATE_FORMAT
 from background import start_bg_tasks
 
-VERSION = "0.1.6"
+VERSION = "0.1.7"
 app = FastAPI(
     title="Cometa",
     version=VERSION
