@@ -59,8 +59,3 @@ class CometaUser:
 
     def should_remind(self) -> bool:
         return self.no_remind_for > settings.remind_again_delay
-
-    def update(self, event: CometaEvent) -> None:
-        # TODO: validate that event is earlier
-        self.pools[str(event.lp_asa_id)] = PoolInfo(event.pool_name, event.timestamp)
-
