@@ -98,7 +98,6 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         asset_id = parse_bignum(cache['initial'][asset_id_field_name])
         asset_info = get_asset(asset_id)
         total_tokens = total_microtokens / (10 ** asset_info['params']['decimals'])
-        logger.debug(f'{contract.description} = {asset_id}')
         asset_price = get_asset_price(asset_id)
         total_cost = total_tokens * asset_price
 

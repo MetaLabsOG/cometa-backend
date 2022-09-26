@@ -122,15 +122,19 @@ async def get_live_pools_info() -> List[PoolInfo]:
     current_block = get_current_round()
     pools = []
     for contract in all_contracts:
-        pool_state = get_pool_state(contract)
-        if pool_state.end_block < current_block or pool_state.start_block > current_block:
-            continue
+        try:
+            pool_state = get_pool_state(contract)
+            if pool_state.end_block < current_block or pool_state.start_block > current_block:
+                continue
 
-        pools.append(PoolInfo(
-            contract.description,
-            contract.id,
-            pool_state.total_cost_usd,
-            pool_state.current_apr
-        ))
+            pools.append(PoolInfo(
+                contract.description,
+                contract.id,
+                pool_state.total_cost_usd,
+                pool_state.current_apr
+            ))
+        except Exception as e:
+            logger.error(f'Failed to get info for pool {contract.description}')
+            logger.exception(e, exc_info=True)
 
     return pools
