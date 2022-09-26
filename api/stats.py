@@ -2,7 +2,6 @@ import logging
 import time
 import traceback
 from dataclasses import dataclass
-from functools import cached_property
 from typing import Optional
 
 from cachetools import cached, TTLCache, FIFOCache
@@ -13,7 +12,7 @@ from core.contract_manager import get_contracts_by_type, ContractInfo
 from core.tinychart import get_asset_price
 from blockchain.indexer import get_asset
 from blockchain.node import init_algod_client
-from core.util import parse_bignum
+from core.util import parse_bignum, BLOCKS_IN_A_YEAR
 from dexes.tinyman import init_tinyman_client, get_pool_info
 from env import settings
 
@@ -60,6 +59,7 @@ def get_asset_info(asset_id: int) -> dict:
     return tiny_client.fetch_asset(asset_id)
 
 
+# TODO: move to cometa package
 @dataclass
 class PoolState:
     total_staked: int
@@ -70,6 +70,8 @@ class PoolState:
     total_algo_rewards: int
     reward_per_block: int
     algo_reward_per_block: int
+
+    current_apr: float
 
     start_block: int
     end_block: int
@@ -115,11 +117,19 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         total_algo_rewards = algo_reward_per_block * length_blocks
 
     reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
+    reward_token_id = parse_bignum(cache['initial'][reward_token_field_name])
+    reward_asset_info = get_asset(reward_token_id)
+    reward_asset_price = get_asset_price(reward_token_id)
+    total_reward_token_usd = total_rewards / (10 ** reward_asset_info['params']['decimals']) * reward_asset_price
+    total_algo_rewards_usd = total_algo_rewards / (10 ** 6) * get_asset_price(0)
+    total_rewards_usd = total_reward_token_usd + total_algo_rewards_usd
+
+    current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR * length_blocks
 
     return PoolState(
         total_staked=total_microtokens,
         total_cost_usd=total_cost,
-        reward_token_id=parse_bignum(cache['initial'][reward_token_field_name]),
+        reward_token_id=reward_token_id,
         total_rewards=total_rewards,
         total_algo_rewards=total_algo_rewards,
         start_block=start_block,
@@ -129,7 +139,8 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         last_update_block=parse_bignum(cache['global']['lastUpdateBlock']),
         reward_per_token_stored=parse_bignum(cache['global']['rewardPerTokenStored']),
         length_blocks=length_blocks,
-        algo_reward_per_block=algo_reward_per_block
+        algo_reward_per_block=algo_reward_per_block,
+        current_apr=current_apr
     )
 
 
