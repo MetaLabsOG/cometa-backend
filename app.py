@@ -12,7 +12,9 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import nft_market, stats
-from core.cometa import UserPool, get_user_pools, PoolInfo, get_live_pools_info
+from bot.db.users import get_user_by_address
+from bot.user_pools import get_user_pools
+from core.cometa import UserPool, PoolInfo, get_live_pools_info
 from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.tinychart import get_asset_price_full
@@ -23,9 +25,9 @@ from core.js_interop import calljs, start_js_interop_server
 
 import dexes.humble as humble
 from env import settings, LOG_FORMAT, DATE_FORMAT
-from background import start_bg_tasks
+from api.background import start_bg_tasks
 
-VERSION = "0.1.7"
+VERSION = "0.1.8"
 app = FastAPI(
     title="Cometa",
     version=VERSION
@@ -300,7 +302,8 @@ async def get_local_states(type: str, address: str) -> dict:
 
 @app.get('/stats/user_pools')
 async def get_pools(address: str) -> List[UserPool]:
-    return await get_user_pools(address)
+    user = get_user_by_address(address)
+    return await get_user_pools(user)
 
 
 # Events
