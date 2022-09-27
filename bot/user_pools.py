@@ -30,6 +30,8 @@ async def update_users_pools():
             logger.error(f'Failed to update user {user.telegram_id} pools')
             logger.exception(e)
 
+    logger.info('Updated all users pools')
+
 
 async def get_user_pools(user: CometaUser) -> List[UserPool]:
     if not user.pools:
