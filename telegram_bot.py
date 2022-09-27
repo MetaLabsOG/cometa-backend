@@ -78,20 +78,14 @@ async def track_address(update: Update, context: CallbackContext):
         await update.message.reply_text(f'🤖 Oh no... Please {tg_user.name}! Provide your Algorand address👆')
         return
 
-    # user_events = get_events({'address': address})
-
     user = get_user_by_tg(tg_user.id)
     if user is None:
         user = create_user(address, tg_user.id, tg_user.id)
+        new_user_msg = f'New #user {tg_user.name}!\nAlgo address {address}'
+        await context.bot.send_message(settings.feedback_chat_id, new_user_msg)
     else:
         user.pools = {}
         user.algo_address = address
-
-    # for e in user_events:
-    #     # time in ascending order
-    #     user.update(e)
-    # update_user(user)
-    # print(f'Recorded {len(user_events)} old events.')
 
     await update.message.reply_html(f'🤖 Great, {tg_user.name}!\nTracking <code>{address}</code>.')
     await show_pools(update, context)
