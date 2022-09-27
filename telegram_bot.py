@@ -6,13 +6,13 @@ from algosdk.encoding import is_valid_address
 from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler
 
-from core.cometa import get_user_pools
+from bot.background import start_bg_tasks
+from core.cometa import fetch_user_pools
 from bot.context import app_context
 from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg
 from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
 from bot.log import setup_logging
-from bot.notifier import schedule_notifications
 from bot.utils import seconds_format, usd_format
 
 # TODO: move commands to separate files
@@ -45,7 +45,7 @@ async def show_pools(update: Update, context: CallbackContext):
     if user is None:
         return
 
-    pools = await get_user_pools(user.algo_address)
+    pools = await fetch_user_pools(user.algo_address)
     if pools:
         reply_text = '🤖 <b>Your pools:</b>\n\n'
 
@@ -196,7 +196,7 @@ def start_bot():
 
     app_context.application.add_handler(CommandHandler('help', show_help))
 
-    schedule_notifications()
+    start_bg_tasks()
 
     app_context.application.run_polling()
 
