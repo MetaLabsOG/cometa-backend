@@ -154,6 +154,7 @@ async def fetch_user_pools(address: str) -> List[UserPool]:
             pools.append(UserPool(
                 pool_id,
                 contract.description,
+                pool_state.current_apr,
                 staked_usd,
                 reward_usd,
                 lock_timestamp,

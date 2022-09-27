@@ -19,6 +19,7 @@ class ContractInfo:
 class UserPool:
     pool_id: int
     name: str
+    current_apr: float
     staked_usd: float
     reward_usd: float
     lock_timestamp: int
