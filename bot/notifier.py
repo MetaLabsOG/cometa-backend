@@ -3,7 +3,7 @@ import time
 
 from telegram.constants import ParseMode
 
-from core.cometa import fetch_user_pools
+from bot.user_pools import get_user_pools
 from bot.context import app_context
 from bot.db import users
 from bot.db.model import CometaUser
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 async def notify_user(user: CometaUser):
-    pools = await fetch_user_pools(user.algo_address)
+    pools = await get_user_pools(user)
 
     text = f'{Phrases.greet()}️\n\n'
 
@@ -36,7 +36,7 @@ async def notify_user(user: CometaUser):
     if compound_pools:
         text += f'What about some compounding?😏\n\n'
         for pool, percent in compound_pools:
-            text += f'✅<b>{pool.name}</b>\n' \
+            text += f'✅<b>{pool.name}, {usd_format(pool.current_apr)}% APR.</b>\n' \
                     f'Staked = ${usd_format(pool.staked_usd)}, rewards = ${usd_format(pool.reward_usd)}\n' \
                     f'<i>You\'ve already farmed {usd_format(percent * 100)}% from your stake! Good time for compounding!</i>\n\n'
 
