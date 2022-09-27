@@ -26,7 +26,6 @@ def run_background():
             update_users()
         )
 
-    logger.info('Started background tasks')
     asyncio.run(tasks())
 
 
@@ -34,7 +33,7 @@ def run_background():
 def start_bg_tasks():
     proc = spawn.Process(target=run_background)
     proc.start()
-    logger.info("STARTED BG TASKS", proc)
+    logger.info(f'STARTED BG TASKS: {proc}')
     try:
         yield proc
     finally:
