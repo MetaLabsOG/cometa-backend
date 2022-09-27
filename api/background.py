@@ -32,11 +32,12 @@ async def update_contracts_cache(type: str) -> None:
             new_metadata = {**old_metadata, "cache": state}
             update_contract(id, metadata=new_metadata)
     
-        logger.info(f'updated state cache for contracts: {type}')
+        logger.info(f'Updated state cache for contracts: {type}')
 
 
 @safe_async_method
 async def record_contracts_stats() -> None:
+    logger.info('Making snapshot of contracts TVL...')
     farm_tvl = calculate_tvl_for_type('farm')
     distribution_tvl = calculate_tvl_for_type('distribution')
     save_snapshot(farm_tvl, distribution_tvl)
@@ -44,7 +45,7 @@ async def record_contracts_stats() -> None:
 
 @repeat_every(60)  # once in a minute
 async def update_contracts_worker():
-    logger.info('updating contract caches...')
+    logger.info('Updating contract caches...')
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
 
@@ -68,7 +69,7 @@ def run_background():
 def start_bg_tasks():
     proc = spawn.Process(target=run_background)
     proc.start()
-    logger.info("STARTED BG TASKS", proc)
+    logger.info(f'STARTED BG TASKS: {proc}')
     print('STARTED BORIS GREBENSCHEKOV')
     try:
         yield proc
