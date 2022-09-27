@@ -4,6 +4,7 @@ from typing import List
 from bot.db import users
 from bot.db.model import CometaUser
 from core.cometa import fetch_user_pools
+from core.decorators import safe_async_method
 from core.model import UserPool
 
 
@@ -18,6 +19,7 @@ async def update_user_pools(user: CometaUser) -> List[UserPool]:
     return user_pools
 
 
+@safe_async_method
 async def update_users_pools():
     all_users = users.get_users({})
 
