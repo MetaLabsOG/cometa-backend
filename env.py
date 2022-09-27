@@ -1,12 +1,6 @@
-import os
 from functools import cached_property
 
 from pydantic import BaseSettings
-
-DIR_PATH = os.path.dirname(os.path.realpath(__file__))
-
-LOG_FORMAT = '[%(asctime)s][%(levelname)s][%(filename)s] %(message)s'
-DATE_FORMAT = '%I:%M:%S'
 
 
 class Settings(BaseSettings):

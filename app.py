@@ -15,6 +15,7 @@ from api import nft_market, stats
 from bot.db.users import get_user_by_address
 from bot.user_pools import get_user_pools
 from core.cometa import UserPool, PoolInfo, get_live_pools_info
+from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.tinychart import get_asset_price_full
@@ -24,7 +25,7 @@ from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
 
 import dexes.humble as humble
-from env import settings, LOG_FORMAT, DATE_FORMAT
+from env import settings
 from api.background import start_bg_tasks
 
 VERSION = "0.1.8"
@@ -312,14 +313,14 @@ async def get_pools(address: str) -> List[UserPool]:
 async def startup_event():
     logging.basicConfig(
         format=LOG_FORMAT,
-        datefmt=DATE_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
         level=settings.logging_level
     )
 
     logger = logging.getLogger("uvicorn.access")
     console_formatter = ColourizedFormatter(
         fmt=LOG_FORMAT,
-        datefmt=DATE_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
         use_colors=True
     )
     logger.handlers[0].setFormatter(console_formatter)

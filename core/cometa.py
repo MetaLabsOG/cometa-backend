@@ -1,5 +1,4 @@
 import logging
-import traceback
 from dataclasses import dataclass
 from typing import List
 
