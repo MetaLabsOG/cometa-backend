@@ -9,7 +9,8 @@ services:
             REACH_NO_WARN: "${REACH_NO_WARN}"
             PYTHONUNBUFFERED: 1
         volumes:
-            - .:/app
+            - ".:/app"
+            - "/tmp/cometa:/tmp"
         ports:
             - "${SERVER_PORT}:${SERVER_PORT}"
         depends_on:
@@ -20,9 +21,11 @@ services:
         restart: always
         entrypoint: scripts/bot/run.sh
         environment:
+            REACH_NO_WARN: "${REACH_NO_WARN}"
             PYTHONUNBUFFERED: 1
         volumes:
-            - .:/app
+            - ".:/app"
+            - "/tmp/bot:/tmp"
         depends_on:
             - mongodb
         profiles:
