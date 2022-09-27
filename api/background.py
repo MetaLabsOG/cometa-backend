@@ -58,6 +58,7 @@ def run_background():
             update_contracts_worker(),
         )
 
+    logger.info('Started background tasks')
     asyncio.run(tasks())
 
 
@@ -68,6 +69,7 @@ def start_bg_tasks():
     proc = spawn.Process(target=run_background)
     proc.start()
     logger.info("STARTED BG TASKS", proc)
+    print('STARTED BORIS GREBENSCHEKOV')
     try:
         yield proc
     finally:
