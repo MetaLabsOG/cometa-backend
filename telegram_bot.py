@@ -50,9 +50,13 @@ async def show_pools(update: Update, context: CallbackContext):
         reply_text = '🤖 <b>Your pools:</b>\n\n'
 
         for pool in pools:
-            reply_text += '✅' if pool.ended_duration is None else '❌'  # TODO: facepalm
-            reply_text += f' <b>{pool.name}, {usd_format(pool.current_apr)}% APR.</b>\n' \
-                          f'Staked = <b>${usd_format(pool.staked_usd)}</b>, ' \
+            # TODO: method to format pool (NOT TIME FOR IT NOW)
+            reply_text += '✅' if pool.ended_duration is None else '❌'
+            reply_text += f' <b>{pool.name}</b>'
+            if pool.ended_duration is None:
+                reply_text += f' <b>, {usd_format(pool.current_apr)}% APR.</b>'
+            reply_text += '\n'
+            reply_text += f'Staked = <b>${usd_format(pool.staked_usd)}</b>, ' \
                           f'rewards = <b>${usd_format(pool.reward_usd)}</b>\n'
             if pool.ended_duration is not None:
                 reply_text += f'<i>Withdraw ASAP! It ended {seconds_format(pool.ended_duration)} ago :(</i>\n'
