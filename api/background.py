@@ -6,33 +6,13 @@ from contextlib import contextmanager
 
 from core.cometa import calculate_tvl_for_type
 from core.contract_manager import get_contracts_by_type, update_contract
+from core.decorators import safe_async_method, repeat_every
 from core.util import strip_version
 from core.js_interop import calljs
 from api.stats import save_snapshot
 
 spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
-
-# Decorators (for convenience)
-
-
-def safe_async_method(fn):
-    async def wrapper(*args, **kwargs):
-        try:
-            await fn(*args, **kwargs)
-        except Exception as e:
-            logger.error(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: ', e)
-    return wrapper
-
-
-def repeat_every(seconds: int):
-    def decorator(fn):
-        async def wrapper(*args, **kwargs):
-            while True:
-                await fn(*args, **kwargs)
-                await asyncio.sleep(seconds)
-        return wrapper
-    return decorator
 
 
 # Task logic
