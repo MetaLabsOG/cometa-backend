@@ -11,7 +11,7 @@ from core.contract_manager import get_contracts, get_contracts_by_type
 from core.js_interop import calljs
 from core.model import ContractInfo, PoolState, UserPool
 from core.tinychart import get_asset_price, get_algo_price
-from core.util import strip_version, parse_bignum, blocks_to_seconds, YEAR_SECONDS, BLOCK_TIME, BLOCKS_IN_A_YEAR
+from core.util import strip_version, parse_bignum, blocks_to_seconds, BLOCKS_IN_A_YEAR
 
 # ffs
 BIG_NUM = 1000000000000000000
@@ -55,13 +55,18 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
 
     reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
     reward_token_id = parse_bignum(cache['initial'][reward_token_field_name])
+    logger.debug(f'reward_id = {reward_token_id}')
     reward_asset_info = get_asset(reward_token_id)
     reward_asset_price = get_asset_price(reward_token_id)
+
     total_reward_token_usd = total_rewards / (10 ** reward_asset_info['params']['decimals']) * reward_asset_price
-    total_algo_rewards_usd = total_algo_rewards / (10 ** 6) * get_asset_price(0)
+    logger.debug(f'total_reward_usd = {total_reward_token_usd}')
+
+    total_algo_rewards_usd = total_algo_rewards / (10 ** 6) * get_algo_price()
+    logger.debug(f'total_algo_reward_usd = {total_algo_rewards_usd}')
     total_rewards_usd = total_reward_token_usd + total_algo_rewards_usd
 
-    current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR * length_blocks
+    current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR / length_blocks
 
     return PoolState(
         total_staked=total_microtokens,
