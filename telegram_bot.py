@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler
 
 from bot.background import start_bg_tasks
-from core.cometa import fetch_user_pools
+from bot.user_pools import get_user_pools
 from bot.context import app_context
 from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg
@@ -45,13 +45,13 @@ async def show_pools(update: Update, context: CallbackContext):
     if user is None:
         return
 
-    pools = await fetch_user_pools(user.algo_address)
+    pools = await get_user_pools(user)
     if pools:
         reply_text = '🤖 <b>Your pools:</b>\n\n'
 
         for pool in pools:
             reply_text += '✅' if pool.ended_duration is None else '❌'  # TODO: facepalm
-            reply_text += f' <b>{pool.name}</b>\n' \
+            reply_text += f' <b>{pool.name}, {usd_format(pool.current_apr)}% APR.</b>\n' \
                           f'Staked = <b>${usd_format(pool.staked_usd)}</b>, ' \
                           f'rewards = <b>${usd_format(pool.reward_usd)}</b>\n'
             if pool.ended_duration is not None:
