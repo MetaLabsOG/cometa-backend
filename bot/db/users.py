@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from bot.db.model import CometaUser, CometaEvent
+from bot.db.model import CometaUser
 from bot.db.mongo import get_collection
 
 
@@ -34,8 +34,3 @@ def get_user_by_tg(tg_id: int) -> CometaUser:
 def update_user(user: CometaUser) -> CometaUser:
     collection.update_one({'telegram_id': user.telegram_id}, {'$set': user.to_dict()})
     return user
-
-
-def update_user_event(user: CometaUser, event: CometaEvent) -> CometaUser:
-    user.update(event)
-    return update_user(user)

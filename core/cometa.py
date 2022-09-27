@@ -1,16 +1,17 @@
 import logging
+import traceback
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List
 
-from api.stats import get_pool_state, PoolState
+from api.stats import get_lp_price
 from blockchain.assets import MICROALGOS_IN_ALGO
 from blockchain.indexer import get_asset
 from blockchain.node import get_current_round
-from core.contract_manager import get_contracts
+from core.contract_manager import get_contracts, get_contracts_by_type
 from core.js_interop import calljs
+from core.model import ContractInfo, PoolState, UserPool
 from core.tinychart import get_asset_price, get_algo_price
-from core.util import strip_version, parse_bignum, blocks_to_seconds, YEAR_SECONDS, BLOCK_TIME
-
+from core.util import strip_version, parse_bignum, blocks_to_seconds, YEAR_SECONDS, BLOCK_TIME, BLOCKS_IN_A_YEAR
 
 # ffs
 BIG_NUM = 1000000000000000000
@@ -18,14 +19,66 @@ BIG_NUM = 1000000000000000000
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class UserPool:
-    pool_id: int
-    name: str
-    staked_usd: float
-    reward_usd: float
-    lock_timestamp: int
-    ended_duration: Optional[float]
+def get_pool_state(contract: ContractInfo) -> PoolState:
+    metadata = contract.metadata
+    cache = metadata['cache']
+    total_microtokens = parse_bignum(cache['global']['totalStaked'])
+    if contract.type == 'farm' and 'asset_1_id' in metadata:  # TODO: refactor metadata to have different classes
+        total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
+        lp_price = get_lp_price(metadata['asset_1_id'], metadata['asset_2_id'])
+        total_cost = total_tokens * lp_price
+    else:
+        if contract.type == 'farm':  # TODO: ну это пиздец, рефачить метадату срочно нахуй
+            asset_id_field_name = 'stakeToken'
+        else:
+            asset_id_field_name = 'token'
+        asset_id = parse_bignum(cache['initial'][asset_id_field_name])
+        asset_info = get_asset(asset_id)
+        total_tokens = total_microtokens / (10 ** asset_info['params']['decimals'])
+        asset_price = get_asset_price(asset_id)
+        total_cost = total_tokens * asset_price
+
+    start_block = parse_bignum(cache['initial']['beginBlock'])
+    end_block = parse_bignum(cache['initial']['endBlock'])
+    length_blocks = end_block - start_block + 1
+
+    if 'totalRewardAmount' in cache['initial']:
+        total_rewards = parse_bignum(cache['initial']['totalRewardAmount'])
+        total_algo_rewards = parse_bignum(cache['initial']['totalAlgoRewardAmount'])
+        reward_per_block = total_rewards // length_blocks
+        algo_reward_per_block = total_algo_rewards // length_blocks
+    else:
+        reward_per_block = parse_bignum(cache['initial']['rewardPerBlock'])
+        algo_reward_per_block = parse_bignum(cache['initial']['extraAlgoRewardPerBlock'])
+        total_rewards = reward_per_block * length_blocks
+        total_algo_rewards = algo_reward_per_block * length_blocks
+
+    reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
+    reward_token_id = parse_bignum(cache['initial'][reward_token_field_name])
+    reward_asset_info = get_asset(reward_token_id)
+    reward_asset_price = get_asset_price(reward_token_id)
+    total_reward_token_usd = total_rewards / (10 ** reward_asset_info['params']['decimals']) * reward_asset_price
+    total_algo_rewards_usd = total_algo_rewards / (10 ** 6) * get_asset_price(0)
+    total_rewards_usd = total_reward_token_usd + total_algo_rewards_usd
+
+    current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR * length_blocks
+
+    return PoolState(
+        total_staked=total_microtokens,
+        total_cost_usd=total_cost,
+        reward_token_id=reward_token_id,
+        total_rewards=total_rewards,
+        total_algo_rewards=total_algo_rewards,
+        start_block=start_block,
+        end_block=end_block,
+        lock_length_blocks=parse_bignum(cache['initial']['lockLengthBlocks']),
+        reward_per_block=reward_per_block,
+        last_update_block=parse_bignum(cache['global']['lastUpdateBlock']),
+        reward_per_token_stored=parse_bignum(cache['global']['rewardPerTokenStored']),
+        length_blocks=length_blocks,
+        algo_reward_per_block=algo_reward_per_block,
+        current_apr=current_apr
+    )
 
 
 async def get_local_states(type: str, address: str) -> dict:
@@ -107,6 +160,19 @@ async def get_user_pools(address: str) -> List[UserPool]:
             logger.exception(e, exc_info=True)
 
     return pools
+
+
+def calculate_tvl_for_type(type: str) -> float:
+    contracts = get_contracts_by_type(type)
+    res = 0
+    for contract in contracts:
+        try:
+            pool_state = get_pool_state(contract)
+            res += pool_state.total_cost_usd
+        except Exception:
+            logger.error(f'Exception for {contract.description}')
+            logger.error(traceback.print_exc(), '\n')
+    return res
 
 
 @dataclass
