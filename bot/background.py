@@ -26,6 +26,7 @@ def run_background():
             update_users()
         )
 
+    logger.info('Started background tasks')
     asyncio.run(tasks())
 
 

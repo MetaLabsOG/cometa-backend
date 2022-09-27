@@ -311,20 +311,18 @@ async def get_pools(address: str) -> List[UserPool]:
 
 @app.on_event("startup")
 async def startup_event():
+    pass
+
+
+def setup_logging():
     logging.basicConfig(
         format=LOG_FORMAT,
         datefmt=LOG_DATE_FORMAT,
         level=settings.logging_level
     )
 
-    logger = logging.getLogger("uvicorn.access")
-    console_formatter = ColourizedFormatter(
-        fmt=LOG_FORMAT,
-        datefmt=LOG_DATE_FORMAT,
-        use_colors=True
-    )
-    logger.handlers[0].setFormatter(console_formatter)
 
+setup_logging()
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
