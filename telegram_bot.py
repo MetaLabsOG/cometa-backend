@@ -12,8 +12,8 @@ from bot.context import app_context
 from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg
 from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
-from bot.log import setup_logging
 from bot.utils import seconds_format, usd_format
+from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 
 # TODO: move commands to separate files
 from core.js_interop import start_js_interop_server
@@ -203,6 +203,15 @@ def start_bot():
 
 def tear_down():
     logging.info('EXIT BOT\n\nBye!\n')
+
+
+# TODO: set up smarter
+def setup_logging():
+    logging.basicConfig(
+        format=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
+        level='INFO'
+    )
 
 
 setup_logging()
