@@ -54,8 +54,8 @@ async def show_pools(update: Update, context: CallbackContext):
             reply_text += '✅' if pool.ended_duration is None else '❌'
             reply_text += f' <b>{pool.name}</b>'
             if pool.ended_duration is None:
-                reply_text += f' <b>, {usd_format(pool.current_apr)}% APR.</b>'
-            reply_text += '\n'
+                reply_text += f'<b>, {usd_format(pool.current_apr)}% APR</b>'
+            reply_text += '.\n'
             reply_text += f'Staked = <b>${usd_format(pool.staked_usd)}</b>, ' \
                           f'rewards = <b>${usd_format(pool.reward_usd)}</b>\n'
             if pool.ended_duration is not None:
@@ -198,8 +198,6 @@ def start_bot():
 
     app_context.application.add_handler(CommandHandler('help', show_help))
 
-    start_bg_tasks()
-
     app_context.application.run_polling()
 
     logging.info('Bot started!')
@@ -225,6 +223,7 @@ if __name__ == '__main__':
 
     try:
         with start_js_interop_server():
-            start_bot()
+            with start_bg_tasks():
+                start_bot()
     except Exception as ex:
         logging.exception(ex)
