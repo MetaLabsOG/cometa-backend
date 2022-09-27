@@ -183,8 +183,6 @@ async def show_help(update: Update, context: CallbackContext):
 
 
 def start_bot():
-    setup_logging()
-
     # TODO: implement Command class
     app_context.application.add_handler(CommandHandler('start', start))
     app_context.application.add_handler(CommandHandler('register', register))
@@ -206,6 +204,8 @@ def start_bot():
 def tear_down():
     logging.info('EXIT BOT\n\nBye!\n')
 
+
+setup_logging()
 
 if __name__ == '__main__':
     atexit.register(tear_down)
