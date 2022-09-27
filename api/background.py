@@ -15,8 +15,6 @@ spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
 
 
-# Task logic
-
 @safe_async_method
 async def update_contracts_cache(type: str) -> None:
     contracts = get_contracts_by_type(type)
@@ -49,7 +47,6 @@ async def update_contracts_worker():
     logger.info('updating contract caches...')
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
-    await update_contracts_cache('crowdsale')
 
     await record_contracts_stats()
 
