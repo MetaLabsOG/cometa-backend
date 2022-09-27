@@ -9,6 +9,7 @@ from bot.db import users
 from bot.db.model import CometaUser
 from bot.phrase_manager import Phrases
 from bot.utils import seconds_format, usd_format
+from core.decorators import safe_async_method
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ async def notify_user(user: CometaUser):
     users.update_user(user)
 
 
+@safe_async_method
 async def notify_all():
     all_users = users.get_users({})
 
