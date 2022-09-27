@@ -1,23 +1,10 @@
 import time
-from dataclasses import dataclass
 from typing import List, Optional
 
-from dataclasses_json import dataclass_json
-
 from core import mongodb
+from core.model import ContractInfo
 
 contracts = mongodb.database.contract
-
-
-@dataclass_json
-@dataclass
-class ContractInfo:
-    type: str
-    id: int
-    version: str
-    deployed_timestamp: float
-    description: str
-    metadata: Optional[dict] = None
 
 
 def add_contract(type: str, id: int, version: str, description: str, metadata: Optional[dict]) -> str:

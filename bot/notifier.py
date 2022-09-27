@@ -9,18 +9,12 @@ from telegram.constants import ParseMode
 from core.cometa import get_user_pools
 from bot.context import app_context
 from bot.db import users
-from bot.db.model import PoolInfo, CometaUser
+from bot.db.model import CometaUser
 from bot.env import MONITOR_LOG_DELAY
 from bot.phrase_manager import Phrases
-from bot.utils import td_format, seconds_format, usd_format
+from bot.utils import seconds_format, usd_format
 
 logger = logging.getLogger(__name__)
-
-
-def pool_info(info: PoolInfo):
-    # TODO: calculate pool APY and show
-    return f'<b>{info.name}</b> was claimed <b>{td_format(info.no_interact_for)}</b> ago :(\n' \
-           f'<i>You could be so rich...</i>\nAnd you still may be! Just compound ;)'
 
 
 async def notify_user(user: CometaUser):
