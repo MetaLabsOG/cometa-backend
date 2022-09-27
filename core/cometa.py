@@ -175,8 +175,7 @@ def calculate_tvl_for_type(type: str) -> float:
             pool_state = get_pool_state(contract)
             res += pool_state.total_cost_usd
         except Exception:
-            logger.error(f'Exception for {contract.description}')
-            logger.error(traceback.print_exc(), '\n')
+            logger.error(f'Failed to calculate TVL for {contract.description}')
     return res
 
 
