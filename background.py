@@ -3,10 +3,12 @@ import logging
 import multiprocessing
 
 from contextlib import contextmanager
+
+from core.cometa import calculate_tvl_for_type
 from core.contract_manager import get_contracts_by_type, update_contract
 from core.util import strip_version
 from core.js_interop import calljs
-from api.stats import calculate_tvl_for_type, save_snapshot
+from api.stats import save_snapshot
 
 spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
