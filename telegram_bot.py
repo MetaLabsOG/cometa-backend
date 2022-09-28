@@ -12,7 +12,7 @@ from bot.user_pools import get_user_pools
 from bot.context import app_context
 from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg, get_users
-from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
+from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND, MESSAGE_ALL_COMMAND
 from bot.utils import seconds_format, usd_format
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 
@@ -136,11 +136,14 @@ async def message_all(update: Update, context: CallbackContext):
     # TODO: check if admin
     tg_user = update.message.from_user
 
-    text = update.message.text_markdown[len(SUPPORT_COMMAND) + 2:]
+    text = update.message.text_markdown[len(MESSAGE_ALL_COMMAND) + 2:]
 
     users = get_users({})
     for user in users:
-        await context.bot.send_message(user.telegram_id, text)
+        try:
+            await context.bot.send_message(user.telegram_id, text)
+        except Exception as e:
+            logging.error(f'Failed to send message to {user.telegram_id}: {e}')
 
     await update.message.reply_text(f'🤖 I messaged all {len(users)} users!')
 
@@ -216,7 +219,7 @@ def start_bot():
     app_context.application.add_handler(CommandHandler('help', show_help))
 
     # Admin
-    app_context.application.add_handler(CommandHandler('message_all', message_all))
+    app_context.application.add_handler(CommandHandler(MESSAGE_ALL_COMMAND, message_all))
 
     app_context.application.run_polling()
 
