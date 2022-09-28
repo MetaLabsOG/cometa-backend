@@ -11,6 +11,7 @@ AIRTABLE_UPDATE_DELAY_SECONDS = 30
 
 FEEDBACK_COMMAND = 'feedback'
 SUPPORT_COMMAND = 'support'
+MESSAGE_ALL_COMMAND = 'message_all'
 
 
 class Settings(BaseSettings):
