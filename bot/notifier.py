@@ -14,6 +14,7 @@ from core.decorators import safe_async_method
 logger = logging.getLogger(__name__)
 
 
+@safe_async_method
 async def notify_user(user: CometaUser):
     pools = await get_user_pools(user)
 
@@ -52,16 +53,3 @@ async def notify_user(user: CometaUser):
 
     user.last_reminded = int(time.time())
     users.update_user(user)
-
-
-@safe_async_method
-async def notify_all():
-    all_users = users.get_users({})
-
-    for user in all_users:
-        if user.should_remind():
-            try:
-                await notify_user(user)
-            except Exception as e:
-                logger.error(f'Failed to notify user {user.telegram_id}')
-                logger.exception(e)
