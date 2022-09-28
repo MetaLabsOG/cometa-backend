@@ -58,28 +58,47 @@ async def status() -> dict:
     }
 
 
-@app.get('/floor_price')
-async def floor_price(asset_id: int) -> int:
-    return nft_market.get_floor_price(asset_id)
+# TODO: do we need it at all?
+# @app.get('/floor_price')
+# async def floor_price(asset_id: int) -> int:
+#     return nft_market.get_floor_price(asset_id)
 
 
+# TODO: remove after migrating to the 3 request
 @app.get('/wallet_assets/{address}')
 async def wallet_assets(address: str) -> List[AssetInfo]:
     return get_wallet_assets(address)
 
 
 @app.get('/wallet_assets2/{address}')
-async def wallet_assets(address: str) -> Dict[str, AssetInfo]:
+async def wallet_assets2(address: str) -> Dict[str, AssetInfo]:
     return get_wallet_assets2(address)
 
 
+@app.get('/wallet/{address}/assets')
+async def wallet_assets3(address: str) -> Dict[str, AssetInfo]:
+    return get_wallet_assets2(address)
+
+
+# TODO: remove after migrating to the 2 request
 @app.get('/total_cost/{address}')
 async def total_cost(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
     return get_wallet_total_cost(address, weeks_count)
 
 
+@app.get('/wallet/{address}/total_cost/')
+async def total_cost2(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
+    return get_wallet_total_cost(address, weeks_count)
+
+
+# TODO: remove after migrating to the 2 request
 @app.get('/wallet_nfts/{address}')
 async def wallet_nfts(address: str) -> List[NftInfo]:
+    return get_wallet_nfts(address)
+
+
+@app.get('/wallet/{address}/nfts')
+async def wallet_nfts2(address: str) -> List[NftInfo]:
     return get_wallet_nfts(address)
 
 
@@ -189,11 +208,6 @@ async def get_contract_by_id(contract_id: int) -> ContractInfo:
     return contract
 
 
-@app.get('/contracts')
-async def get_contracts(type: str) -> List[ContractInfo]:
-    return get_contracts_by_type(type)
-
-
 @app.delete('/contract/{contract_id}')
 async def remove_contract_by_id(contract_id: int, password: str) -> dict:
     check_password(password)
@@ -201,17 +215,29 @@ async def remove_contract_by_id(contract_id: int, password: str) -> dict:
     return {'deleted_count': cnt}
 
 
+# TODO: remove after migrating to the 2 request
+@app.get('/contract_version')
+async def get_contract_version(type: str) -> dict:
+    version = await calljs("contractVersion", contractType=type)
+    return {'version': version}
+
+
+@app.get('/contracts/{type}/version')
+async def get_contract_version2(type: str) -> dict:
+    version = await calljs("contractVersion", contractType=type)
+    return {'version': version}
+
+
+@app.get('/contracts')
+async def get_contracts(type: str) -> List[ContractInfo]:
+    return get_contracts_by_type(type)
+
+
 @app.delete('/contracts')
 async def remove_contracts_by_type(type: str, password: str) -> dict:
     check_password(password)
     cnt = remove_contracts(type=type)
     return {'deleted_count': cnt}
-
-
-@app.get('/contract_version')
-async def get_contract_version(type: str) -> dict:
-    version = await calljs("contractVersion", contractType=type)
-    return {'version': version}
 
 
 # POOLS
@@ -311,7 +337,13 @@ async def get_pools(address: str) -> List[UserPool]:
 
 @app.on_event("startup")
 async def startup_event():
-    pass
+    logger = logging.getLogger("uvicorn.access")
+    console_formatter = ColourizedFormatter(
+        fmt=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
+        use_colors=True
+    )
+    logger.handlers[0].setFormatter(console_formatter)
 
 
 def setup_logging():
