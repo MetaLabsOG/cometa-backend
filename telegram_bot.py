@@ -4,13 +4,14 @@ from typing import Optional
 
 from algosdk.encoding import is_valid_address
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import CallbackContext, CommandHandler
 
 from bot.background import start_bg_tasks
 from bot.user_pools import get_user_pools
 from bot.context import app_context
 from bot.db.model import CometaUser
-from bot.db.users import create_user, get_user_by_tg
+from bot.db.users import create_user, get_user_by_tg, get_users
 from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND
 from bot.utils import seconds_format, usd_format
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
@@ -120,14 +121,30 @@ async def get_support(update: Update, context: CallbackContext):
     text_title = f'New #ticket from {tg_user.name}'
     logging.info(text_title)
 
-    support_text = update.message.text_markdown[len(SUPPORT_COMMAND) + 2:]
+    support_text = update.message.text_html[len(SUPPORT_COMMAND) + 2:]
     support = f'{text_title}:\n\n{support_text}'
-    await context.bot.send_message(settings.support_chat_id, support)
+    await context.bot.send_message(settings.support_chat_id, support, parse_mode=ParseMode.HTML)
 
     await update.message.reply_text(f'🤖 Thank you, {tg_user.name}, one of our admins will contact you ASAP!❤')
 
 
-# TODO: log new users to airtable
+async def message_all(update: Update, context: CallbackContext):
+    if not context.args:
+        await update.message.reply_text('🤖 Provide the message!')
+        return
+
+    # TODO: check if admin
+    tg_user = update.message.from_user
+
+    text = update.message.text_markdown[len(SUPPORT_COMMAND) + 2:]
+
+    users = get_users({})
+    for user in users:
+        await context.bot.send_message(user.telegram_id, text)
+
+    await update.message.reply_text(f'🤖 I messaged all {len(users)} users!')
+
+
 async def register(update: Update, context: CallbackContext):
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
@@ -197,6 +214,9 @@ def start_bot():
     app_context.application.add_handler(CommandHandler(SUPPORT_COMMAND, get_support))
 
     app_context.application.add_handler(CommandHandler('help', show_help))
+
+    # Admin
+    app_context.application.add_handler(CommandHandler('message_all', message_all))
 
     app_context.application.run_polling()
 
