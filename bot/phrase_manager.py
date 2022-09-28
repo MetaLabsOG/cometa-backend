@@ -7,5 +7,7 @@ class Phrases:
         return random.choice([
             'Hey, beautiful!❤',
             'Hey, what\'s up?)',
-            'How you doing?'
+            'How you doing?😏',
+            'What a great day, huh?)',
+            'Bip-bop! Beep, bop!🤖'
         ])
