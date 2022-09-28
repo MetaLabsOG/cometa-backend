@@ -8,12 +8,12 @@ from telegram.constants import ParseMode
 from telegram.ext import CallbackContext, CommandHandler
 
 from bot.background import start_bg_tasks
+from bot.formatting import format_user_pool
 from bot.user_pools import get_user_pools
 from bot.context import app_context
 from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg, get_users
 from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND, MESSAGE_ALL_COMMAND
-from bot.utils import seconds_format, usd_format
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 
 # TODO: move commands to separate files
@@ -51,16 +51,7 @@ async def show_pools(update: Update, context: CallbackContext):
         reply_text = '🤖 <b>Your pools:</b>\n\n'
 
         for pool in pools:
-            # TODO: method to format pool (NOT TIME FOR IT NOW)
-            reply_text += '✅' if pool.ended_duration is None else '❌'
-            reply_text += f' <b>{pool.name}</b>'
-            if pool.ended_duration is None:
-                reply_text += f'<b>, {usd_format(pool.current_apr)}% APR</b>'
-            reply_text += '.\n'
-            reply_text += f'Staked = <b>${usd_format(pool.staked_usd)}</b>, ' \
-                          f'rewards = <b>${usd_format(pool.reward_usd)}</b>\n'
-            if pool.ended_duration is not None:
-                reply_text += f'<i>Withdraw ASAP! It ended {seconds_format(pool.ended_duration)} ago :(</i>\n'
+            reply_text += format_user_pool(pool)
             reply_text += '\n'
 
         reply_text += 'To manage your pools go to https://app.cometa.farm/'
@@ -85,7 +76,7 @@ async def track_address(update: Update, context: CallbackContext):
 
     user = get_user_by_tg(tg_user.id)
     if user is None:
-        user = create_user(address, tg_user.id, tg_user.id)
+        create_user(address, tg_user.id, tg_user.id)
         new_user_msg = f'New #user {tg_user.name}!\nAlgo address {address}'
         await context.bot.send_message(settings.feedback_chat_id, new_user_msg)
     else:
