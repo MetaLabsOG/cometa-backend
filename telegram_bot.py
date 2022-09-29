@@ -226,7 +226,7 @@ def setup_logging():
     logging.basicConfig(
         format=LOG_FORMAT,
         datefmt=LOG_DATE_FORMAT,
-        level='INFO'
+        level='DEBUG'
     )
 
 
