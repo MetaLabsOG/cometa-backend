@@ -52,9 +52,9 @@ async def show_pools(update: Update, context: CallbackContext):
 
         for pool in pools:
             reply_text += format_user_pool(pool)
-            reply_text += '\n'
+            reply_text += '\n\n'
 
-        reply_text += 'To manage go to https://app.cometa.farm/'
+        reply_text += '\nTo manage go to https://app.cometa.farm/'
     else:
         reply_text = '🤖 You don\'t have any pools, that\'s strange...' \
                      '\n\n' \
