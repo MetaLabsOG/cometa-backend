@@ -28,10 +28,11 @@ import dexes.humble as humble
 from env import settings
 from api.background import start_bg_tasks
 
-VERSION = "0.1.8"
+VERSION = '0.2.0'
 app = FastAPI(
-    title="Cometa",
-    version=VERSION
+    title='Cometa',
+    version=VERSION,
+    description=f'Cometa API {VERSION}'
 )
 app.add_middleware(
     CORSMiddleware,
@@ -291,7 +292,7 @@ async def tvl() -> dict:
     return stats.get_tvl()
 
 
-@app.get('/stats/local_state')
+@app.get('/contracts/{type}/local_state')
 async def get_local_states(type: str, address: str) -> dict:
     contracts = get_contracts_by_type(type)
     if len(contracts) > 0:
