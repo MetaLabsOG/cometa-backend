@@ -24,3 +24,15 @@ async def get_user_pools(user: CometaUser) -> List[UserPool]:
     if not user.pools:
         await update_user_pools(user)
     return list(user.pools.values())
+
+
+def filter_ended_pools(pools: List[UserPool]) -> List[UserPool]:
+    return list(filter(lambda p: p.is_ended(), pools))
+
+
+def filter_compoundable_pools(pools: List[UserPool]) -> List[UserPool]:
+    return list(filter(lambda p: p.needs_compound(), pools))
+
+
+def filter_no_action_pools(pools: List[UserPool]) -> List[UserPool]:
+    return list(filter(lambda p: not p.needs_compound() and not p.is_ended(), pools))

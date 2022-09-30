@@ -25,6 +25,12 @@ class UserPool:
     lock_timestamp: int
     ended_duration: Optional[float]
 
+    def needs_compound(self) -> bool:
+        return self.reward_usd / self.staked_usd > 0.01
+
+    def is_ended(self) -> bool:
+        return self.ended_duration is not None
+
 
 @dataclass
 class PoolState:
