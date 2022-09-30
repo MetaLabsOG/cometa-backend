@@ -41,8 +41,7 @@ async def notify_user(user: CometaUser):
             text += '\n'
 
     if ended_pools or compound_pools:
-        text += 'It is the time.\nhttps://app.cometa.farm/\n\n'
-        text += '<i>(really soon I will be showing your APY ;)</i>'
+        text += 'It is the time.\nhttps://app.cometa.farm/\n'
 
         # TODO: save all notifications to DB
         logger.debug(text)
