@@ -50,7 +50,7 @@ async def show_pools(update: Update, context: CallbackContext):
     pools = await get_user_pools(user)
 
     if pools:
-        reply_text = f'🤖 {Phrases.check_pools()}\n'
+        reply_text = f'🤖 <i>{Phrases.check_pools()}</i>\n'
 
         compound_pools = filter_compoundable_pools(pools)
         if compound_pools:

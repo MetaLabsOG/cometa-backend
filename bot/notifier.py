@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def notify_user(user: CometaUser):
     pools = await get_user_pools(user)
 
-    text = f'{Phrases.greet()}️\n\n'
+    text = f'🤖 <i>{Phrases.greet()}️</i>\n'
 
     compound_pools = filter_compoundable_pools(pools)
     if compound_pools:

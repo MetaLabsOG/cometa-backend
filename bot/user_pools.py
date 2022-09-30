@@ -31,7 +31,7 @@ def filter_ended_pools(pools: List[UserPool]) -> List[UserPool]:
 
 
 def filter_compoundable_pools(pools: List[UserPool]) -> List[UserPool]:
-    return list(filter(lambda p: p.needs_compound(), pools))
+    return list(filter(lambda p: p.needs_compound() and not p.is_ended(), pools))
 
 
 def filter_no_action_pools(pools: List[UserPool]) -> List[UserPool]:
