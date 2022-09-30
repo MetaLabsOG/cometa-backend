@@ -64,42 +64,26 @@ async def status() -> dict:
 #     return nft_market.get_floor_price(asset_id)
 
 
-# TODO: remove after migrating to the 3 request
-@app.get('/wallet_assets/{address}')
-async def wallet_assets(address: str) -> List[AssetInfo]:
-    return get_wallet_assets(address)
-
-
-@app.get('/wallet_assets2/{address}')
-async def wallet_assets2(address: str) -> Dict[str, AssetInfo]:
-    return get_wallet_assets2(address)
-
-
 @app.get('/wallet/{address}/assets')
-async def wallet_assets3(address: str) -> Dict[str, AssetInfo]:
-    return get_wallet_assets2(address)
+async def wallet_assets(address: str) -> Dict[str, AssetInfo]:
+    assets = get_wallet_assets(address)
+    return {a.asset_id: a for a in assets}
 
 
-# TODO: remove after migrating to the 2 request
-@app.get('/total_cost/{address}')
+@app.get('/wallet/{address}/total_cost/')
 async def total_cost(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
     return get_wallet_total_cost(address, weeks_count)
 
 
-@app.get('/wallet/{address}/total_cost/')
-async def total_cost2(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
-    return get_wallet_total_cost(address, weeks_count)
-
-
-# TODO: remove after migrating to the 2 request
-@app.get('/wallet_nfts/{address}')
+@app.get('/wallet/{address}/nfts')
 async def wallet_nfts(address: str) -> List[NftInfo]:
     return get_wallet_nfts(address)
 
 
-@app.get('/wallet/{address}/nfts')
-async def wallet_nfts2(address: str) -> List[NftInfo]:
-    return get_wallet_nfts(address)
+@app.get('/wallet/{address}/pools')
+async def wallet_pools(address: str) -> List[UserPool]:
+    user = get_user_by_address(address)
+    return await get_user_pools(user)
 
 
 class AddContract(BaseModel):
@@ -215,15 +199,8 @@ async def remove_contract_by_id(contract_id: int, password: str) -> dict:
     return {'deleted_count': cnt}
 
 
-# TODO: remove after migrating to the 2 request
-@app.get('/contract_version')
-async def get_contract_version(type: str) -> dict:
-    version = await calljs("contractVersion", contractType=type)
-    return {'version': version}
-
-
 @app.get('/contracts/{type}/version')
-async def get_contract_version2(type: str) -> dict:
+async def get_contract_version(type: str) -> dict:
     version = await calljs("contractVersion", contractType=type)
     return {'version': version}
 
@@ -325,12 +302,6 @@ async def get_local_states(type: str, address: str) -> dict:
                               walletAddress=address)
         return states
     return {}
-
-
-@app.get('/stats/user_pools')
-async def get_pools(address: str) -> List[UserPool]:
-    user = get_user_by_address(address)
-    return await get_user_pools(user)
 
 
 # Events
