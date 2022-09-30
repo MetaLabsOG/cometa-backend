@@ -200,10 +200,23 @@ async def remove_contract_by_id(contract_id: int, password: str) -> dict:
     return {'deleted_count': cnt}
 
 
-@app.get('/contracts/{type}/version')
+@app.get('/contracts/version')
 async def get_contract_version(type: str) -> dict:
     version = await calljs("contractVersion", contractType=type)
     return {'version': version}
+
+
+@app.get('/contracts/local_state')
+async def get_local_states(type: str, address: str) -> dict:
+    contracts = get_contracts_by_type(type)
+    if len(contracts) > 0:
+        ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
+        states = await calljs("fetchContractsLocalViews",
+                              contractType=type,
+                              idVersions=ids_and_versions,
+                              walletAddress=address)
+        return states
+    return {}
 
 
 @app.get('/contracts')
@@ -290,19 +303,6 @@ async def asset_price(asset_id: int) -> Price:
 @app.get('/stats/tvl')
 async def tvl() -> dict:
     return stats.get_tvl()
-
-
-@app.get('/contracts/{type}/local_state')
-async def get_local_states(type: str, address: str) -> dict:
-    contracts = get_contracts_by_type(type)
-    if len(contracts) > 0:
-        ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
-        states = await calljs("fetchContractsLocalViews",
-                              contractType=type,
-                              idVersions=ids_and_versions,
-                              walletAddress=address)
-        return states
-    return {}
 
 
 # Events
