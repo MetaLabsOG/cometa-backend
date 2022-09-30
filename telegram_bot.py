@@ -9,7 +9,8 @@ from telegram.ext import CallbackContext, CommandHandler
 
 from bot.background import start_bg_tasks
 from bot.formatting import format_user_pool
-from bot.user_pools import get_user_pools
+from bot.phrase_manager import Phrases
+from bot.user_pools import get_user_pools, filter_compoundable_pools, filter_ended_pools, filter_no_action_pools
 from bot.context import app_context
 from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg, get_users
@@ -47,14 +48,26 @@ async def show_pools(update: Update, context: CallbackContext):
         return
 
     pools = await get_user_pools(user)
+
     if pools:
-        reply_text = '🤖 <b>Your pools:</b>\n\n'
+        reply_text = f'🤖 {Phrases.check_pools()}\n'
 
-        for pool in pools:
-            reply_text += format_user_pool(pool)
-            reply_text += '\n\n'
+        compound_pools = filter_compoundable_pools(pools)
+        if compound_pools:
+            reply_text += '\n\n✅ <b>Need compounding:</b>\n\n'
+            reply_text += '\n'.join([format_user_pool(pool) for pool in compound_pools])
 
-        reply_text += '\nTo manage go to https://app.cometa.farm/'
+        ended_pools = filter_ended_pools(pools)
+        if ended_pools:
+            reply_text += '\n\n❌ <b>Need withdraw:</b>\n\n'
+            reply_text += '\n'.join([format_user_pool(pool) for pool in ended_pools])
+
+        no_action_pools = filter_no_action_pools(pools)
+        if no_action_pools:
+            reply_text += '\n\n💎 <b>No action needed:</b>\n\n'
+            reply_text += '\n'.join([format_user_pool(pool) for pool in no_action_pools])
+
+        reply_text += '\n\n<i>Manage at https://app.cometa.farm/</i>'
     else:
         reply_text = '🤖 You don\'t have any pools, that\'s strange...' \
                      '\n\n' \
