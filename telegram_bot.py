@@ -176,7 +176,7 @@ async def change_address(update: Update, context: CallbackContext):
 
 
 async def show_help(update: Update, context: CallbackContext):
-    text = f'🤖 Hello, {update.message.from_user.name}, it is a pleasure to assist you!☺️' \
+    text = f'🤖 <i>Hello, {update.message.from_user.name}, it is a pleasure to assist you!</i>☺️' \
            f'\n\n' \
            f'✅ I will remind you <b>to withdraw from ended pools</b>.' \
            f'\n\n' \
@@ -186,7 +186,7 @@ async def show_help(update: Update, context: CallbackContext):
            f'<i>I will notify only once per day. ' \
            f'Soon you will be able to manage the frequency as well as best compounding interest!</i>' \
            f'\n\n' \
-           f'What else can I do?😏' \
+           f'<i>What else can I do?</i>😏' \
            f'\n\n'\
            f'✏️To change the address to track:' \
            f'\n' \
