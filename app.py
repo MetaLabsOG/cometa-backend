@@ -66,9 +66,9 @@ async def status() -> dict:
 
 
 @app.get('/wallet/{address}/assets')
-async def wallet_assets(address: str) -> Dict[str, AssetInfo]:
+async def wallet_assets(address: str) -> List[AssetInfo]:
     assets = get_wallet_assets(address)
-    return {a.asset_id: a for a in assets}
+    return assets
 
 
 @app.get('/wallet/{address}/total_cost/')
