@@ -27,6 +27,8 @@ async function upsertPool(collection, pool) {
 }
 
 async function updateHumblePools(account, collection, waitSecs) {
+  console.log(`updating Humble pools`);
+
   while (true) {
     await sleep(waitSecs * 1000);
 
@@ -42,7 +44,6 @@ async function updateHumblePools(account, collection, waitSecs) {
       });
 
       if (succeeded) {
-        console.log(`updating Humble pool ${poolAddress}`);
         return upsertPool(collection, data.pool);
       }
     });
