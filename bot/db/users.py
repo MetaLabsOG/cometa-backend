@@ -1,26 +1,26 @@
 from typing import Optional, List
 
-from bot.db.model import CometaUser, CometaEvent
+from core.db.db_manager import DbManager
+from bot.db.model import CometaUser
 from bot.db.mongo import get_collection
 
 
 collection = get_collection('users')
 
+user_manager = DbManager[CometaUser]('users', 'telegram_id', CometaUser)
+
 
 def create_user(algo_address: str, telegram_id: int, telegram_chat_id: int) -> CometaUser:
     user = CometaUser(algo_address, telegram_id, telegram_chat_id)
-    collection.insert_one(user.to_dict())
-    return user
+    return user_manager.create(user)
 
 
 def get_user(args: dict) -> Optional[CometaUser]:
-    user = collection.find_one(args)
-    return CometaUser.from_dict(user) if user is not None else None
+    return user_manager.get_one(args)
 
 
 def get_users(args: dict) -> List[CometaUser]:
-    users = collection.find(args)
-    return [CometaUser.from_dict(u) for u in users]
+    return user_manager.get_many(args)
 
 
 def get_user_by_address(address: str) -> CometaUser:
@@ -32,10 +32,4 @@ def get_user_by_tg(tg_id: int) -> CometaUser:
 
 
 def update_user(user: CometaUser) -> CometaUser:
-    collection.update_one({'telegram_id': user.telegram_id}, {'$set': user.to_dict()})
-    return user
-
-
-def update_user_event(user: CometaUser, event: CometaEvent) -> CometaUser:
-    user.update(event)
-    return update_user(user)
+    return user_manager.update(user)
