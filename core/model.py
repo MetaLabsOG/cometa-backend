@@ -33,7 +33,7 @@ class UserPool:
         return self.ended_duration is not None
 
 
-class PoolType(Enum):
+class PoolType(str, Enum):
     FARM = 'farm'
     DISTRIBUTION = 'distribution'
     STAKING = 'staking'
@@ -68,7 +68,7 @@ class PoolState:
     reward_per_token_stored: int
 
 
-class PoolStatus(Enum):
+class PoolStatus(str, Enum):
     LIVE = 'live'
     ENDED = 'ended'
     UPCOMING = 'upcoming'
