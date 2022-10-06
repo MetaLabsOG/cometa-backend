@@ -33,3 +33,7 @@ class DbManager(Generic[T]):
         item_dict = item.to_dict()
         self.collection.update_one({self.primary_key: item_dict.get(self.primary_key)}, {'$set': item_dict})
         return item
+
+    def remove(self, args: dict) -> int:
+        res = self.collection.delete_many(args)
+        return res.deleted_count

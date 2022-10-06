@@ -6,10 +6,10 @@ from contextlib import contextmanager
 
 from blockchain.node import get_current_round
 from core.cometa import calculate_tvl_for_type, get_pool_state
-from core.contract_manager import get_contracts_by_type, update_contract, get_contracts
+from core.db.contracts import get_contracts_by_type, update_contract, get_contracts
 from core.decorators import safe_async_method, repeat_every
-from core.model import PoolStatus, PoolInfo
-from core.pools import get_pools, update_pool, add_pool
+from core.db.model import PoolStatus, PoolInfo
+from core.db.pools import get_pools, update_pool, add_pool
 from core.util import strip_version
 from core.js_interop import calljs
 from api.stats import save_snapshot

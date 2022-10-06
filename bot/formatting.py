@@ -1,5 +1,5 @@
 from bot.utils import usd_format, seconds_format
-from core.model import UserPool
+from core.db.model import UserPool
 
 
 def calculate_apy(apr: float, periods: int) -> float:
