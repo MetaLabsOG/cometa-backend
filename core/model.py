@@ -66,3 +66,37 @@ class PoolState:
 
     last_update_block: int
     reward_per_token_stored: int
+
+
+class PoolStatus(Enum):
+    LIVE = 'live'
+    ENDED = 'ended'
+    UPCOMING = 'upcoming'
+
+    def __str__(self):
+        return self.value
+
+    @classmethod
+    def from_current_block(cls, current_block: int, start_block: int, end_block: int) -> 'PoolStatus':
+        if current_block < start_block:
+            return PoolStatus.UPCOMING
+        if current_block > end_block:
+            return PoolStatus.ENDED
+        return PoolStatus.LIVE
+
+
+@dataclass_json
+@dataclass
+class PoolInfo:
+    id: int
+    type: PoolType
+    name: str
+    stake_token_id: int
+    additional_algo_rewards: bool
+    reward_token_id: int
+    additional_info: dict
+
+    staked: int
+    staked_usd: float
+    current_apr: float
+    status: PoolStatus
