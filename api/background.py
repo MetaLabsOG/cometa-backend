@@ -4,9 +4,12 @@ import multiprocessing
 
 from contextlib import contextmanager
 
-from core.cometa import calculate_tvl_for_type
-from core.contract_manager import get_contracts_by_type, update_contract
+from blockchain.node import get_current_round
+from core.cometa import calculate_tvl_for_type, get_pool_state
+from core.contract_manager import get_contracts_by_type, update_contract, get_contracts
 from core.decorators import safe_async_method, repeat_every
+from core.model import PoolStatus, PoolInfo
+from core.pools import get_pools, update_pool, add_pool
 from core.util import strip_version
 from core.js_interop import calljs
 from api.stats import save_snapshot
@@ -43,6 +46,41 @@ async def record_contracts_stats() -> None:
     save_snapshot(farm_tvl, distribution_tvl)
 
 
+@safe_async_method
+async def update_pools_info() -> None:
+    all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
+    current_block = get_current_round()
+    pools = get_pools({})
+    pool_ids = [p.id for p in pools]
+    for contract in all_contracts:
+        try:
+            pool_state = get_pool_state(contract)
+            pool_status = PoolStatus.from_current_block(current_block, pool_state.start_block, pool_state.end_block)
+
+            pool_info = PoolInfo(
+                type=pool_state.type,
+                name=contract.description,
+                id=contract.id,
+                stake_token_id=pool_state.stake_token_id,
+                staked=pool_state.total_staked,
+                staked_usd=pool_state.total_staked_usd,
+                reward_token_id=pool_state.reward_token_id,
+                additional_algo_rewards=pool_state.total_algo_rewards > 0,
+                current_apr=pool_state.current_apr,
+                additional_info=pool_state.additional_info,
+                status=pool_status
+            )
+
+            if pool_info.id in pool_ids:
+                update_pool(pool_info)
+            else:
+                add_pool(pool_info)
+
+        except Exception as e:
+            logger.error(f'Failed to get info for pool {contract.description}')
+            logger.exception(e, exc_info=True)
+
+
 @repeat_every(60)  # once in a minute
 async def update_contracts_worker():
     logger.info('Updating contract caches...')
@@ -50,6 +88,8 @@ async def update_contracts_worker():
     await update_contracts_cache('distribution')
 
     await record_contracts_stats()
+
+    await update_pools_info()
 
 
 # TODO: graceful shutdown here (with signal handling?)

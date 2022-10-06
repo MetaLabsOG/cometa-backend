@@ -1,5 +1,4 @@
 import logging
-from dataclasses import dataclass
 from typing import List
 
 from api.stats import get_lp_price
@@ -188,47 +187,3 @@ def calculate_tvl_for_type(type: str) -> float:
         except Exception:
             logger.error(f'Failed to calculate TVL for {contract.description}')
     return res
-
-
-@dataclass
-class PoolInfo:
-    type: str
-    name: str
-    id: int
-    stake_token_id: int
-    additional_algo_rewards: bool
-    reward_token_id: int
-    additional_info: dict
-
-    staked: int
-    staked_usd: float
-    current_apr: float
-
-
-async def get_live_pools_info() -> List[PoolInfo]:
-    all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
-    current_block = get_current_round()
-    pools = []
-    for contract in all_contracts:
-        try:
-            pool_state = get_pool_state(contract)
-            if pool_state.end_block < current_block or pool_state.start_block > current_block:
-                continue
-
-            pools.append(PoolInfo(
-                type=str(pool_state.type),
-                name=contract.description,
-                id=contract.id,
-                stake_token_id=pool_state.stake_token_id,
-                staked=pool_state.total_staked,
-                staked_usd=pool_state.total_staked_usd,
-                reward_token_id=pool_state.reward_token_id,
-                additional_algo_rewards=pool_state.total_algo_rewards > 0,
-                current_apr=pool_state.current_apr,
-                additional_info=pool_state.additional_info
-            ))
-        except Exception as e:
-            logger.error(f'Failed to get info for pool {contract.description}')
-            logger.exception(e, exc_info=True)
-
-    return pools
