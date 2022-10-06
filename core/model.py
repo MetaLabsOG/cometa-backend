@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 from dataclasses_json import dataclass_json
@@ -32,11 +33,24 @@ class UserPool:
         return self.ended_duration is not None
 
 
+class PoolType(Enum):
+    FARM = 'farm'
+    DISTRIBUTION = 'distribution'
+    STAKING = 'staking'
+
+    def __str__(self):
+        return self.value
+
+
 @dataclass
 class PoolState:
+    type: PoolType
+    stake_token_id: int
     total_staked: int
-    total_cost_usd: float
     reward_token_id: int
+
+    total_staked_usd: float
+    additional_info: dict
 
     total_rewards: int
     total_algo_rewards: int

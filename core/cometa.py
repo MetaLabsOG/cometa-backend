@@ -8,7 +8,7 @@ from blockchain.indexer import get_asset
 from blockchain.node import get_current_round
 from core.contract_manager import get_contracts, get_contracts_by_type
 from core.js_interop import calljs
-from core.model import ContractInfo, PoolState, UserPool
+from core.model import ContractInfo, PoolState, UserPool, PoolType
 from core.tinychart import get_asset_price, get_algo_price
 from core.util import strip_version, parse_bignum, blocks_to_seconds, BLOCKS_IN_A_YEAR
 
@@ -22,15 +22,23 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     metadata = contract.metadata
     cache = metadata['cache']
     total_microtokens = parse_bignum(cache['global']['totalStaked'])
+    additional = {}
     if contract.type == 'farm' and 'asset_1_id' in metadata:  # TODO: refactor metadata to have different classes
+        type = PoolType.FARM
+        additional['asset1_id'] = metadata['asset_1_id']
+        additional['asset2_id'] = metadata['asset_2_id']
+        asset_id = parse_bignum(cache['initial']['stakeToken'])
+
         total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
         lp_price = get_lp_price(metadata['asset_1_id'], metadata['asset_2_id'])
         total_cost = total_tokens * lp_price
     else:
         if contract.type == 'farm':  # TODO: ну это пиздец, рефачить метадату срочно нахуй
             asset_id_field_name = 'stakeToken'
+            type = PoolType.STAKING
         else:
             asset_id_field_name = 'token'
+            type = PoolType.DISTRIBUTION
         asset_id = parse_bignum(cache['initial'][asset_id_field_name])
         asset_info = get_asset(asset_id)
         total_tokens = total_microtokens / (10 ** asset_info['params']['decimals'])
@@ -68,8 +76,10 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR / length_blocks
 
     return PoolState(
+        type=type,
+        stake_token_id=asset_id,
         total_staked=total_microtokens,
-        total_cost_usd=total_cost,
+        total_staked_usd=total_cost,
         reward_token_id=reward_token_id,
         total_rewards=total_rewards,
         total_algo_rewards=total_algo_rewards,
@@ -81,7 +91,8 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         reward_per_token_stored=parse_bignum(cache['global']['rewardPerTokenStored']),
         length_blocks=length_blocks,
         algo_reward_per_block=algo_reward_per_block,
-        current_apr=current_apr
+        current_apr=current_apr,
+        additional_info=additional
     )
 
 
@@ -134,7 +145,7 @@ async def fetch_user_pools(address: str) -> List[UserPool]:
             if current_block > pool_state.end_block:
                 ended_duration = blocks_to_seconds(pool_state.end_block, current_block)
 
-            staked_usd = pool_state.total_cost_usd * staked / pool_state.total_staked
+            staked_usd = pool_state.total_staked_usd * staked / pool_state.total_staked
 
             logger.debug(contract.description)
             logger.debug(contract.id)
@@ -173,7 +184,7 @@ def calculate_tvl_for_type(type: str) -> float:
     for contract in contracts:
         try:
             pool_state = get_pool_state(contract)
-            res += pool_state.total_cost_usd
+            res += pool_state.total_staked_usd
         except Exception:
             logger.error(f'Failed to calculate TVL for {contract.description}')
     return res
@@ -181,8 +192,15 @@ def calculate_tvl_for_type(type: str) -> float:
 
 @dataclass
 class PoolInfo:
+    type: str
     name: str
     id: int
+    stake_token_id: int
+    additional_algo_rewards: bool
+    reward_token_id: int
+    additional_info: dict
+
+    staked: int
     staked_usd: float
     current_apr: float
 
@@ -198,10 +216,16 @@ async def get_live_pools_info() -> List[PoolInfo]:
                 continue
 
             pools.append(PoolInfo(
-                contract.description,
-                contract.id,
-                pool_state.total_cost_usd,
-                pool_state.current_apr
+                type=str(pool_state.type),
+                name=contract.description,
+                id=contract.id,
+                stake_token_id=pool_state.stake_token_id,
+                staked=pool_state.total_staked,
+                staked_usd=pool_state.total_staked_usd,
+                reward_token_id=pool_state.reward_token_id,
+                additional_algo_rewards=pool_state.total_algo_rewards > 0,
+                current_apr=pool_state.current_apr,
+                additional_info=pool_state.additional_info
             ))
         except Exception as e:
             logger.error(f'Failed to get info for pool {contract.description}')
