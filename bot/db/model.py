@@ -5,7 +5,7 @@ from typing import Dict
 from dataclasses_json import dataclass_json
 
 from bot.env import settings
-from core.model import UserPool
+from core.db.model import UserPool
 
 
 @dataclass_json

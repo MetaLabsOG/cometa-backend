@@ -6,7 +6,7 @@ from typing import Optional
 from cachetools import cached, TTLCache, FIFOCache
 from dataclasses_json import dataclass_json
 
-from core import mongodb
+from core.db import mongodb
 from core.tinychart import get_asset_price
 from blockchain.node import init_algod_client
 from dexes.tinyman import init_tinyman_client, get_pool_info

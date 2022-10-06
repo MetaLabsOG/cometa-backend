@@ -5,7 +5,7 @@ from bot.db import users
 from bot.db.model import CometaUser
 from core.cometa import fetch_user_pools
 from core.decorators import safe_async_method
-from core.model import UserPool
+from core.db.model import UserPool
 
 
 logger = logging.getLogger(__name__)

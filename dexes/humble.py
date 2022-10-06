@@ -2,7 +2,7 @@ from typing import List, Optional
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
-from core import mongodb
+from core.db import mongodb
 
 humble_pools = mongodb.database.humblePools
 

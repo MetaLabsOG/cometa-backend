@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from bot.db.db_manager import DbManager
+from core.db.db_manager import DbManager
 from bot.db.model import CometaUser
 from bot.db.mongo import get_collection
 
