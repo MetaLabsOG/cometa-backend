@@ -48,6 +48,8 @@ async def record_contracts_stats() -> None:
 
 @safe_async_method
 async def update_pools_info() -> None:
+    logger.info('Updating pools info...')
+
     all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
     current_block = get_current_round()
     pools = get_pools({})
