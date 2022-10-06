@@ -19,9 +19,7 @@ from core.contract_manager import ContractInfo, get_contract, add_contract, get_
     remove_contracts, update_contract
 from core.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.pools import get_pools
-from core.tinychart import get_asset_price_full
-from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
-    NftInfo, Price
+from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
 
@@ -58,12 +56,6 @@ async def status() -> dict:
         'version': VERSION,
         'algo_network': settings.algo_network
     }
-
-
-# TODO: do we need it at all?
-# @app.get('/floor_price')
-# async def floor_price(asset_id: int) -> int:
-#     return nft_market.get_floor_price(asset_id)
 
 
 @app.get('/wallet/{address}/assets')
@@ -117,7 +109,7 @@ async def add_new_contract(contract: AddContract, password: str) -> dict:
 # The only thing we do here to ensure that our database isn't spammed with bullshit is checking that the contract
 # really exists in the network, has a correct type and is fully deployed
 @app.post('/contract/register')
-async def register_contract(contract: AddContract) -> dict:
+async def register_contract(contract: AddContract) -> None:
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
@@ -154,10 +146,7 @@ async def register_contract(contract: AddContract) -> dict:
     # the contract is created even without connected wallet.
     cache_metadata = {"cache": view}
     metadata = cache_metadata if contract.metadata is None else {**contract.metadata, **cache_metadata}
-    added = add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
-
-    # I don't think that returning internal id to the users is anyhow useful, also probably discloses unnecessary info?
-    return {'added': contract.id}
+    add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
 
 
 class DeployContract(BaseModel):
@@ -235,7 +224,7 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
 # POOLS
 
 @app.get('/pools')
-async def get_pools_by_args(type: Optional[PoolType] = None, status: Optional[PoolStatus] = None) -> List[PoolInfo]:
+async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: Optional[PoolStatus] = None) -> List[PoolInfo]:
     args = {}
     if type:
         args['type'] = type
@@ -294,14 +283,6 @@ async def humble_pools_all() -> List[humble.HumblePool]:
 # async def whitelist_check(contract_id: int, address: str) -> bool:
 #     check_crowdsale_whitelist(contract_id, address)
 #     return True
-
-
-# ASAs
-
-@app.get('/asset/{asset_id}/price')
-async def asset_price(asset_id: int) -> Price:
-    price = get_asset_price_full(asset_id)
-    return price
 
 
 # Statistics
