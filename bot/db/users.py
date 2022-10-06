@@ -7,7 +7,7 @@ from bot.db.mongo import get_collection
 
 collection = get_collection('users')
 
-user_manager = DbManager[CometaUser]('users', 'telegram_id')
+user_manager = DbManager[CometaUser]('users', 'telegram_id', CometaUser)
 
 
 def create_user(algo_address: str, telegram_id: int, telegram_chat_id: int) -> CometaUser:
