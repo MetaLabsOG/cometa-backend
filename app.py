@@ -1,7 +1,7 @@
 import logging
 import secrets
 import sys
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -11,16 +11,17 @@ from algosdk import account, mnemonic, encoding
 from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
-from api import nft_market, stats
+from api import stats
 from bot.db.users import get_user_by_address
 from bot.user_pools import get_user_pools
-from core.cometa import UserPool, PoolInfo, get_live_pools_info
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
+from core.model import PoolStatus, PoolType, UserPool, PoolInfo
+from core.pools import get_pools
 from core.tinychart import get_asset_price_full
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
-    NftInfo, get_wallet_assets2, Price
+    NftInfo, Price
 from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
 
@@ -234,8 +235,13 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
 # POOLS
 
 @app.get('/pools')
-async def get_pools() -> List[PoolInfo]:
-    return await get_live_pools_info()
+async def get_pools_by_args(type: Optional[PoolType] = None, status: Optional[PoolStatus] = PoolStatus.LIVE) -> List[PoolInfo]:
+    args = {}
+    if type:
+        args['type'] = type
+    if status:
+        args['status'] = status
+    return get_pools(args)
 
 
 @app.patch('/pools/verify')
