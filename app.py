@@ -1,7 +1,7 @@
 import logging
 import secrets
 import sys
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -11,26 +11,27 @@ from algosdk import account, mnemonic, encoding
 from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
-from api import nft_market, stats
-from bot.cometa import UserPool, get_user_pools
-from core.contract_manager import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
+from api import stats
+from bot.db.users import get_user_by_address
+from bot.user_pools import get_user_pools
+from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
+from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
-from core.tinychart import get_asset_price_full
-from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, \
-    NftInfo, get_wallet_assets2, Price
+from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
+from core.db.pools import get_pools
+from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
 
 import dexes.humble as humble
-from dexes.tinyman import init_tinyman_client, get_swap_data, get_zap_transactions, \
-    get_swap_transactions, get_zap_data
-from env import settings, LOG_FORMAT, DATE_FORMAT
-from background import start_bg_tasks
+from env import settings
+from api.background import start_bg_tasks
 
-VERSION = "0.1.6"
+VERSION = '0.2.0'
 app = FastAPI(
-    title="Cometa",
-    version=VERSION
+    title='Cometa',
+    version=VERSION,
+    description=f'Cometa API {VERSION}'
 )
 app.add_middleware(
     CORSMiddleware,
@@ -57,29 +58,26 @@ async def status() -> dict:
     }
 
 
-@app.get('/floor_price')
-async def floor_price(asset_id: int) -> int:
-    return nft_market.get_floor_price(asset_id)
-
-
-@app.get('/wallet_assets/{address}')
+@app.get('/wallet/{address}/assets')
 async def wallet_assets(address: str) -> List[AssetInfo]:
-    return get_wallet_assets(address)
+    assets = get_wallet_assets(address)
+    return assets
 
 
-@app.get('/wallet_assets2/{address}')
-async def wallet_assets(address: str) -> Dict[str, AssetInfo]:
-    return get_wallet_assets2(address)
-
-
-@app.get('/total_cost/{address}')
+@app.get('/wallet/{address}/total_cost/')
 async def total_cost(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
     return get_wallet_total_cost(address, weeks_count)
 
 
-@app.get('/wallet_nfts/{address}')
+@app.get('/wallet/{address}/nfts')
 async def wallet_nfts(address: str) -> List[NftInfo]:
     return get_wallet_nfts(address)
+
+
+@app.get('/wallet/{address}/pools')
+async def wallet_pools(address: str) -> List[UserPool]:
+    user = get_user_by_address(address)
+    return await get_user_pools(user)
 
 
 class AddContract(BaseModel):
@@ -111,7 +109,7 @@ async def add_new_contract(contract: AddContract, password: str) -> dict:
 # The only thing we do here to ensure that our database isn't spammed with bullshit is checking that the contract
 # really exists in the network, has a correct type and is fully deployed
 @app.post('/contract/register')
-async def register_contract(contract: AddContract) -> dict:
+async def register_contract(contract: AddContract) -> None:
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
@@ -148,10 +146,7 @@ async def register_contract(contract: AddContract) -> dict:
     # the contract is created even without connected wallet.
     cache_metadata = {"cache": view}
     metadata = cache_metadata if contract.metadata is None else {**contract.metadata, **cache_metadata}
-    added = add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
-
-    # I don't think that returning internal id to the users is anyhow useful, also probably discloses unnecessary info?
-    return {'added': contract.id}
+    add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
 
 
 class DeployContract(BaseModel):
@@ -188,16 +183,35 @@ async def get_contract_by_id(contract_id: int) -> ContractInfo:
     return contract
 
 
-@app.get('/contracts')
-async def get_contracts(type: str) -> List[ContractInfo]:
-    return get_contracts_by_type(type)
-
-
 @app.delete('/contract/{contract_id}')
 async def remove_contract_by_id(contract_id: int, password: str) -> dict:
     check_password(password)
     cnt = remove_contract(contract_id=contract_id)
     return {'deleted_count': cnt}
+
+
+@app.get('/contracts/version')
+async def get_contract_version(type: str) -> dict:
+    version = await calljs("contractVersion", contractType=type)
+    return {'version': version}
+
+
+@app.get('/contracts/local_state')
+async def get_local_states(type: str, address: str) -> dict:
+    contracts = get_contracts_by_type(type)
+    if len(contracts) > 0:
+        ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
+        states = await calljs("fetchContractsLocalViews",
+                              contractType=type,
+                              idVersions=ids_and_versions,
+                              walletAddress=address)
+        return states
+    return {}
+
+
+@app.get('/contracts')
+async def get_contracts(type: str) -> List[ContractInfo]:
+    return get_contracts_by_type(type)
 
 
 @app.delete('/contracts')
@@ -207,10 +221,16 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
     return {'deleted_count': cnt}
 
 
-@app.get('/contract_version')
-async def get_contract_version(type: str) -> dict:
-    version = await calljs("contractVersion", contractType=type)
-    return {'version': version}
+# POOLS
+
+@app.get('/pools')
+async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: Optional[PoolStatus] = None) -> List[PoolInfo]:
+    args = {}
+    if type:
+        args['type'] = type
+    if status:
+        args['status'] = status
+    return get_pools(args)
 
 
 @app.patch('/pools/verify')
@@ -223,47 +243,6 @@ async def verify_pool(pool_id: int, password: str) -> str:
     update_contract(pool_id, metadata=new_metadata)
     return 'Success!'
 
-# TINYMAN SWAP
-
-
-@app.get('/swap_data')
-async def swap_data(asset1_id: int, asset2_id: int, asset1_amount: float, slippage: float = 0.01) -> dict:
-    # TODO
-    client = init_tinyman_client(settings.algod_address)
-    return get_swap_data(client, asset1_id, asset2_id, asset1_amount, slippage)
-
-
-@app.get('/swap_transactions')
-async def swap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float,
-                            slippage: float = 0.01) -> dict:
-    client = init_tinyman_client(address)
-    try:
-        result = get_swap_transactions(client, asset1_id, asset2_id, asset1_amount, slippage)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-
-@app.get('/zap_data')
-async def zap_data(asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool,
-                   slippage: float = 0.01) -> dict:
-    client = init_tinyman_client(settings.algod_address)
-    try:
-        result = get_zap_data(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-
-@app.get('/zap_transactions')
-async def zap_transactions(address: str, asset1_id: int, asset2_id: int, asset1_amount: float, swap_half: bool,
-                           slippage: float = 0.01) -> dict:
-    client = init_tinyman_client(address)
-    try:
-        result = get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half, slippage)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
 
 # HUMBLE POOLS
 
@@ -281,36 +260,29 @@ async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.Humble
 async def humble_pools_all() -> List[humble.HumblePool]:
     return humble.get_pools({})
 
+
 # CROWDSALE
 
-def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
-    contract = get_contract(contract_id)
-    if contract is None or contract.type != 'crowdsale':
-        raise HTTPException(status_code=404, detail="Contract not found")
-
-    whitelist = contract.metadata["whitelist"]
-    if address not in whitelist:
-        raise HTTPException(status_code=403, detail="Address not whitelisted")
-
-
-@app.put('/whitelist_confirm')
-async def whitelist_confirm(contract_id: int, address: str) -> bool:
-    check_crowdsale_whitelist(contract_id, address)
-    return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
-
-
-@app.get('/whitelist_check')
-async def whitelist_check(contract_id: int, address: str) -> bool:
-    check_crowdsale_whitelist(contract_id, address)
-    return True
-
-
-# ASAs
-
-@app.get('/asset/{asset_id}/price')
-async def asset_price(asset_id: int) -> Price:
-    price = get_asset_price_full(asset_id)
-    return price
+# def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
+#     contract = get_contract(contract_id)
+#     if contract is None or contract.type != 'crowdsale':
+#         raise HTTPException(status_code=404, detail="Contract not found")
+#
+#     whitelist = contract.metadata["whitelist"]
+#     if address not in whitelist:
+#         raise HTTPException(status_code=403, detail="Address not whitelisted")
+#
+#
+# @app.put('/whitelist_confirm')
+# async def whitelist_confirm(contract_id: int, address: str) -> bool:
+#     check_crowdsale_whitelist(contract_id, address)
+#     return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
+#
+#
+# @app.get('/whitelist_check')
+# async def whitelist_check(contract_id: int, address: str) -> bool:
+#     check_crowdsale_whitelist(contract_id, address)
+#     return True
 
 
 # Statistics
@@ -320,42 +292,28 @@ async def tvl() -> dict:
     return stats.get_tvl()
 
 
-@app.get('/stats/local_state')
-async def get_local_states(type: str, address: str) -> dict:
-    contracts = get_contracts_by_type(type)
-    if len(contracts) > 0:
-        ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
-        states = await calljs("fetchContractsLocalViews",
-                              contractType=type,
-                              idVersions=ids_and_versions,
-                              walletAddress=address)
-        return states
-    return {}
-
-
-@app.get('/stats/user_pools')
-async def get_pools(address: str) -> List[UserPool]:
-    return await get_user_pools(address)
-
-
 # Events
 
 @app.on_event("startup")
 async def startup_event():
-    logging.basicConfig(
-        format=LOG_FORMAT,
-        datefmt=DATE_FORMAT,
-        level=settings.logging_level
-    )
-
     logger = logging.getLogger("uvicorn.access")
     console_formatter = ColourizedFormatter(
         fmt=LOG_FORMAT,
-        datefmt=DATE_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
         use_colors=True
     )
     logger.handlers[0].setFormatter(console_formatter)
 
+
+def setup_logging():
+    logging.basicConfig(
+        format=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
+        level=settings.logging_level
+    )
+
+
+setup_logging()
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
