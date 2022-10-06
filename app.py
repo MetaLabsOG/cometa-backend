@@ -235,7 +235,7 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
 # POOLS
 
 @app.get('/pools')
-async def get_pools_by_args(type: Optional[PoolType] = None, status: Optional[PoolStatus] = PoolStatus.LIVE) -> List[PoolInfo]:
+async def get_pools_by_args(type: Optional[PoolType] = None, status: Optional[PoolStatus] = None) -> List[PoolInfo]:
     args = {}
     if type:
         args['type'] = type
