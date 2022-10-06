@@ -24,11 +24,11 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     additional = {}
     if contract.type == 'farm' and ('asset_1_id' in metadata or 'asset1_id' in metadata):
         if 'asset_1_id' in metadata:
-            asset1_id = metadata['asset_1_id']
-            asset2_id = metadata['asset_2_id']
+            asset1_id = int(metadata['asset_1_id'])
+            asset2_id = int(metadata['asset_2_id'])
         else:
-            asset1_id = metadata['asset1_id']
-            asset2_id = metadata['asset2_id']
+            asset1_id = int(metadata['asset1_id'])
+            asset2_id = int(metadata['asset2_id'])
 
         type = PoolType.FARM
         additional['asset1_id'] = asset1_id
