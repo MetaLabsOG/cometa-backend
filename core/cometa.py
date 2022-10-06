@@ -22,14 +22,21 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     cache = metadata['cache']
     total_microtokens = parse_bignum(cache['global']['totalStaked'])
     additional = {}
-    if contract.type == 'farm' and 'asset_1_id' in metadata:  # TODO: refactor metadata to have different classes
+    if contract.type == 'farm' and ('asset_1_id' in metadata or 'asset1_id' in metadata):
+        if 'asset_1_id' in metadata:
+            asset1_id = metadata['asset_1_id']
+            asset2_id = metadata['asset_2_id']
+        else:
+            asset1_id = metadata['asset1_id']
+            asset2_id = metadata['asset2_id']
+
         type = PoolType.FARM
-        additional['asset1_id'] = metadata['asset_1_id']
-        additional['asset2_id'] = metadata['asset_2_id']
+        additional['asset1_id'] = asset1_id
+        additional['asset2_id'] = asset2_id
         asset_id = parse_bignum(cache['initial']['stakeToken'])
 
         total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
-        lp_price = get_lp_price(metadata['asset_1_id'], metadata['asset_2_id'])
+        lp_price = get_lp_price(asset1_id, asset2_id)
         total_cost = total_tokens * lp_price
     else:
         if contract.type == 'farm':  # TODO: ну это пиздец, рефачить метадату срочно нахуй
