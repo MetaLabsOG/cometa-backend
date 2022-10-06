@@ -5,9 +5,9 @@ from api.stats import get_lp_price
 from blockchain.assets import MICROALGOS_IN_ALGO
 from blockchain.indexer import get_asset
 from blockchain.node import get_current_round
-from core.contract_manager import get_contracts, get_contracts_by_type
+from core.db.contracts import get_contracts, get_contracts_by_type
 from core.js_interop import calljs
-from core.model import ContractInfo, PoolState, UserPool, PoolType
+from core.db.model import ContractInfo, PoolState, UserPool, PoolType
 from core.tinychart import get_asset_price, get_algo_price
 from core.util import strip_version, parse_bignum, blocks_to_seconds, BLOCKS_IN_A_YEAR
 

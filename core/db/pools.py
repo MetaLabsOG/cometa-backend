@@ -1,7 +1,7 @@
 from typing import Optional, List
 
-from core import mongodb
-from core.model import PoolInfo
+from core.db import mongodb
+from core.db.model import PoolInfo
 
 pool_db = mongodb.database.pools
 
