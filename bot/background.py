@@ -14,18 +14,13 @@ spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
 
 
-# TODO: move somewhere
-def is_admin(user: CometaUser) -> bool:
-    return user.telegram_id in settings.telegram_admin_ids
-
-
 @safe_async_method
 async def update_and_notify():
     all_users = users.get_users({})
 
     for user in all_users:
         await update_user_pools(user)
-        if user.should_remind() and user.is_admin():  # TODO: remove this when notifications are fixed
+        if user.should_remind():
             await notify_user(user)
 
 
