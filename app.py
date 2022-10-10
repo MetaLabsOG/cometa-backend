@@ -1,6 +1,7 @@
 import logging
 import secrets
 import sys
+from dataclasses import dataclass
 from typing import List, Optional
 
 import uvicorn
@@ -12,6 +13,9 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import stats
+from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws
+from api.swaps import SwapInfo, swaps, get_swap_by_id, record_swap
+from api.wallet import send_nft
 from bot.db.users import get_user_by_address
 from bot.user_pools import get_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
@@ -283,6 +287,43 @@ async def humble_pools_all() -> List[humble.HumblePool]:
 # async def whitelist_check(contract_id: int, address: str) -> bool:
 #     check_crowdsale_whitelist(contract_id, address)
 #     return True
+
+
+# SWAP
+
+@app.post('/swap/nft_lottery')
+async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> None:
+    if get_swap_by_id(swap.txid) is not None:
+        raise HTTPException(status_code=409, detail='Swap has already recorded')
+
+    record_swap(swap)
+    return lottery_for_swap(swap)
+
+
+# LOTTERY
+
+@app.post('/nft_lotteries/new')
+async def create_a_new_lottery(lottery: NftLottery, password: str) -> None:
+    check_password(password)
+    if nft_lotteries.get_one({'name': lottery.name}) is not None:
+        raise HTTPException(status_code=409, detail='Lottery with such name already exists')
+    nft_lotteries.create(lottery)
+
+
+@app.get('/nft_lotteries/')
+async def get_lotteries(password: str) -> List[NftLottery]:
+    check_password(password)
+    return nft_lotteries.get_all()
+
+
+@app.patch('/nft_lotteries/claim')
+async def claim_prize_for_swap(swap_id: str) -> None:
+    lottery_draw = lottery_draws.get_by_primary_key(swap_id)
+    if lottery_draw is None:
+        raise HTTPException(status_code=404, detail=f'Lottery draw for {swap_id} not found')
+    if lottery_draw.prize is None:
+        raise HTTPException(status_code=403, detail=f'Lottery draw for {swap_id} has no prize')
+    send_nft(lottery_draw.wallet, lottery_draw.prize)
 
 
 # Statistics
