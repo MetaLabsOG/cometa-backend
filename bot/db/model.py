@@ -24,3 +24,6 @@ class CometaUser:
 
     def should_remind(self) -> bool:
         return self.no_remind_for > settings.remind_again_delay
+
+    def is_admin(self) -> bool:
+        return self.telegram_id in settings.telegram_admin_ids
