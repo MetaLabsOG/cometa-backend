@@ -31,6 +31,8 @@ class Settings(BaseSettings):
 
     logs_dir: str
 
+    telegram_admin_ids: list[int]
+
     class Config:
         env_file = 'bot/.env'
         arbitrary_types_allowed = True
