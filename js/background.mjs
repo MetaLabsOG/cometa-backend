@@ -89,7 +89,9 @@ try {
 
   await runHumble(collection);
 } catch (e) {
-  console.error(e);
+  console.error('BACKGROUND HUMBLE FETCHER ERROR', e);
 } finally {
+  console.log('Fuck Humble ok?');
   await client.close();
+  console.log('Didnt even wanted it so much');
 }

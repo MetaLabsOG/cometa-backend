@@ -9,8 +9,9 @@ import time
 from os import path
 
 from core.constants import DIR_PATH
+from env import settings
 
-COMETA_SOCK = '/tmp/cometa-js-interop.sock'
+COMETA_SOCK = f'/tmp/cometa-js-interop-{settings.algo_network}.sock'
 
 def start_js_interop_server():
     if path.exists(COMETA_SOCK):
