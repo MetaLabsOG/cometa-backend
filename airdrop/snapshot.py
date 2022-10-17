@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from math import sqrt
 from pymongo import MongoClient
 
 from api import metapunks
@@ -72,6 +73,15 @@ def make_snapshot(snapshot_id: str):
     )
 
     print(f'Snapshot was made in {end_time - start_time}\n')
+
+    # total_nfts = 0
+    # for h in holders:
+    #     hold = len(h.asa_ids)
+    #     get = int(sqrt(hold))
+    #     print(f'holding = {hold}, getting = {get}')
+    #     total_nfts += get
+    #
+    # print(f'In total we need {total_nfts} NFTs!')
 
 
 if __name__ == '__main__':

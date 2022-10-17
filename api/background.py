@@ -13,6 +13,7 @@ from core.db.pools import get_pools, update_pool, add_pool
 from core.util import strip_version
 from core.js_interop import calljs
 from api.stats import save_snapshot
+from env import settings
 
 spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
@@ -83,7 +84,7 @@ async def update_pools_info() -> None:
             logger.exception(e, exc_info=True)
 
 
-@repeat_every(60)  # once in a minute
+@repeat_every(settings.contracts_cache_ttl)
 async def update_contracts_worker():
     logger.info('Updating contract caches...')
     await update_contracts_cache('farm')

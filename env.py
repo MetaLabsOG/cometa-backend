@@ -22,11 +22,13 @@ class Settings(BaseSettings):
     api_password: str
     logging_level: str = 'INFO'
 
-    block_time: float = 4.35
+    block_time: float = 3.7
 
     algo_price_ttl: int
     asset_prices_ttl: int
     total_tvl_ttl: int
+
+    contracts_cache_ttl: int = 300
 
     class Config:
         env_file = '.env'
