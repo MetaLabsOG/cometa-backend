@@ -9,7 +9,7 @@ from core.cometa import calculate_tvl_for_type, get_pool_state
 from core.db.contracts import get_contracts_by_type, update_contract, get_contracts
 from core.decorators import safe_async_method, repeat_every
 from core.db.model import PoolStatus, PoolInfo, PoolType
-from core.db.pools import get_pools, update_pool, add_pool
+from core.db.pools import pools_db
 from core.util import strip_version
 from core.js_interop import calljs
 from api.stats import save_snapshot
@@ -54,7 +54,7 @@ async def update_pools_info() -> None:
 
     all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
     current_block = get_current_round()
-    pools = get_pools({})
+    pools = pools_db.get_all()
     pool_ids = [p.id for p in pools]
     for contract in all_contracts:
         try:
@@ -76,9 +76,9 @@ async def update_pools_info() -> None:
             )
 
             if pool_info.id in pool_ids:
-                update_pool(pool_info)
+                pools_db.update(pool_info)
             else:
-                add_pool(pool_info)
+                pools_db.create(pool_info)
 
         except Exception as e:
             logger.error(f'Failed to get info for pool {contract.description}')
