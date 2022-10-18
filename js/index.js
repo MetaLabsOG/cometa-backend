@@ -8,7 +8,7 @@ require("dotenv").config({
 
 // This is background worker on the JS side. Currently it is only used for updating
 // the MongoDB cache with Humble pools information.
-const BACKGROUND_PROMISE = import("./background.mjs");
+const BACKGROUND_PROMISE = process.env.SYNC_HUMBLE_POOLS === "1" ? import("./background.mjs") : null;
 
 const net = require("net");
 
