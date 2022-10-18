@@ -22,7 +22,7 @@ from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
-from core.db.pools import get_pools
+from core.db.pools import pools_db
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
@@ -234,7 +234,7 @@ async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: O
         args['type'] = type
     if status:
         args['status'] = status
-    return get_pools(args)
+    return pools_db.get_many(args)
 
 
 @app.patch('/pools/verify')

@@ -6,7 +6,7 @@ from blockchain.assets import MICROALGOS_IN_ALGO
 from blockchain.indexer import get_asset
 from blockchain.node import get_current_round
 from core.db.contracts import get_contracts
-from core.db.pools import get_pools
+from core.db.pools import pools_db
 from core.js_interop import calljs
 from core.db.model import ContractInfo, PoolState, UserPool, PoolType
 from core.tinychart import get_asset_price, get_algo_price
@@ -191,7 +191,7 @@ async def fetch_user_pools(address: str) -> List[UserPool]:
 
 
 def calculate_tvl_for_type(type: str) -> float:
-    pools = get_pools({'type': type})
+    pools = pools_db.get_many({'type': type})
     res = 0
     for pool in pools:
         res += pool.staked_usd
