@@ -79,7 +79,6 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> Pool
 def get_price(client: TinymanClient, asset_id: int) -> float:
     if asset_id == ALGO_ASA_ID:
         return 1
-    print(f'Getting price for asset {asset_id}')
     ALGO = client.fetch_asset(ALGO_ASA_ID)
     asset = client.fetch_asset(asset_id)
     pool = client.fetch_pool(asset, ALGO)
