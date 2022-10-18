@@ -7,7 +7,10 @@ def safe_async_method(fn):
         try:
             await fn(*args, **kwargs)
         except Exception as e:
-            logging.error(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: ', e)
+            # TODO: 'TypeError: not all arguments converted during string formatting'
+            # logging.error(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: ', e)
+
+            logging.error(f'Error in `{fn.__name__}: ', e)
     return wrapper
 
 
