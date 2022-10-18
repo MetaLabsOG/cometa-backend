@@ -1,10 +1,11 @@
 import time
 from typing import List, Optional
 
-from core.db import mongodb
 from core.db.model import ContractInfo
+from core.db.mongodb import get_db_collection
+from env import settings
 
-collection = mongodb.database.contract
+collection = get_db_collection(settings.db_name, 'contract')
 
 
 def add_contract(type: str, id: int, version: str, description: str, metadata: Optional[dict]) -> str:

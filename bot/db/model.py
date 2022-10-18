@@ -4,7 +4,7 @@ from typing import Dict
 
 from dataclasses_json import dataclass_json
 
-from bot.env import settings
+from bot.env import bot_settings
 from core.db.model import UserPool
 
 
@@ -23,7 +23,7 @@ class CometaUser:
         return datetime.utcnow() - remind_time
 
     def should_remind(self) -> bool:
-        return self.no_remind_for > settings.remind_again_delay
+        return self.no_remind_for > bot_settings.remind_again_delay
 
     def is_admin(self) -> bool:
-        return self.telegram_id in settings.telegram_admin_ids
+        return self.telegram_id in bot_settings.telegram_admin_ids
