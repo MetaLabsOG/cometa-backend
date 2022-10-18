@@ -93,7 +93,7 @@ async def track_address(update: Update, context: CallbackContext):
         new_user_msg = f'New #user {tg_user.name}!\nAlgo address {address}'
         await context.bot.send_message(bot_settings.feedback_chat_id, new_user_msg)
     else:
-        user.pools = {}
+        user.pools = []
         user.algo_address = address
 
     await update.message.reply_html(f'🤖 Great, {tg_user.name}!\nTracking <code>{address}</code>.')
