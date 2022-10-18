@@ -38,6 +38,8 @@ class DbManager(Generic[T]):
 
     def update(self, item: T) -> T:
         item_dict = item.to_dict()
+        if self.db_name == 'COMETA_BOT':
+            print(f'UPDATING DB: \n{self.primary_key}:{item_dict.get(self.primary_key)}\nSetting to {item_dict}')
         self.collection.update_one({self.primary_key: item_dict.get(self.primary_key)}, {'$set': item_dict})
         return item
 
