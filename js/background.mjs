@@ -74,7 +74,7 @@ async function runHumble(collection) {
     },
   });
 
-  const updatePromise = updateHumblePools(account, collection, 60);
+  const updatePromise = updateHumblePools(account, collection, 300);
 
   return Promise.all([streamPromise, updatePromise]);
 }
