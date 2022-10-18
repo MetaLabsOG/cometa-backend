@@ -1,12 +1,13 @@
 import requests
+from cachetools import cached, LRUCache
 
 from env import settings
 
 BASE_URL = 'https://algoindexer.algoexplorerapi.io' if settings.is_mainnet() else 'https://algoindexer.testnet.algoexplorerapi.io'
 
 
+@cached(cache=LRUCache(maxsize=2048))
 def get_asset(asset_id: int):
-    # TODO: cache asset data
     url = f'{BASE_URL}/v2/assets/{asset_id}'
     return requests.get(url).json()['asset']
 
