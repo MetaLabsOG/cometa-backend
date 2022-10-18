@@ -1,13 +1,11 @@
 from typing import Optional, List
 
+from bot.env import bot_settings
 from core.db.db_manager import DbManager
 from bot.db.model import CometaUser
-from bot.db.mongo import get_collection
 
 
-collection = get_collection('users')
-
-user_manager = DbManager[CometaUser]('users', 'telegram_id', CometaUser)
+user_manager = DbManager[CometaUser](bot_settings.db_name, 'users', 'telegram_id', CometaUser)
 
 
 def create_user(algo_address: str, telegram_id: int, telegram_chat_id: int) -> CometaUser:

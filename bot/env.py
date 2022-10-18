@@ -1,5 +1,4 @@
 from datetime import timedelta
-from functools import cached_property
 
 from pydantic import BaseSettings
 
@@ -33,6 +32,8 @@ class Settings(BaseSettings):
 
     telegram_admin_ids: list[int]
 
+    db_name: str = 'COMETA_BOT'
+
     class Config:
         env_file = 'bot/.env'
         arbitrary_types_allowed = True
@@ -42,4 +43,4 @@ class Settings(BaseSettings):
         return timedelta(minutes=self.remind_again_delay_minutes)
 
 
-settings = Settings()
+bot_settings = Settings()

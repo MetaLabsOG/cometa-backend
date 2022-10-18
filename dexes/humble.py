@@ -2,9 +2,11 @@ from typing import List, Optional
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
-from core.db import mongodb
+from core.db.mongodb import get_db_collection
+from env import settings
 
-humble_pools = mongodb.database.humblePools
+humble_pools = get_db_collection(settings.db_name, 'humblePools')
+
 
 @dataclass_json
 @dataclass
