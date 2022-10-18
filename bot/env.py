@@ -2,11 +2,6 @@ from datetime import timedelta
 
 from pydantic import BaseSettings
 
-# TODO: compute for each pool/user
-BEST_COMPOUNDING_DELAY = timedelta(minutes=5)
-
-MONITOR_LOG_DELAY = timedelta(seconds=10)
-AIRTABLE_UPDATE_DELAY_SECONDS = 30
 
 FEEDBACK_COMMAND = 'feedback'
 SUPPORT_COMMAND = 'support'
@@ -27,6 +22,7 @@ class Settings(BaseSettings):
     support_chat_id: int
 
     remind_again_delay_minutes: int
+    user_pools_cache_ttl_seconds: int = 300
 
     logs_dir: str
     logging_level: str = 'INFO'

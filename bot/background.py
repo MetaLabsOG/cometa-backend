@@ -4,7 +4,6 @@ import multiprocessing
 from contextlib import contextmanager
 
 from bot.db import users
-from bot.db.model import CometaUser
 from bot.env import bot_settings
 from bot.notifier import notify_user
 from bot.user_pools import update_user_pools
@@ -24,14 +23,13 @@ async def update_and_notify():
             await notify_user(user)
 
 
-@repeat_every(60)  # once in a minute
+@repeat_every(bot_settings.user_pools_cache_ttl_seconds)
 async def update_users():
     logger.info('Updating users...')
 
     await update_and_notify()
 
 
-# TODO: graceful shutdown here (with signal handling?)
 def run_background():
     async def tasks():
         await asyncio.gather(
