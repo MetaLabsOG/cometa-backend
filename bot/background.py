@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from bot.db import users
 from bot.db.model import CometaUser
-from bot.env import settings
+from bot.env import bot_settings
 from bot.notifier import notify_user
 from bot.user_pools import update_user_pools
 from core.decorators import repeat_every, safe_async_method

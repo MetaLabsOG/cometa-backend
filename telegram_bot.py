@@ -14,7 +14,7 @@ from bot.user_pools import get_user_pools, filter_compoundable_pools, filter_end
 from bot.context import app_context
 from bot.db.model import CometaUser
 from bot.db.users import create_user, get_user_by_tg, get_users
-from bot.env import FEEDBACK_COMMAND, settings, SUPPORT_COMMAND, MESSAGE_ALL_COMMAND
+from bot.env import FEEDBACK_COMMAND, bot_settings, SUPPORT_COMMAND, MESSAGE_ALL_COMMAND
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 
 # TODO: move commands to separate files
@@ -91,7 +91,7 @@ async def track_address(update: Update, context: CallbackContext):
     if user is None:
         create_user(address, tg_user.id, tg_user.id)
         new_user_msg = f'New #user {tg_user.name}!\nAlgo address {address}'
-        await context.bot.send_message(settings.feedback_chat_id, new_user_msg)
+        await context.bot.send_message(bot_settings.feedback_chat_id, new_user_msg)
     else:
         user.pools = {}
         user.algo_address = address
@@ -111,7 +111,7 @@ async def get_feedback(update: Update, context: CallbackContext):
 
     feedback_text = update.message.text_markdown[len(FEEDBACK_COMMAND) + 2:]
     feedback = f'{text_title}:\n\n{feedback_text}'
-    await context.bot.send_message(settings.feedback_chat_id, feedback)
+    await context.bot.send_message(bot_settings.feedback_chat_id, feedback)
 
     await update.message.reply_text(f'🤖 Thank you, {tg_user.name}, your feedback is submitted!❤')
 
@@ -127,7 +127,7 @@ async def get_support(update: Update, context: CallbackContext):
 
     support_text = update.message.text_html[len(SUPPORT_COMMAND) + 2:]
     support = f'{text_title}:\n\n{support_text}'
-    await context.bot.send_message(settings.support_chat_id, support, parse_mode=ParseMode.HTML)
+    await context.bot.send_message(bot_settings.support_chat_id, support, parse_mode=ParseMode.HTML)
 
     await update.message.reply_text(f'🤖 Thank you, {tg_user.name}, one of our admins will contact you ASAP!❤')
 

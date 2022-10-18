@@ -2,20 +2,21 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import TypeVar, Generic, Any
 
-from bot.db.mongo import get_collection
+from core.db.mongodb import get_db_collection
 
 T = TypeVar('T')
 
 
 @dataclass
 class DbManager(Generic[T]):
+    db_name: str
     name: str
     primary_key: str
     type: Any
 
     @cached_property
     def collection(self):
-        return get_collection(self.name)
+        return get_db_collection(self.db_name, self.name)
 
     def create(self, item: T) -> T:
         self.collection.insert_one(item.to_dict())
