@@ -27,7 +27,7 @@ class UserPool:
     ended_duration: Optional[float]
 
     def needs_compound(self) -> bool:
-        return self.reward_usd / self.staked_usd > 0.01
+        return self.reward_usd / self.staked_usd > 0.01 if self.staked_usd > 0 else False
 
     def is_ended(self) -> bool:
         return self.ended_duration is not None
