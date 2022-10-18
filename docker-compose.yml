@@ -8,6 +8,7 @@ services:
         environment:
             REACH_NO_WARN: "${REACH_NO_WARN}"
             PYTHONUNBUFFERED: 1
+            SYNC_HUMBLE_POOLS: "1"
         volumes:
             - ".:/app"
             - "/tmp/cometa:/tmp"
@@ -23,6 +24,7 @@ services:
         environment:
             REACH_NO_WARN: "${REACH_NO_WARN}"
             PYTHONUNBUFFERED: 1
+            SYNC_HUMBLE_POOLS: "0"
         volumes:
             - ".:/app"
             - "/tmp/bot:/tmp"

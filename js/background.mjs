@@ -80,6 +80,7 @@ async function runHumble(collection) {
 }
 
 try {
+  console.log("JS: starting Humble pools background sync");
   console.log("JS: try to connect to Mongo");
   await client.connect();
   const collection = client
