@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     remind_again_delay_minutes: int
 
     logs_dir: str
+    logging_level: str = 'INFO'
 
     telegram_admin_ids: list[int]
 
