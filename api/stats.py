@@ -19,6 +19,7 @@ class CometaSnapshot:
     farm_tvl: float
     distribution_tvl: float
     timestamp: float
+    staking_tvl: float = 0
 
 
 tiny_client = init_tinyman_client(settings.algod_address)
@@ -28,9 +29,9 @@ snapshots = mongodb.database.snapshot
 logger = logging.getLogger(__name__)
 
 
-def save_snapshot(farm_tvl: float, distribution_tvl: float) -> CometaSnapshot:
+def save_snapshot(farm_tvl: float, distribution_tvl: float, staking_tvl: float) -> CometaSnapshot:
     cur_time = time.time()
-    snapshot = CometaSnapshot(farm_tvl, distribution_tvl, cur_time)
+    snapshot = CometaSnapshot(farm_tvl, distribution_tvl, cur_time, staking_tvl)
     snapshots.insert_one(snapshot.to_dict())
     return snapshot
 
@@ -61,5 +62,6 @@ def get_tvl() -> dict:
     return {
         'farm': snapshot.farm_tvl,
         'distribution': snapshot.distribution_tvl,
-        'total': snapshot.farm_tvl + snapshot.distribution_tvl
+        'staking': snapshot.staking_tvl,
+        'total': snapshot.farm_tvl + snapshot.distribution_tvl + snapshot.staking_tvl
     }
