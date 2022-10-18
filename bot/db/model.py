@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import List
 
 from dataclasses_json import dataclass_json
 
@@ -15,7 +15,7 @@ class CometaUser:
     # discord_id: int
     telegram_id: int
     last_reminded: int = 0
-    pools: Dict[int, UserPool] = field(default_factory=dict)
+    pools: List[UserPool] = field(default_factory=list)
 
     @property
     def no_remind_for(self) -> timedelta:
