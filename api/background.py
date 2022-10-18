@@ -8,7 +8,7 @@ from blockchain.node import get_current_round
 from core.cometa import calculate_tvl_for_type, get_pool_state
 from core.db.contracts import get_contracts_by_type, update_contract, get_contracts
 from core.decorators import safe_async_method, repeat_every
-from core.db.model import PoolStatus, PoolInfo
+from core.db.model import PoolStatus, PoolInfo, PoolType
 from core.db.pools import get_pools, update_pool, add_pool
 from core.util import strip_version
 from core.js_interop import calljs
@@ -42,9 +42,10 @@ async def update_contracts_cache(type: str) -> None:
 @safe_async_method
 async def record_contracts_stats() -> None:
     logger.info('Making snapshot of contracts TVL...')
-    farm_tvl = calculate_tvl_for_type('farm')
-    distribution_tvl = calculate_tvl_for_type('distribution')
-    save_snapshot(farm_tvl, distribution_tvl)
+    farm_tvl = calculate_tvl_for_type(PoolType.FARM)
+    distribution_tvl = calculate_tvl_for_type(PoolType.DISTRIBUTION)
+    staking_tvl = calculate_tvl_for_type(PoolType.STAKING)
+    save_snapshot(farm_tvl, distribution_tvl, staking_tvl)
 
 
 @safe_async_method
