@@ -90,9 +90,9 @@ async def update_contracts_worker():
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
 
-    await record_contracts_stats()
-
     await update_pools_info()
+
+    await record_contracts_stats()
 
 
 # TODO: graceful shutdown here (with signal handling?)
