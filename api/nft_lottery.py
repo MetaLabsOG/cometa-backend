@@ -5,6 +5,7 @@ from typing import Optional
 from dataclasses_json import dataclass_json
 
 from api.swaps import SwapInfo
+from blockchain.nfts import get_nft_info, NftInfo
 from core.db.db_manager import DbManager
 from env import settings
 
@@ -25,18 +26,18 @@ class NftLottery:
 @dataclass_json
 @dataclass
 class LotteryDraw:
-    swap_id: str
+    swap_txid: str
     asset_id: int
     wallet: str
     prize: Optional[int]
     claimed: bool = False
 
 
-nft_lotteries = DbManager[NftLottery](settings.db_name, 'nft_lotteries', 'asset_id', NftLottery)
-lottery_draws = DbManager[LotteryDraw](settings.db_name, 'lottery_draws', 'swap_id', LotteryDraw)
+nft_lotteries = DbManager[NftLottery](settings.db_name, 'nft_lotteries', 'name', NftLottery)
+lottery_draws = DbManager[LotteryDraw](settings.db_name, 'lottery_draws', 'swap_txid', LotteryDraw)
 
 
-def draw(lottery: NftLottery) -> Optional[int]:
+def draw_id(lottery: NftLottery) -> Optional[int]:
     if random.random() > lottery.probability:
         return None
     res = random.choice(lottery.available_nfts)
@@ -45,13 +46,14 @@ def draw(lottery: NftLottery) -> Optional[int]:
     return res
 
 
-def lottery_for_swap(swap: SwapInfo) -> Optional[int]:
+def lottery_for_swap(swap: SwapInfo) -> Optional[NftInfo]:
     # TODO: optimize to get by asset id when it's more of them
-    lotteries = nft_lotteries.get_many({})
+    lotteries = nft_lotteries.get_all()
     for asset_id, amount in [(swap.asset1_id, swap.asset1_amount), (swap.asset2_id, swap.asset2_amount)]:
         for lottery in lotteries:
             if lottery.is_eligible(asset_id, amount):
-                prize = draw(lottery)
-                lottery_draws.create(LotteryDraw(swap_id=swap.txid, asset_id=asset_id, prize=prize, wallet=swap.wallet))
-                return prize
+                prize_id = draw_id(lottery)
+                lottery_draws.create(LotteryDraw(swap_txid=swap.txid, asset_id=asset_id, prize=prize_id, wallet=swap.wallet))
+                if prize_id is not None:
+                    return get_nft_info(prize_id)
     return None

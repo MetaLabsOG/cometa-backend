@@ -292,7 +292,7 @@ async def humble_pools_all() -> List[humble.HumblePool]:
 # SWAP
 
 @app.post('/swap/lottery')
-async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> None:
+async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> Optional[NftInfo]:
     if get_swap_by_id(swap.txid) is not None:
         raise HTTPException(status_code=409, detail='Swap has already recorded')
 
@@ -305,18 +305,26 @@ async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> None:
 @app.post('/lottery/new')
 async def create_a_new_nft_lottery(lottery: NftLottery, password: str) -> None:
     check_password(password)
-    if nft_lotteries.get_one({'name': lottery.name}) is not None:
+    if nft_lotteries.get_by_primary_key(lottery.name) is not None:
         raise HTTPException(status_code=409, detail='Lottery with such name already exists')
     nft_lotteries.create(lottery)
 
 
+@app.post('/lottery/update')
+async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
+    check_password(password)
+    if nft_lotteries.get_by_primary_key(lottery.name) is None:
+        raise HTTPException(status_code=404, detail=f'Lottery with name {lottery.name} not found')
+    nft_lotteries.update(lottery)
+
+
 @app.patch('/lottery/claim')
-async def claim_prize_nft_for_swap(swap_id: str) -> None:
-    lottery_draw = lottery_draws.get_by_primary_key(swap_id)
+async def claim_prize_nft_for_swap(swap_txid: str) -> None:
+    lottery_draw = lottery_draws.get_by_primary_key(swap_txid)
     if lottery_draw is None:
-        raise HTTPException(status_code=404, detail=f'Lottery draw for {swap_id} not found')
+        raise HTTPException(status_code=404, detail=f'Lottery draw for {swap_txid} not found')
     if lottery_draw.prize is None:
-        raise HTTPException(status_code=403, detail=f'Lottery draw for {swap_id} has no prize')
+        raise HTTPException(status_code=403, detail=f'Lottery draw for {swap_txid} has no prize')
     send_nft(lottery_draw.wallet, lottery_draw.prize)
 
 
