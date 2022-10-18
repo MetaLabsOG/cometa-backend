@@ -10,7 +10,7 @@ def safe_async_method(fn):
             # TODO: 'TypeError: not all arguments converted during string formatting'
             # logging.error(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: ', e)
 
-            logging.error(f'Error in `{fn.__name__}: ', e)
+            logging.error(f'Error in `{fn.__name__}(*{args}, **{kwargs})`: {e}')
     return wrapper
 
 

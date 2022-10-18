@@ -40,4 +40,3 @@ async def notify_user(user: CometaUser):
         users.update_user(user)
 
         await app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
-

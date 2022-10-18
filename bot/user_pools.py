@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 async def update_user_pools(user: CometaUser) -> List[UserPool]:
     user_pools = await fetch_user_pools(user.algo_address)
     if user_pools:
-        user.pools = {p.pool_id: p for p in user_pools}
+        user.pools = user_pools
         users.update_user(user)
     return user_pools
 
@@ -23,7 +23,7 @@ async def update_user_pools(user: CometaUser) -> List[UserPool]:
 async def get_user_pools(user: CometaUser) -> List[UserPool]:
     if not user.pools:
         await update_user_pools(user)
-    return list(user.pools.values())
+    return user.pools
 
 
 def filter_ended_pools(pools: List[UserPool]) -> List[UserPool]:
