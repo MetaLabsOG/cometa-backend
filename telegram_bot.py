@@ -239,7 +239,7 @@ def setup_logging():
     logging.basicConfig(
         format=LOG_FORMAT,
         datefmt=LOG_DATE_FORMAT,
-        level='DEBUG'
+        level=bot_settings.logging_level
     )
 
 
