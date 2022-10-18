@@ -133,7 +133,7 @@ def recalculate_reward(pool: PoolState, current_block: int, staked: int, reward:
     return reward + reward_to_pay_now
 
 
-async def fetch_user_pools(address: str) -> List[UserPool]:
+async def fetch_user_pools(address: str) -> list[UserPool]:
     local_states = await get_local_states('farm', address) | await get_local_states('distribution', address)
     all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
     contract_by_id = {str(c.id): c for c in all_contracts}
