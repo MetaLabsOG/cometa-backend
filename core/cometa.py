@@ -5,7 +5,8 @@ from api.stats import get_lp_price
 from blockchain.assets import MICROALGOS_IN_ALGO
 from blockchain.indexer import get_asset
 from blockchain.node import get_current_round
-from core.db.contracts import get_contracts, get_contracts_by_type
+from core.db.contracts import get_contracts
+from core.db.pools import get_pools
 from core.js_interop import calljs
 from core.db.model import ContractInfo, PoolState, UserPool, PoolType
 from core.tinychart import get_asset_price, get_algo_price
@@ -190,12 +191,8 @@ async def fetch_user_pools(address: str) -> List[UserPool]:
 
 
 def calculate_tvl_for_type(type: str) -> float:
-    contracts = get_contracts_by_type(type)
+    pools = get_pools({'type': type})
     res = 0
-    for contract in contracts:
-        try:
-            pool_state = get_pool_state(contract)
-            res += pool_state.total_staked_usd
-        except Exception:
-            logger.error(f'Failed to calculate TVL for {contract.description}')
+    for pool in pools:
+        res += pool.staked_usd
     return res
