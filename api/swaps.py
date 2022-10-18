@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
 from core.db.db_manager import DbManager
+from env import settings
 
 
 @dataclass_json
@@ -16,7 +17,7 @@ class SwapInfo:
     asset2_amount: int
 
 
-swaps = DbManager('swaps', 'txid', SwapInfo)
+swaps = DbManager(settings.db_name, 'swaps', 'txid', SwapInfo)
 
 
 def get_swap_by_id(txid: str) -> SwapInfo:

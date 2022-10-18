@@ -6,7 +6,7 @@ from typing import Optional
 from cachetools import cached, TTLCache, FIFOCache
 from dataclasses_json import dataclass_json
 
-from core.db import mongodb
+from core.db.mongodb import get_db_collection
 from core.tinychart import get_asset_price
 from blockchain.node import init_algod_client
 from dexes.tinyman import init_tinyman_client, get_pool_info
@@ -24,7 +24,7 @@ class CometaSnapshot:
 
 tiny_client = init_tinyman_client(settings.algod_address)
 algod = init_algod_client()
-snapshots = mongodb.database.snapshot
+snapshots = get_db_collection(settings.db_name, 'snapshot')
 
 logger = logging.getLogger(__name__)
 

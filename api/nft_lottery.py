@@ -6,6 +6,7 @@ from dataclasses_json import dataclass_json
 
 from api.swaps import SwapInfo
 from core.db.db_manager import DbManager
+from env import settings
 
 
 @dataclass_json
@@ -31,8 +32,8 @@ class LotteryDraw:
     claimed: bool = False
 
 
-nft_lotteries = DbManager('nft_lotteries', 'asset_id', NftLottery)
-lottery_draws = DbManager('lottery_draws', 'swap_id', LotteryDraw)
+nft_lotteries = DbManager[NftLottery](settings.db_name, 'nft_lotteries', 'asset_id', NftLottery)
+lottery_draws = DbManager[LotteryDraw](settings.db_name, 'lottery_draws', 'swap_id', LotteryDraw)
 
 
 def draw(lottery: NftLottery) -> Optional[int]:
