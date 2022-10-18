@@ -22,7 +22,21 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     cache = metadata['cache']
     total_microtokens = parse_bignum(cache['global']['totalStaked'])
     additional = {}
+
     if contract.type == 'farm' and ('asset_1_id' in metadata or 'asset1_id' in metadata):
+        type = PoolType.FARM
+        asset_id = parse_bignum(cache['initial']['stakeToken'])
+    elif contract.type == 'farm':
+        asset_id = parse_bignum(cache['initial']['stakeToken'])
+        type = PoolType.STAKING
+    else:
+        asset_id = parse_bignum(cache['initial']['token'])
+        type = PoolType.DISTRIBUTION
+
+    if total_microtokens == 0:
+        total_cost = 0
+    elif contract.type == 'farm' and ('asset_1_id' in metadata or 'asset1_id' in metadata):
+        # different metadata format...
         if 'asset_1_id' in metadata:
             asset1_id = int(metadata['asset_1_id'])
             asset2_id = int(metadata['asset_2_id'])
@@ -30,22 +44,13 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
             asset1_id = int(metadata['asset1_id'])
             asset2_id = int(metadata['asset2_id'])
 
-        type = PoolType.FARM
         additional['asset1_id'] = asset1_id
         additional['asset2_id'] = asset2_id
-        asset_id = parse_bignum(cache['initial']['stakeToken'])
 
         total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
         lp_price = get_lp_price(asset1_id, asset2_id)
         total_cost = total_tokens * lp_price
     else:
-        if contract.type == 'farm':  # TODO: ну это technical debt, рефачить метадату срочно promptly
-            asset_id_field_name = 'stakeToken'
-            type = PoolType.STAKING
-        else:
-            asset_id_field_name = 'token'
-            type = PoolType.DISTRIBUTION
-        asset_id = parse_bignum(cache['initial'][asset_id_field_name])
         asset_info = get_asset(asset_id)
         total_tokens = total_microtokens / (10 ** asset_info['params']['decimals'])
         asset_price = get_asset_price(asset_id)

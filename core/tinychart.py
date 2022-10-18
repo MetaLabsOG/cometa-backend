@@ -11,7 +11,7 @@ BASE_URL = 'https://free-api.vestige.fi'
 
 logger = logging.getLogger(__name__)
 
-# https://free-api.vestige.fi/asset/773632446/price
+
 @dataclass
 class Price:
     usd: float
@@ -23,6 +23,7 @@ class Price:
 
 @cached(cache=TTLCache(maxsize=1, ttl=settings.algo_price_ttl))
 def get_algo_price() -> float:
+    # https://free-api.vestige.fi/asset/773632446/price
     url = f'{BASE_URL}/currency/USD/price'
     data = requests.get(url).json()
     return data['price']
@@ -34,10 +35,8 @@ def get_asset_price(asset_id: int) -> float:
         return get_algo_price()
     url = f'{BASE_URL}/asset/{asset_id}/price'
     logger.debug(f'Getting price for asset {asset_id} from {url}')
-    print(f'Getting price for asset {asset_id} from {url}')
     data = requests.get(url).json()
     logger.debug(f'Response: {data}')
-    print(f'Response: {data}')
     return data['USD']
 
 
