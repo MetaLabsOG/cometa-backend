@@ -1,12 +1,12 @@
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import Optional
 
 from core import tinychart
 from core.tinychart import Price
 from blockchain.assets import MICROALGOS_IN_ALGO
 from blockchain.indexer import get_account_assets
-from dexes.tinyman import get_all_assets, get_asset_info
+from dexes.tinyman import get_asset_info
 
 
 @dataclass
@@ -18,7 +18,7 @@ class AssetInfo:
     asset_id: int
 
 
-def get_wallet_assets(address: str) -> List[AssetInfo]:
+def get_wallet_assets(address: str) -> list[AssetInfo]:
     wallet_assets = get_account_assets(address)
     res = []
     for asset in wallet_assets:
@@ -47,7 +47,7 @@ class TimedCost:
     cost: Price
 
 
-def get_wallet_total_cost(address: str, weeks_count: int) -> List[TimedCost]:
+def get_wallet_total_cost(address: str, weeks_count: int) -> list[TimedCost]:
     # TODO: I should never write code again
     WEEK_SECONDS = 604800
     MAX_COST = (12851 + 1589 + 1125 + 1000 + 700 + 350 + 850) * MICROALGOS_IN_ALGO
@@ -75,7 +75,7 @@ class NftInfo:
     week_price_change: Optional[float] = None
 
 
-def get_wallet_nfts(address: str) -> List[NftInfo]:
+def get_wallet_nfts(address: str) -> list[NftInfo]:
     # TODO: implement
     if address == 'null':
         return []
@@ -138,20 +138,3 @@ def get_wallet_nfts(address: str) -> List[NftInfo]:
             4.5
         )
     ]
-
-
-# TODO: replace with get_wallet_assets with param 'get_price'
-def get_wallet_assets2(address: str) -> Dict[str, AssetInfo]:
-    assets_info = get_all_assets()
-    assets = get_account_assets(address)
-
-    wallet_assets = {}
-    for asset in assets:
-        asset_id = asset['asset-id']
-        if str(asset_id) in assets_info and asset['amount'] and not asset['deleted']:
-            asset_info = assets_info[str(asset_id)]
-            asset_amount = asset['amount'] / 10 ** asset_info['decimals']
-            # asset_price = get_asset_price(asset_id)
-            wallet_assets[str(asset_id)] = AssetInfo(asset_info['name'], asset_info['unit_name'], asset_amount, 0, asset_id)
-
-    return wallet_assets
