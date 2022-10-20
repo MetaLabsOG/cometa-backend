@@ -23,14 +23,9 @@ logger = logging.getLogger(__name__)
 async def update_contracts_cache(type: str) -> None:
     contracts = get_contracts_by_type(type)
     if len(contracts) > 0:
-        print(contracts)
         ids_and_versions = [{ 'id': info.id, 'version': strip_version(info.version) } for info in contracts]
-        print()
-        print(ids_and_versions)
         existing_metadatas = { info.id: info.metadata for info in contracts }
         states = await calljs("fetchContractsGlobalViews", contractType=type, idVersions=ids_and_versions)
-        print()
-        print(states)
 
         for s_id, state in states.items():
             id = int(s_id)
@@ -96,9 +91,10 @@ async def update_contracts_worker():
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
 
-    await update_pools_info()
-
-    await record_contracts_stats()
+    # TODO: to use it on testnet we need to stop calculate prices with vestige
+    if settings.is_mainnet():
+        await update_pools_info()
+        await record_contracts_stats()
 
 
 # TODO: graceful shutdown here (with signal handling?)
