@@ -9,6 +9,7 @@ from bot.context import app_context
 from bot.db import users
 from bot.db.model import CometaUser
 from bot.phrase_manager import Phrases
+from core.db.new_pools import NewPoolInfo
 from core.decorators import safe_async_method
 
 logger = logging.getLogger(__name__)
@@ -40,3 +41,14 @@ async def notify_user(user: CometaUser):
         users.update_user(user)
 
         await app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
+
+
+@safe_async_method
+async def notify_user_new_pool(user: CometaUser, pool: NewPoolInfo):
+    text = f'🤖 <i>{Phrases.greet()}️</i>\n\n'
+    text += f'🎉 Good news! New {pool.type} pool has started on Cometa!\n\n'
+    text += f'<b>{pool.name}</b>\n\n'
+    text += f'<i>Be one of the first to grab juicy APR</i>😏\n\n'
+    text += 'https://app.cometa.farm/'
+
+    await app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
