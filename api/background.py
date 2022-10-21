@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from blockchain.node import get_current_round
 from core.cometa import calculate_tvl_for_type, get_pool_state
 from core.db.contracts import get_contracts_by_type, update_contract, get_contracts
+from core.db.new_pools import new_pools, NewPoolInfo
 from core.decorators import safe_async_method, repeat_every
 from core.db.model import PoolStatus, PoolInfo, PoolType
 from core.db.pools import pools_db
@@ -55,7 +56,7 @@ async def update_pools_info() -> None:
     all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
     current_block = get_current_round()
     pools = pools_db.get_all()
-    pool_ids = [p.id for p in pools]
+    current_pools = {p.id: p.status for p in pools}
     for contract in all_contracts:
         try:
             pool_state = get_pool_state(contract)
@@ -75,10 +76,15 @@ async def update_pools_info() -> None:
                 status=pool_status
             )
 
-            if pool_info.id in pool_ids:
+            if pool_info.id in current_pools:
                 pools_db.update(pool_info)
+                old_status = current_pools[pool_info.id]
+                if old_status == PoolStatus.UPCOMING and pool_status == PoolStatus.LIVE:
+                    new_pools.create(NewPoolInfo(pool_info.id, pool_info.name, pool_info.type))
             else:
                 pools_db.create(pool_info)
+                if pool_status == PoolStatus.LIVE:
+                    new_pools.create(NewPoolInfo(pool_info.id, pool_info.name, pool_info.type))
 
         except Exception as e:
             logger.error(f'Failed to get info for pool {contract.description}')
