@@ -85,7 +85,7 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     logger.debug(f'total_algo_reward_usd = {total_algo_rewards_usd}')
     total_rewards_usd = total_reward_token_usd + total_algo_rewards_usd
 
-    current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR / length_blocks
+    current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR / length_blocks if total_cost > 0 else 0
 
     return PoolState(
         type=type,
