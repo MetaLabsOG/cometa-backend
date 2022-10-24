@@ -117,17 +117,20 @@ async def register_contract(contract: AddContract) -> None:
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
-    global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
-                                idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
-    if str(contract.id) not in global_views:
-        raise HTTPException(status_code=409,
-                            detail="Contract with given ID is not present in the network or does not match the given type")
+    cache_metadata = {}
 
-    view = global_views[str(contract.id)]
-
-    # Check that the contract's parameters are correct (beneficiary and creation fee are as we need them)    
-    # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
+    # TODO: check for LaaS contracts
     if contract.type in ('farm', 'distribution'):
+        global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
+                                    idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
+        if str(contract.id) not in global_views:
+            raise HTTPException(status_code=409,
+                                detail="Contract with given ID is not present in the network or does not match the given type")
+
+        view = global_views[str(contract.id)]
+
+        # Check that the contract's parameters are correct (beneficiary and creation fee are as we need them)
+        # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
         target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
         target_creation_fee = settings.farm_creation_fee
@@ -146,9 +149,10 @@ async def register_contract(contract: AddContract) -> None:
             raise HTTPException(status_code=403,
                                 detail=f"Farm's flat algo creation fee is invalid (expected {target_flat_algo_creation_fee})")
 
-    # Cache the contract's state right away so that user sees that it is displayed correctly right after
-    # the contract is created even without connected wallet.
-    cache_metadata = {"cache": view}
+        # Cache the contract's state right away so that user sees that it is displayed correctly right after
+        # the contract is created even without connected wallet.
+        cache_metadata = {"cache": view}
+
     metadata = cache_metadata if contract.metadata is None else {**contract.metadata, **cache_metadata}
     add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
 
