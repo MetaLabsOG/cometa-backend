@@ -13,7 +13,7 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import stats
-from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws
+from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize
 from api.swaps import SwapInfo, swaps, get_swap_by_id, record_swap
 from api.wallet import send_nft
 from bot.db.users import get_user_by_address
@@ -296,7 +296,7 @@ async def humble_pools_all() -> List[humble.HumblePool]:
 # SWAP
 
 @app.post('/swap/lottery')
-async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> Optional[NftInfo]:
+async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> Optional[NftPrize]:
     if get_swap_by_id(swap.txid) is not None:
         raise HTTPException(status_code=409, detail='Swap has already recorded')
 
