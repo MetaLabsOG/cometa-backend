@@ -329,7 +329,11 @@ async def claim_prize_nft_for_swap(swap_txid: str) -> None:
         raise HTTPException(status_code=404, detail=f'Lottery draw for {swap_txid} not found')
     if lottery_draw.prize is None:
         raise HTTPException(status_code=403, detail=f'Lottery draw for {swap_txid} has no prize')
+    if lottery_draw.claimed:
+        raise HTTPException(status_code=409, detail=f'Lottery draw for {swap_txid} has already claimed')
     send_nft(lottery_draw.wallet, lottery_draw.prize)
+    lottery_draw.claimed = True
+    lottery_draws.update(lottery_draw)
 
 
 @app.get('/lotteries/')
