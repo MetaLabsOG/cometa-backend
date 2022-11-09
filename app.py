@@ -1,7 +1,6 @@
 import logging
 import secrets
 import sys
-from dataclasses import dataclass
 from typing import List, Optional
 
 import uvicorn
@@ -14,7 +13,7 @@ from uvicorn.logging import ColourizedFormatter
 from airdrop import airdrop, snapshot
 from api import stats
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize
-from api.swaps import SwapInfo, swaps, get_swap_by_id, record_swap
+from api.swaps import SwapInfo, get_swap_by_id, record_swap
 from api.wallet import send_nft
 from bot.db.users import get_user_by_address
 from bot.user_pools import get_user_pools
@@ -331,7 +330,7 @@ async def claim_prize_nft_for_swap(swap_txid: str) -> None:
         raise HTTPException(status_code=403, detail=f'Lottery draw for {swap_txid} has no prize')
     if lottery_draw.claimed:
         raise HTTPException(status_code=409, detail=f'Lottery draw for {swap_txid} has already claimed')
-    send_nft(lottery_draw.wallet, lottery_draw.prize)
+    send_nft(lottery_draw.wallet, lottery_draw.prize, lottery_draw.nft_amount)
     lottery_draw.claimed = True
     lottery_draws.update(lottery_draw)
 
