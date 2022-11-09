@@ -294,7 +294,7 @@ async def humble_pools_all() -> List[humble.HumblePool]:
 
 # SWAP
 
-@app.post('/swap/lottery')
+@app.post('/swap/lottery', response_model=NftPrize)
 async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> Optional[NftPrize]:
     # TODO: check swap already recorded
 

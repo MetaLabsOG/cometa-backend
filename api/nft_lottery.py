@@ -66,7 +66,7 @@ def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
     for lottery in lotteries:
         swap_parts = [(swap.asset2_id, swap.asset2_amount)]
         if not lottery.only_for_buy:
-            swap_parts += (swap.asset1_id, swap.asset1_amount)
+            swap_parts.append((swap.asset1_id, swap.asset1_amount))
         for asset_id, amount in swap_parts:
             if lottery.is_eligible(asset_id, amount):
                 prize_id = draw_id(lottery)
