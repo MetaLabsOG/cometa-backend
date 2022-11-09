@@ -9,7 +9,7 @@ from env import settings
 @dataclass_json
 @dataclass
 class SwapInfo:
-    txid: str
+    txids: list[str]
     wallet: str
     asset1_id: int
     asset2_id: int
@@ -17,11 +17,7 @@ class SwapInfo:
     asset2_amount: int
 
 
-swaps = DbManager(settings.db_name, 'swaps', 'txid', SwapInfo)
-
-
-def get_swap_by_id(txid: str) -> SwapInfo:
-    return swaps.get_by_primary_key(txid)
+swaps = DbManager(settings.db_name, 'swaps', '_id', SwapInfo)
 
 
 def validate_swap(swap: SwapInfo) -> None:

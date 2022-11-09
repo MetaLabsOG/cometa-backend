@@ -1,4 +1,5 @@
 import random
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -29,10 +30,10 @@ class NftLottery:
 @dataclass_json
 @dataclass
 class LotteryDraw:
-    swap_txid: str
-    asset_id: int
+    lottery_name: str
     wallet: str
     prize: Optional[int]
+    timestamp: float
     claimed: bool = False
     nft_amount: float = 1
 
@@ -69,11 +70,11 @@ def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
         for asset_id, amount in swap_parts:
             if lottery.is_eligible(asset_id, amount):
                 prize_id = draw_id(lottery)
-                lottery_draws.create(LotteryDraw(swap_txid=swap.txid,
-                                                 asset_id=asset_id,
+                lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
                                                  prize=prize_id,
                                                  wallet=swap.wallet,
-                                                 nft_amount=lottery.nft_amount))
+                                                 nft_amount=lottery.nft_amount,
+                                                 timestamp=time.time()))
                 if prize_id is not None:
                     prize_info = get_nft_info(prize_id)
                     return NftPrize(asa_id=prize_id,
