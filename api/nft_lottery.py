@@ -19,7 +19,7 @@ class NftLottery:
     probability: float
     available_nfts: list[int]
     win_title: str = 'You have won a prize NFT!'
-    nft_amount: int = 1
+    nft_amount: float = 1
     only_for_buy: bool = False
 
     def is_eligible(self, asset_id: int, amount: float) -> bool:
@@ -34,7 +34,7 @@ class LotteryDraw:
     wallet: str
     prize: Optional[int]
     claimed: bool = False
-    nft_amount: int = 1
+    nft_amount: float = 1
 
 
 nft_lotteries = DbManager[NftLottery](settings.db_name, 'nft_lotteries', 'name', NftLottery)
