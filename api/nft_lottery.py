@@ -30,10 +30,10 @@ class NftLottery:
 @dataclass_json
 @dataclass
 class LotteryDraw:
-    lottery_name: str
     wallet: str
     prize: Optional[int]
-    timestamp: float
+    timestamp: Optional[float] = None
+    lottery_name: Optional[str] = None
     claimed: bool = False
     nft_amount: float = 1
 
