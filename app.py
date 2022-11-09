@@ -13,7 +13,7 @@ from uvicorn.logging import ColourizedFormatter
 from airdrop import airdrop, snapshot
 from api import stats
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize
-from api.swaps import SwapInfo, get_swap_by_id, record_swap
+from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
 from bot.db.users import get_user_by_address
 from bot.user_pools import get_user_pools
@@ -296,8 +296,7 @@ async def humble_pools_all() -> List[humble.HumblePool]:
 
 @app.post('/swap/lottery')
 async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> Optional[NftPrize]:
-    if get_swap_by_id(swap.txid) is not None:
-        raise HTTPException(status_code=409, detail='Swap has already recorded')
+    # TODO: check swap already recorded
 
     record_swap(swap)
     return lottery_for_swap(swap)
@@ -322,17 +321,14 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 
 
 @app.patch('/lottery/claim')
-async def claim_prize_nft_for_swap(swap_txid: str) -> None:
-    lottery_draw = lottery_draws.get_by_primary_key(swap_txid)
-    if lottery_draw is None:
-        raise HTTPException(status_code=404, detail=f'Lottery draw for {swap_txid} not found')
-    if lottery_draw.prize is None:
-        raise HTTPException(status_code=403, detail=f'Lottery draw for {swap_txid} has no prize')
-    if lottery_draw.claimed:
-        raise HTTPException(status_code=409, detail=f'Lottery draw for {swap_txid} has already claimed')
-    send_nft(lottery_draw.wallet, lottery_draw.prize, lottery_draw.nft_amount)
-    lottery_draw.claimed = True
-    lottery_draws.update(lottery_draw)
+async def claim_prize_nft_for_swap(wallet: str) -> None:
+    wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False})
+    if len(wins) == 0:
+        raise HTTPException(status_code=404, detail=f'Lottery draws for {wallet} are not found')
+    for lottery_draw in wins:
+        send_nft(lottery_draw.wallet, lottery_draw.prize, lottery_draw.nft_amount)
+        lottery_draw.claimed = True
+        lottery_draws.update(lottery_draw)
 
 
 @app.get('/lotteries/')
