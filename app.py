@@ -17,6 +17,7 @@ from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
 from bot.db.users import get_user_by_address
 from bot.user_pools import get_user_pools
+from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
@@ -80,7 +81,10 @@ async def wallet_nfts(address: str) -> List[NftInfo]:
 @app.get('/wallet/{address}/pools')
 async def wallet_pools(address: str) -> List[UserPool]:
     user = get_user_by_address(address)
-    return await get_user_pools(user)
+    if not user:
+        return await fetch_user_pools(address)
+    else:
+        return await get_user_pools(user)
 
 
 class AddContract(BaseModel):
