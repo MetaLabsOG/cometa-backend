@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import subprocess
 import shutil
 import socket
@@ -13,9 +14,13 @@ from env import settings
 
 COMETA_SOCK = f'/tmp/cometa-js-interop-{settings.algo_network}.sock'
 
+logger = logging.getLogger(__name__)
+
+
 def start_js_interop_server():
+    logger.info('Starting js interop server')
     if path.exists(COMETA_SOCK):
-        print(f'socket file {COMETA_SOCK} exists, cleaning...')
+        logger.info(f'Socket file {COMETA_SOCK} exists, cleaning...')
         os.unlink(COMETA_SOCK)
 
     jspath = path.join(DIR_PATH, "js", "index.js")
@@ -26,7 +31,10 @@ def start_js_interop_server():
     while not path.exists(COMETA_SOCK):
         time.sleep(0.1)
 
+    logger.info(f'Socket file {COMETA_SOCK} opened!')
+
     return proc
+
 
 async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
     loop = asyncio.get_event_loop()
@@ -39,9 +47,11 @@ async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int
     res, _, _ = buf.partition(delimeter)
     return res
 
+
 async def calljs(cmd: str, **params):
     if not path.exists(COMETA_SOCK):
-        raise Exception(f"No Unix socket {COMETA_SOCK}; did you start js interop server?")
+        logger.error(f'No Unix socket {COMETA_SOCK}; did you start js interop server?')
+        start_js_interop_server()
 
     inp = json.dumps({"command": cmd, "body": params})
     loop = asyncio.get_event_loop()
@@ -56,7 +66,7 @@ async def calljs(cmd: str, **params):
     response = json.loads(outp.decode('utf-8'))
 
     if "error" in response:
-        print('js stack trace:', response["stack"])
+        logger.error(f'js stack trace: {response["stack"]}')
         raise Exception(response["error"])
     
     return response["response"]
