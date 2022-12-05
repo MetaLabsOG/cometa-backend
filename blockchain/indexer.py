@@ -1,3 +1,5 @@
+import logging
+
 import requests
 from cachetools import cached, LRUCache
 
@@ -5,12 +7,14 @@ from env import settings
 
 
 BASE_URL = settings.algo_indexer_address
+logger = logging.getLogger(__name__)
 
 
 # TODO: use SDK
 @cached(cache=LRUCache(maxsize=2048))
 def get_asset(asset_id: int):
     url = f'{BASE_URL}/v2/assets/{asset_id}'
+    logger.debug(f'Fetching asset {asset_id} from {url}')
     return requests.get(url).json()['asset']
 
 
