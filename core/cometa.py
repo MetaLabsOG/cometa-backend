@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from api.stats import get_lp_price
@@ -107,15 +108,27 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     )
 
 
-async def get_local_states(contracts: list[ContractInfo], address: str) -> dict:
-    if not contracts:
+async def get_local_states_for_type(type: str, address: str, contracts: list[ContractInfo]) -> dict:
+    contracts = list(filter(lambda c: c.type == type, contracts))
+    if len(contracts) == 0:
         return {}
+
     ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
     local_states = await calljs('fetchContractsLocalViews',
                                 contractType=type,
                                 idVersions=ids_and_versions,
                                 walletAddress=address)
     return local_states
+
+
+async def get_local_states(contracts: list[ContractInfo], address: str) -> dict:
+    farm_states = get_local_states_for_type('farm', address, contracts)
+    distr_states = get_local_states_for_type('distribution', address, contracts)
+    list_of_states = await asyncio.gather(farm_states, distr_states)
+    res = {}
+    for states in list_of_states:
+        res.update(states)
+    return res
 
 
 def recalculate_reward(pool: PoolState, current_block: int, staked: int, reward: int,
