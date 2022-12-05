@@ -3,9 +3,11 @@ from cachetools import cached, LRUCache
 
 from env import settings
 
-BASE_URL = 'https://algoindexer.algoexplorerapi.io' if settings.is_mainnet() else 'https://algoindexer.testnet.algoexplorerapi.io'
+
+BASE_URL = settings.algo_indexer_address
 
 
+# TODO: use SDK
 @cached(cache=LRUCache(maxsize=2048))
 def get_asset(asset_id: int):
     url = f'{BASE_URL}/v2/assets/{asset_id}'
@@ -24,6 +26,12 @@ def get_account_assets(address: str) -> dict:
         'opted-in-at-round': 0
     })
     return assets
+
+
+def get_address_app_ids(address: str) -> list[int]:
+    url = f'{BASE_URL}/v2/accounts/{address}/'
+    data = requests.get(url).json()
+    return [app['id'] for app in data['account']['apps-local-state']]
 
 
 def get_asset_creator(asset_id: int) -> str:

@@ -1,14 +1,15 @@
 import logging
 from typing import List
 
-from bot.db import users
-from bot.db.model import CometaUser
 from core.cometa import fetch_user_pools
+from core.db.db_manager import DbManager
 from core.decorators import safe_async_method
-from core.db.model import UserPool
-
+from core.db.model import UserPool, CometaUser
+from env import settings
 
 logger = logging.getLogger(__name__)
+
+cometa_users = DbManager[CometaUser](settings.db_name, 'cometa_users', 'address', CometaUser)
 
 
 @safe_async_method
@@ -16,7 +17,7 @@ async def update_user_pools(user: CometaUser) -> List[UserPool]:
     user_pools = await fetch_user_pools(user.algo_address)
     if user_pools:
         user.pools = user_pools
-        users.update_user(user)
+        cometa_users.update(user)
     return user_pools
 
 

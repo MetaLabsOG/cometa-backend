@@ -1,33 +1,29 @@
-from typing import Optional, List
+from typing import Optional
 
 from bot.env import bot_settings
 from core.db.db_manager import DbManager
-from bot.db.model import CometaUser
+from bot.db.model import BotUser
 
 
-user_manager = DbManager[CometaUser](bot_settings.db_name, 'users', 'telegram_id', CometaUser)
+bot_users = DbManager[BotUser](bot_settings.db_name, 'bot_users', 'telegram_id', BotUser)
 
 
-def create_user(algo_address: str, telegram_id: int, telegram_chat_id: int) -> CometaUser:
-    user = CometaUser(algo_address, telegram_id, telegram_chat_id)
-    return user_manager.create(user)
+def create_user(algo_address: str, telegram_id: int) -> BotUser:
+    user = BotUser(algo_address, telegram_id)
+    return bot_users.create(user)
 
 
-def get_user(args: dict) -> Optional[CometaUser]:
-    return user_manager.get_one(args)
+def get_user(args: dict) -> Optional[BotUser]:
+    return bot_users.get_one(args)
 
 
-def get_users(args: dict) -> List[CometaUser]:
-    return user_manager.get_many(args)
-
-
-def get_user_by_address(address: str) -> CometaUser:
+def get_user_by_address(address: str) -> BotUser:
     return get_user({'algo_address': address})
 
 
-def get_user_by_tg(tg_id: int) -> CometaUser:
+def get_user_by_tg(tg_id: int) -> BotUser:
     return get_user({'telegram_id': tg_id})
 
 
-def update_user(user: CometaUser) -> CometaUser:
-    return user_manager.update(user)
+def update_user(user: BotUser) -> BotUser:
+    return bot_users.update(user)
