@@ -33,7 +33,7 @@ def get_account_assets(address: str) -> dict:
 
 
 def get_address_app_ids(address: str) -> list[int]:
-    url = f'{BASE_URL}/v2/accounts/{address}/'
+    url = f'{BASE_URL}/v2/accounts/{address}'
     data = requests.get(url).json()
     logger.info(f'Fetching app ids for {address} from {url}: {data}')
     return [app['id'] for app in data['account']['apps-local-state']]
