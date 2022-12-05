@@ -1,5 +1,5 @@
 import time
-from typing import List, Optional
+from typing import Optional
 
 from core.db.model import ContractInfo
 from core.db.mongodb import get_db_collection
@@ -29,11 +29,11 @@ def update_contract(id: int, description: Optional[str] = None, metadata: Option
         return False
 
 
-def get_contracts(args: dict) -> List[ContractInfo]:
+def get_contracts(args: dict) -> list[ContractInfo]:
     return list(map(ContractInfo.from_dict, collection.find(args)))
 
 
-def get_contracts_by_type(type: str) -> List[ContractInfo]:
+def get_contracts_by_type(type: str) -> list[ContractInfo]:
     return get_contracts({'type': type})
 
 
