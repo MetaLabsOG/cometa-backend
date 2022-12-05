@@ -4,10 +4,10 @@ import time
 from telegram.constants import ParseMode
 
 from bot.formatting import format_user_pool
-from bot.user_pools import get_user_pools, filter_compoundable_pools, filter_ended_pools
+from core.db.cometa_users import get_user_pools, filter_compoundable_pools, filter_ended_pools
 from bot.context import app_context
 from bot.db import users
-from bot.db.model import CometaUser
+from bot.db.model import BotUser
 from bot.phrase_manager import Phrases
 from core.db.new_pools import NewPoolInfo
 from core.decorators import safe_async_method
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @safe_async_method
-async def notify_user(user: CometaUser):
+async def notify_user(user: BotUser):
     pools = await get_user_pools(user)
 
     text = f'🤖 <i>{Phrases.greet()}️</i>\n'
@@ -44,7 +44,7 @@ async def notify_user(user: CometaUser):
 
 
 @safe_async_method
-async def notify_user_new_pool(user: CometaUser, pool: NewPoolInfo):
+async def notify_user_new_pool(user: BotUser, pool: NewPoolInfo):
     text = f'🤖 <i>{Phrases.greet()}️</i>\n\n'
     text += f'🎉 Good news! New {pool.type} pool has started on Cometa!\n\n'
     text += f'<b>{pool.name}</b>\n\n'

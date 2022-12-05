@@ -13,11 +13,14 @@ class Settings(BaseSettings):
     algod_address: str
     algod_token: str
 
+    algo_indexer_address: str
+
     server_port: int
     workers_num: int
 
     mongodb_host: str
     mongodb_port: int
+    migrate: bool = False
 
     api_password: str
     logging_level: str = 'INFO'

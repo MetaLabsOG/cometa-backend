@@ -10,10 +10,10 @@ from telegram.ext import CallbackContext, CommandHandler
 from bot.background import start_bg_tasks
 from bot.formatting import format_user_pool
 from bot.phrase_manager import Phrases
-from bot.user_pools import get_user_pools, filter_compoundable_pools, filter_ended_pools, filter_no_action_pools
+from core.db.cometa_users import get_user_pools, filter_compoundable_pools, filter_ended_pools, filter_no_action_pools
 from bot.context import app_context
-from bot.db.model import CometaUser
-from bot.db.users import create_user, get_user_by_tg, get_users
+from bot.db.model import BotUser
+from bot.db.users import create_user, get_user_by_tg, bot_users
 from bot.env import FEEDBACK_COMMAND, bot_settings, SUPPORT_COMMAND, MESSAGE_ALL_COMMAND
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 
@@ -30,7 +30,7 @@ async def start(update: Update, context: CallbackContext):
                                     '/help')
 
 
-async def check_registration(update: Update) -> Optional[CometaUser]:
+async def check_registration(update: Update) -> Optional[BotUser]:
     tg_user = update.message.from_user
     user = get_user_by_tg(tg_user.id)
     if user is None:
@@ -89,7 +89,7 @@ async def track_address(update: Update, context: CallbackContext):
 
     user = get_user_by_tg(tg_user.id)
     if user is None:
-        create_user(address, tg_user.id, tg_user.id)
+        create_user(address, tg_user.id)
         new_user_msg = f'New #user {tg_user.name}!\nAlgo address {address}'
         await context.bot.send_message(bot_settings.feedback_chat_id, new_user_msg)
     else:
@@ -142,7 +142,7 @@ async def message_all(update: Update, context: CallbackContext):
 
     text = update.message.text_markdown[len(MESSAGE_ALL_COMMAND) + 2:]
 
-    users = get_users({})
+    users = bot_users.get_all()
     for user in users:
         try:
             await context.bot.send_message(user.telegram_id, text)

@@ -3,10 +3,9 @@ import logging
 import multiprocessing
 from contextlib import contextmanager
 
-from bot.db import users
+from bot.db.users import bot_users
 from bot.env import bot_settings
 from bot.notifier import notify_user, notify_user_new_pool
-from bot.user_pools import update_user_pools
 from core.db.new_pools import new_pools
 from core.decorators import repeat_every, safe_async_method
 
@@ -15,11 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 @safe_async_method
-async def update_users_and_notify():
-    all_users = users.get_users({})
+async def notify_users():
+    all_users = bot_users.get_all()
 
     for user in all_users:
-        await update_user_pools(user)
         if user.should_remind():
             await notify_user(user)
 
@@ -28,7 +26,7 @@ async def update_users_and_notify():
 async def notify_new_pools():
     pools = new_pools.get_all()
     if pools:
-        all_users = users.get_users({})
+        all_users = bot_users.get_all()
         for pool in pools:
             for user in all_users:
                 await notify_user_new_pool(user, pool)
@@ -37,17 +35,17 @@ async def notify_new_pools():
 
 
 @repeat_every(bot_settings.user_pools_cache_ttl_seconds)
-async def update_and_notify():
-    logger.info('Updating users...')
+async def notify_all():
+    logger.info('Notifying...')
 
-    await update_users_and_notify()
+    await notify_users()
     await notify_new_pools()
 
 
 def run_background():
     async def tasks():
         await asyncio.gather(
-            update_and_notify()
+            notify_all()
         )
 
     asyncio.run(tasks())
