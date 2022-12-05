@@ -16,11 +16,12 @@ from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
 from bot.db.users import get_user_by_address
-from bot.user_pools import get_user_pools
+from core.db.cometa_users import get_user_pools
 from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
+from core.db.migrations.separate_user_info import migrate
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
@@ -391,6 +392,9 @@ if __name__ == "__main__":
 
         print(f'Command "{command}" is unknown!')
         exit(1)
+
+    if settings.migrate:
+        migrate()
 
     with start_js_interop_server():
         with start_bg_tasks():

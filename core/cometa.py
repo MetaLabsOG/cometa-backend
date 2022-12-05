@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from api.stats import get_lp_price
 from blockchain.assets import MICROALGOS_IN_ALGO
