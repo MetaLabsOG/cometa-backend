@@ -395,6 +395,7 @@ if __name__ == "__main__":
         exit(1)
 
     if settings.migrate:
+        print('MIGRATE = TRUE')
         migrate()
 
     with start_js_interop_server():
