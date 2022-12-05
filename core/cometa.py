@@ -2,7 +2,7 @@ import logging
 
 from api.stats import get_lp_price
 from blockchain.assets import MICROALGOS_IN_ALGO
-from blockchain.indexer import get_asset
+from blockchain.indexer import get_asset, get_address_app_ids
 from blockchain.node import get_current_round
 from core.db.contracts import get_contracts
 from core.db.pools import pools_db
@@ -107,12 +107,11 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
     )
 
 
-async def get_local_states(type: str, address: str) -> dict:
-    contracts = get_contracts({'type': type})
+async def get_local_states(contracts: list[ContractInfo], address: str) -> dict:
     if not contracts:
         return {}
     ids_and_versions = [{'id': info.id, 'version': strip_version(info.version)} for info in contracts]
-    local_states = await calljs("fetchContractsLocalViews",
+    local_states = await calljs('fetchContractsLocalViews',
                                 contractType=type,
                                 idVersions=ids_and_versions,
                                 walletAddress=address)
@@ -133,8 +132,12 @@ def recalculate_reward(pool: PoolState, current_block: int, staked: int, reward:
 
 
 async def fetch_user_pools(address: str) -> list[UserPool]:
-    local_states = await get_local_states('farm', address) | await get_local_states('distribution', address)
     all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
+    app_ids = get_address_app_ids(address)
+    contracts = list(filter(lambda contract: contract.id in app_ids, all_contracts))
+    logger.debug(f'{address} contract_ids = {[c.id for c in contracts]}')
+
+    local_states = await get_local_states(contracts, address)
     contract_by_id = {str(c.id): c for c in all_contracts}
     pools = []
     for pool_id, state in local_states.items():
