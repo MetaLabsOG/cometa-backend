@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
@@ -16,6 +16,7 @@ class ContractInfo:
     metadata: Optional[dict] = None
 
 
+@dataclass_json
 @dataclass
 class UserPool:
     pool_id: int
@@ -31,6 +32,13 @@ class UserPool:
 
     def is_ended(self) -> bool:
         return self.ended_duration is not None
+
+
+@dataclass_json
+@dataclass
+class CometaUser:
+    address: str
+    pools: list[UserPool] = field(default_factory=list)
 
 
 class PoolType(str, Enum):
