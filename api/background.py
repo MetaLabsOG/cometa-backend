@@ -6,7 +6,7 @@ from contextlib import contextmanager
 
 from blockchain.node import get_current_round
 from core.cometa import calculate_tvl_for_type, get_pool_state
-from core.db.cometa_users import cometa_users
+from core.db.cometa_users import cometa_users, update_user_pools
 from core.db.contracts import get_contracts_by_type, update_contract, get_contracts
 from core.db.new_pools import new_pools, NewPoolInfo
 from core.decorators import safe_async_method, repeat_every
@@ -93,11 +93,12 @@ async def update_pools_info() -> None:
 
 
 @safe_async_method
-async def update_user_pools():
+async def update_all_user_pools():
     logger.info('Updating user pools...')
     users = cometa_users.get_all()
     with spawn.Pool(10) as pool:
         pool.map_async(update_user_pools, users)
+    logger.info(f'Updated pools for {len(users)} users')
 
 
 @repeat_every(settings.contracts_cache_ttl)
