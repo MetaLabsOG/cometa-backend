@@ -10,7 +10,8 @@ from telegram.ext import CallbackContext, CommandHandler
 from bot.background import start_bg_tasks
 from bot.formatting import format_user_pool
 from bot.phrase_manager import Phrases
-from core.db.cometa_users import get_user_pools, filter_compoundable_pools, filter_ended_pools, filter_no_action_pools
+from core.db.cometa_users import get_user_pools, filter_compoundable_pools, filter_ended_pools, filter_no_action_pools, \
+    cometa_users
 from bot.context import app_context
 from bot.db.model import BotUser
 from bot.db.users import create_user, get_user_by_tg, bot_users
@@ -47,7 +48,7 @@ async def show_pools(update: Update, context: CallbackContext):
     if user is None:
         return
 
-    pools = await get_user_pools(user)
+    pools = cometa_users.get_by_primary_key(user.algo_address).pools
 
     if pools:
         reply_text = f'🤖 <i>{Phrases.check_pools()}</i>\n'
