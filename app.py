@@ -15,13 +15,12 @@ from api import stats
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
-from core.db.cometa_users import get_user_pools, cometa_users
-from core.cometa import fetch_user_pools
+from core.db.cometa_users import get_address_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.db.migrations.separate_user_info import migrate
-from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo, CometaUser
+from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 from core.util import parse_bignum, strip_version
@@ -63,31 +62,24 @@ async def status() -> dict:
 
 
 @app.get('/wallet/{address}/assets')
-async def wallet_assets(address: str) -> List[AssetInfo]:
+async def wallet_assets(address: str) -> list[AssetInfo]:
     assets = get_wallet_assets(address)
     return assets
 
 
 @app.get('/wallet/{address}/total_cost/')
-async def total_cost(address: str, weeks_count: Optional[int] = 1) -> List[TimedCost]:
+async def total_cost(address: str, weeks_count: Optional[int] = 1) -> list[TimedCost]:
     return get_wallet_total_cost(address, weeks_count)
 
 
 @app.get('/wallet/{address}/nfts')
-async def wallet_nfts(address: str) -> List[NftInfo]:
+async def wallet_nfts(address: str) -> list[NftInfo]:
     return get_wallet_nfts(address)
 
 
 @app.get('/wallet/{address}/pools')
-async def wallet_pools(address: str) -> List[UserPool]:
-    user = cometa_users.get_one({'address': address})
-    if not user:
-        pools = await fetch_user_pools(address)
-        if pools:
-            cometa_users.create(CometaUser(address=address, pools=pools))
-        return pools
-    else:
-        return await get_user_pools(user)
+async def wallet_pools(address: str) -> list[UserPool]:
+    return await get_address_pools(address)
 
 
 class AddContract(BaseModel):

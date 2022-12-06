@@ -3,10 +3,10 @@ import time
 
 from telegram.constants import ParseMode
 
+from bot.db.users import bot_users
 from bot.formatting import format_user_pool
-from core.db.cometa_users import get_user_pools, filter_compoundable_pools, filter_ended_pools
+from core.db.cometa_users import filter_compoundable_pools, filter_ended_pools, get_address_pools
 from bot.context import app_context
-from bot.db import users
 from bot.db.model import BotUser
 from bot.phrase_manager import Phrases
 from core.db.new_pools import NewPoolInfo
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 @safe_async_method
 async def notify_user(user: BotUser):
-    pools = await get_user_pools(user)
+    pools = await get_address_pools(user.algo_address)
 
     text = f'🤖 <i>{Phrases.greet()}️</i>\n'
 
@@ -37,10 +37,10 @@ async def notify_user(user: BotUser):
         # TODO: save all notifications to DB
         logger.debug(text)
 
-        user.last_reminded = int(time.time())
-        users.update_user(user)
-
         await app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
+
+        user.last_reminded = int(time.time())
+        bot_users.update(user)
 
 
 @safe_async_method

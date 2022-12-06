@@ -1,11 +1,10 @@
 from typing import Optional
 
-from bot.env import bot_settings
 from core.db.db_manager import DbManager
 from bot.db.model import BotUser
+from env import settings
 
-
-bot_users = DbManager[BotUser](bot_settings.db_name, 'bot_users', 'telegram_id', BotUser)
+bot_users = DbManager[BotUser](settings.db_name, 'bot_users', 'telegram_id', BotUser)
 
 
 def create_user(algo_address: str, telegram_id: int) -> BotUser:
