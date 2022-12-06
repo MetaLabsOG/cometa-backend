@@ -83,7 +83,8 @@ async def wallet_pools(address: str) -> List[UserPool]:
     user = cometa_users.get_one({'address': address})
     if not user:
         pools = await fetch_user_pools(address)
-        cometa_users.create(CometaUser(address=address, pools=pools))
+        if pools:
+            cometa_users.create(CometaUser(address=address, pools=pools))
         return pools
     else:
         return await get_user_pools(user)
