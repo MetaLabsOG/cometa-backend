@@ -110,7 +110,7 @@ async def update_contracts_worker():
     # TODO: to use it on testnet we need to stop calculate prices with vestige
     if settings.is_mainnet():
         await update_pools_info()
-        await update_user_pools()
+        await update_all_user_pools()
         await record_contracts_stats()
 
 
