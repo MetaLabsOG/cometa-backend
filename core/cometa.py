@@ -174,6 +174,9 @@ async def fetch_user_pools(address: str) -> list[UserPool]:
 
             staked_usd = pool_state.total_staked_usd * staked / pool_state.total_staked
 
+            staked_asset = get_asset(pool_state.stake_token_id)
+            staked_tokens = staked / (10 ** staked_asset['params']['decimals'])
+
             logger.debug(contract.description)
             logger.debug(contract.id)
 
@@ -196,7 +199,11 @@ async def fetch_user_pools(address: str) -> list[UserPool]:
                 staked_usd,
                 reward_usd,
                 lock_timestamp,
-                ended_duration
+                ended_duration,
+                staked_token_id=pool_state.stake_token_id,
+                staked_tokens=staked_tokens,
+                reward_token_id=pool_state.reward_token_id,
+                reward_tokens=reward_tokens
             ))
         except Exception as e:
             logger.error(f'Failed to get info for pool {pool_id}')
