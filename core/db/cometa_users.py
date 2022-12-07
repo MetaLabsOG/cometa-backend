@@ -14,7 +14,7 @@ cometa_users = DbManager[CometaUser](settings.db_name, 'cometa_users', 'address'
 
 @safe_async_method
 async def update_user_pools(user: CometaUser) -> list[UserPool]:
-    user_pools = await fetch_user_pools(user.algo_address)
+    user_pools = await fetch_user_pools(user.address)
     if user_pools:
         user.pools = user_pools
         cometa_users.update(user)
