@@ -96,8 +96,8 @@ async def update_pools_info() -> None:
 async def update_all_user_pools():
     logger.info('Updating user pools...')
     users = cometa_users.get_all()
-    with spawn.Pool(10) as pool:
-        pool.map_async(update_user_pools, users)
+    user_updates = list(map(update_user_pools, users))
+    await asyncio.gather(*user_updates)
     logger.info(f'Updated pools for {len(users)} users')
 
 
