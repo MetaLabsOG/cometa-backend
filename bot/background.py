@@ -38,8 +38,9 @@ async def notify_new_pools():
 async def notify_all():
     logger.info('Notifying...')
 
-    await notify_users()
-    await notify_new_pools()
+    if bot_settings.notify_users:
+        await notify_users()
+        await notify_new_pools()
 
 
 def run_background():
