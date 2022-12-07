@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     telegram_api_token: str
     discord_api_token: str
 
+    notify_users: bool = False
+
     mongodb_host: str
     mongodb_port: int
 
