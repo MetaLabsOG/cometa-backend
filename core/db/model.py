@@ -26,6 +26,10 @@ class UserPool:
     reward_usd: float
     lock_timestamp: int
     ended_duration: Optional[float]
+    staked_token_id: Optional[int] = None  # TODO: remove Optional when all UserPools are migrated
+    reward_token_id: Optional[int] = None
+    staked_tokens: Optional[float] = None
+    reward_tokens: Optional[float] = None
 
     def needs_compound(self) -> bool:
         return self.reward_usd / self.staked_usd > 0.01 if self.staked_usd > 0 else False
