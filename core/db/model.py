@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -31,6 +32,7 @@ class UserPool:
     staked_tokens: Optional[float] = None
     reward_tokens: Optional[float] = None
     staked_microtokens: Optional[str] = None
+    last_updated: Optional[datetime] = None
 
     def needs_compound(self) -> bool:
         return self.reward_usd / self.staked_usd > 0.01 if self.staked_usd > 0 else False
@@ -80,6 +82,8 @@ class PoolState:
     last_update_block: int
     reward_per_token_stored: int
 
+    last_updated: Optional[datetime] = None
+
 
 class PoolStatus(str, Enum):
     LIVE = 'live'
@@ -113,3 +117,5 @@ class PoolInfo:
     staked_usd: float
     current_apr: float
     status: PoolStatus
+
+    last_updated: Optional[datetime] = None
