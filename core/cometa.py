@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime
 
 from api.stats import get_lp_price
 from blockchain.assets import MICROALGOS_IN_ALGO
@@ -104,7 +105,8 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         length_blocks=length_blocks,
         algo_reward_per_block=algo_reward_per_block,
         current_apr=current_apr,
-        additional_info=additional
+        additional_info=additional,
+        last_updated=datetime.today()
     )
 
 
@@ -204,7 +206,8 @@ async def fetch_user_pools(address: str) -> list[UserPool]:
                 staked_tokens=staked_tokens,
                 reward_token_id=pool_state.reward_token_id,
                 reward_tokens=reward_tokens,
-                staked_microtokens=str(staked)
+                staked_microtokens=str(staked),
+                last_updated=datetime.today()
             ))
         except Exception as e:
             logger.error(f'Failed to get info for pool {pool_id}')
