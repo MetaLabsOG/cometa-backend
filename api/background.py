@@ -74,7 +74,8 @@ async def update_pools_info() -> None:
                 additional_algo_rewards=pool_state.total_algo_rewards > 0,
                 current_apr=pool_state.current_apr,
                 additional_info=pool_state.additional_info,
-                status=pool_status
+                status=pool_status,
+                last_updated=pool_state.last_updated
             )
 
             if pool_info.id in current_pools:
@@ -90,6 +91,8 @@ async def update_pools_info() -> None:
         except Exception as e:
             logger.error(f'Failed to get info for pool {contract.description}')
             logger.exception(e, exc_info=True)
+
+    logger.info(f'Updated {len(all_contracts)} pools info')
 
 
 @safe_async_method
