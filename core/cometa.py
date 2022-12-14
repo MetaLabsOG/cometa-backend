@@ -203,7 +203,8 @@ async def fetch_user_pools(address: str) -> list[UserPool]:
                 staked_token_id=pool_state.stake_token_id,
                 staked_tokens=staked_tokens,
                 reward_token_id=pool_state.reward_token_id,
-                reward_tokens=reward_tokens
+                reward_tokens=reward_tokens,
+                staked_microtokens=str(staked)
             ))
         except Exception as e:
             logger.error(f'Failed to get info for pool {pool_id}')

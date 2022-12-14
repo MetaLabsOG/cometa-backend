@@ -30,6 +30,7 @@ class UserPool:
     reward_token_id: Optional[int] = None
     staked_tokens: Optional[float] = None
     reward_tokens: Optional[float] = None
+    staked_microtokens: Optional[str] = None
 
     def needs_compound(self) -> bool:
         return self.reward_usd / self.staked_usd > 0.01 if self.staked_usd > 0 else False
