@@ -12,9 +12,10 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import stats
-from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize
+from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
+from core.cometa import fetch_user_pools
 from core.db.cometa_users import get_address_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
@@ -78,8 +79,11 @@ async def wallet_nfts(address: str) -> list[NftInfo]:
 
 
 @app.get('/wallet/{address}/pools')
-async def wallet_pools(address: str) -> list[UserPool]:
-    return await get_address_pools(address)
+async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
+    if cached:
+        return await get_address_pools(address)
+    else:
+        return await fetch_user_pools(address)
 
 
 class AddContract(BaseModel):
@@ -302,6 +306,19 @@ async def record_swap_and_check_nft_lottery(swap: SwapInfo) -> Optional[NftPrize
 
 
 # LOTTERY
+
+@app.post('/lottery/swap')
+async def nft_lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
+    # TODO: check swap already recorded
+
+    record_swap(swap)
+    return lottery_for_swap(swap)
+
+
+@app.post('/lottery/staking')
+async def nft_lottery_for_staking(address: str, pool_id: int) -> Optional[NftPrize]:
+    return lottery_for_staking(pool_id, address)
+
 
 @app.post('/lottery/new')
 async def create_a_new_nft_lottery(lottery: NftLottery, password: str) -> None:
