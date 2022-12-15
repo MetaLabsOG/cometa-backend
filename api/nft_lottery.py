@@ -1,6 +1,7 @@
 import random
 import time
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 from dataclasses_json import dataclass_json
@@ -11,17 +12,26 @@ from core.db.db_manager import DbManager
 from env import settings
 
 
+class LotteryType(str, Enum):
+    SWAP = 'swap'
+    STAKING = 'staking'
+
+    def __str__(self):
+        return self.value
+
+
 @dataclass_json
 @dataclass
 class NftLottery:
     name: str
+    type: str
     asset_id: int
     min_amount: int
     probability: float
     available_nfts: list[int]
     win_title: str = 'You have won a prize NFT!'
     nft_amount: float = 1
-    only_for_buy: bool = False
+    only_for_buy: Optional[bool] = None
 
     def is_eligible(self, asset_id: int, amount: float) -> bool:
         return asset_id == self.asset_id and amount >= self.min_amount
@@ -60,8 +70,7 @@ class NftPrize:
 
 
 def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
-    # TODO: optimize to get by asset id when it's more of them
-    lotteries = nft_lotteries.get_all()
+    lotteries = nft_lotteries.get_many({'type': LotteryType.SWAP})
 
     for lottery in lotteries:
         swap_parts = [(swap.asset2_id, swap.asset2_amount)]
@@ -81,4 +90,10 @@ def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
                                     name=prize_info.name,
                                     image_url=prize_info.image_url,
                                     title=lottery.win_title)
+    return None
+
+
+def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
+    lotteries = nft_lotteries.get_many({'type': LotteryType.STAKING})
+
     return None
