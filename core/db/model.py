@@ -118,4 +118,6 @@ class PoolInfo:
     current_apr: float
     status: PoolStatus
 
+    lock_length_blocks: Optional[int] = None
+
     last_updated: Optional[datetime] = None

@@ -75,6 +75,7 @@ async def update_pools_info() -> None:
                 current_apr=pool_state.current_apr,
                 additional_info=pool_state.additional_info,
                 status=pool_status,
+                lock_length_blocks=pool_state.lock_length_blocks,
                 last_updated=pool_state.last_updated
             )
 
