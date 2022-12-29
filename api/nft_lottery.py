@@ -64,6 +64,8 @@ logger = logging.getLogger(__name__)
 def draw_id(lottery: NftLottery) -> Optional[int]:
     if random.random() > lottery.probability:
         return None
+    if not lottery.available_nfts:
+        return None
     res = random.choice(lottery.available_nfts)
     lottery.available_nfts.remove(res)
     nft_lotteries.update(lottery)
