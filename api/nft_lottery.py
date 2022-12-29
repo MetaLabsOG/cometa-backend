@@ -27,13 +27,13 @@ class LotteryType(str, Enum):
 @dataclass
 class NftLottery:
     name: str
-    type: str
     asset_id: int
     min_amount: int
     probability: float
     available_nfts: list[int]
     win_title: str = 'You have won a prize NFT!'
     nft_amount: float = 1
+    type: Optional[str] = None
     only_for_buy: Optional[bool] = None
     pool_id: Optional[int] = None
 
