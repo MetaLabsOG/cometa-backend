@@ -343,7 +343,7 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
         raise HTTPException(status_code=404, detail=f'Lottery draws for {wallet} are not found')
     # for lottery_draw in wins:
     lottery_draw = wins[-1]
-    send_nft(lottery_draw.wallet, lottery_draw.prize, lottery_draw.nft_amount)
+    send_nft(lottery_draw.wallet, lottery_draw.prize, int(lottery_draw.nft_amount))
     lottery_draw.claimed = True
     lottery_draws.update(lottery_draw)
 
