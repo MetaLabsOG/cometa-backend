@@ -1,3 +1,4 @@
+import logging
 import random
 import time
 from dataclasses import dataclass
@@ -57,6 +58,8 @@ lottery_draws = DbManager[LotteryDraw](settings.db_name, 'lottery_draws', 'swap_
 
 algod_client = init_algod_client()
 
+logger = logging.getLogger(__name__)
+
 
 def draw_id(lottery: NftLottery) -> Optional[int]:
     if random.random() > lottery.probability:
@@ -113,6 +116,8 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
     if user_pool is None:
         return None
 
+    logger.info(f'Found user pool {user_pool}')
+
     if settings.lottery_check_lock:
         if user_pool.lock_timestamp == 0:
             return None
@@ -130,6 +135,9 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
     for lottery in lotteries:
         if not lottery.is_eligible(pool_id, user_pool.staked_tokens):
             continue
+
+        logger.info(f'Eligible for lottery {lottery}')
+
         prize_id = draw_id(lottery)
         lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
                                          prize=prize_id,
