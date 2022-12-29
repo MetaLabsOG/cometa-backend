@@ -113,18 +113,19 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
     if user_pool is None:
         return None
 
-    if user_pool.lock_timestamp == 0:
-        return None
+    if settings.lottery_check_lock:
+        if user_pool.lock_timestamp == 0:
+            return None
 
-    pool_info = pools_db.get_one({'id': pool_id})
-    if pool_info is None:
-        return None
+        pool_info = pools_db.get_one({'id': pool_id})
+        if pool_info is None:
+            return None
 
-    current_round = algod_client.status().get('last-round')
-    user_lock_length = current_round - user_pool.lock_timestamp
+        current_round = algod_client.status().get('last-round')
+        user_lock_length = current_round - user_pool.lock_timestamp
 
-    if user_lock_length < pool_info.lock_length_blocks:
-        return None
+        if user_lock_length < pool_info.lock_length_blocks:
+            return None
 
     for lottery in lotteries:
         if not lottery.is_eligible(pool_id, user_pool.staked_tokens):
