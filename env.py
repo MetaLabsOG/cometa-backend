@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     asset_prices_ttl: int
     total_tvl_ttl: int
 
+    lottery_check_lock: bool = True
+
     contracts_cache_ttl: int = 300
 
     class Config:
