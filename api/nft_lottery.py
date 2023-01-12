@@ -34,12 +34,14 @@ class NftLottery:
     available_nfts: list[int]
     win_title: str = 'You have won a prize NFT!'
     nft_amount: float = 1
+    max_amount: Optional[int] = None
     type: Optional[str] = None
     only_for_buy: Optional[bool] = None
     pool_id: Optional[int] = None
 
     def is_eligible(self, entity_id: int, amount: float) -> bool:
-        return (entity_id == self.asset_id or entity_id == self.pool_id) and amount >= self.min_amount
+        return (entity_id == self.asset_id or entity_id == self.pool_id) and amount >= self.min_amount and (
+                    self.max_amount is None or amount <= self.max_amount)
 
 
 @dataclass_json
