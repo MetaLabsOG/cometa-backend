@@ -56,7 +56,7 @@ if __name__ == '__main__':
         else:
             break
 
-    with open('cosmic_snapshot.json', 'w') as write_file:
+    with open('cosmic_snapshot_2.json', 'w') as write_file:
         json.dump(balances, write_file, indent=4, sort_keys=True)
 
     print(f'{len(all_txns)} processed!')
