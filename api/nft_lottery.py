@@ -33,7 +33,6 @@ class NftLottery:
     probability: float
     available_nfts: list[int]
     win_title: str = 'You have won a prize NFT!'
-    nft_amount: float = 1
     max_amount: Optional[int] = None
     type: Optional[str] = None
     only_for_buy: Optional[bool] = None
@@ -52,7 +51,6 @@ class LotteryDraw:
     timestamp: Optional[float] = None
     lottery_name: Optional[str] = None
     claimed: bool = False
-    nft_amount: float = 1
 
 
 nft_lotteries = DbManager[NftLottery](settings.db_name, 'nft_lotteries', 'name', NftLottery)
@@ -103,7 +101,6 @@ def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
                 lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
                                                  prize=prize_id,
                                                  wallet=swap.wallet,
-                                                 nft_amount=lottery.nft_amount,
                                                  timestamp=time.time()))
                 if prize_id is not None:
                     return get_nft_prize(lottery, prize_id)
@@ -141,6 +138,9 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
             return None
 
     for lottery in lotteries:
+        if len(lottery.available_nfts) == 0:
+            continue
+
         if not lottery.is_eligible(pool_id, user_pool.staked_tokens):
             continue
 
@@ -150,7 +150,6 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
         lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
                                          prize=prize_id,
                                          wallet=address,
-                                         nft_amount=lottery.nft_amount,
                                          timestamp=time.time()))
         if prize_id is not None:
             return get_nft_prize(lottery, prize_id)
