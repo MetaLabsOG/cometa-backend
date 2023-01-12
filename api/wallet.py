@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def send_nft(address: str, nft_id: int, amount: float = 1) -> None:
-    logger.info(f'Sending NFT {nft_id} to {address}')
+    logger.info(f'Sending {amount} NFT {nft_id} to {address}')
     params = algod.suggested_params()
     txn = AssetTransferTxn(
         sender=public_key,
@@ -26,4 +26,4 @@ def send_nft(address: str, nft_id: int, amount: float = 1) -> None:
 
     txid = algod.send_transaction(stxn)
     wait_for_confirmation(algod, txid)
-    logger.info(f'Sent NFT {nft_id} to {address} with tx {txid}')
+    logger.info(f'Sent {amount} NFT {nft_id} to {address} with tx {txid}')
