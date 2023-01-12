@@ -343,7 +343,7 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
         raise HTTPException(status_code=404, detail=f'Lottery draws for {wallet} are not found')
     # for lottery_draw in wins:
     lottery_draw = wins[-1]
-    send_nft(lottery_draw.wallet, lottery_draw.prize, int(lottery_draw.nft_amount))
+    send_nft(lottery_draw.wallet, lottery_draw.prize)
     lottery_draw.claimed = True
     lottery_draws.update(lottery_draw)
 
@@ -408,14 +408,4 @@ if __name__ == "__main__":
 
     with start_js_interop_server():
         with start_bg_tasks():
-            try:
-                send_nft('H74LG5REU6TVNFTXNTELPWDPBUFMX62J66VE2UCEY54NO626BFQ7G2RAI4', 981349173, 0.001)
-            except Exception as e:
-                print(e)
-
-            try:
-                send_nft('H74LG5REU6TVNFTXNTELPWDPBUFMX62J66VE2UCEY54NO626BFQ7G2RAI4', 981349173, 1)
-            except Exception as e:
-                print(e)
-
             uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
