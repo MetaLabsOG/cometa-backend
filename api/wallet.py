@@ -13,7 +13,7 @@ algod = init_algod_client()
 logger = logging.getLogger(__name__)
 
 
-def send_nft(address: str, nft_id: int, amount: int = 1) -> None:
+def send_nft(address: str, nft_id: int, amount: float = 1) -> None:
     logger.info(f'Sending NFT {nft_id} to {address}')
     params = algod.suggested_params()
     txn = AssetTransferTxn(
