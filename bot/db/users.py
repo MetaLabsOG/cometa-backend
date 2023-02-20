@@ -1,7 +1,7 @@
 from typing import Optional
 
-from core.db.db_manager import DbManager
 from bot.db.model import BotUser
+from core.db.db_manager import DbManager
 from env import settings
 
 bot_users = DbManager[BotUser](settings.db_name, 'bot_users', 'telegram_id', BotUser)

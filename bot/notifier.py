@@ -3,12 +3,12 @@ import time
 
 from telegram.constants import ParseMode
 
-from bot.db.users import bot_users
-from bot.formatting import format_user_pool
-from core.db.cometa_users import filter_compoundable_pools, filter_ended_pools, get_address_pools
 from bot.context import app_context
 from bot.db.model import BotUser
+from bot.db.users import bot_users
+from bot.formatting import format_user_pool
 from bot.phrase_manager import Phrases
+from core.db.cometa_users import filter_compoundable_pools, filter_ended_pools, get_address_pools
 from core.db.new_pools import NewPoolInfo
 from core.decorators import safe_async_method
 

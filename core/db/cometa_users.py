@@ -3,8 +3,8 @@ from typing import List
 
 from core.cometa import fetch_user_pools
 from core.db.db_manager import DbManager
-from core.decorators import safe_async_method
 from core.db.model import UserPool, CometaUser
+from core.decorators import safe_async_method
 from env import settings
 
 logger = logging.getLogger(__name__)

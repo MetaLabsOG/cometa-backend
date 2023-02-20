@@ -8,16 +8,15 @@ from telegram.constants import ParseMode
 from telegram.ext import CallbackContext, CommandHandler
 
 from bot.background import start_bg_tasks
-from bot.formatting import format_user_pool
-from bot.phrase_manager import Phrases
-from core.db.cometa_users import get_user_pools, filter_compoundable_pools, filter_ended_pools, filter_no_action_pools, \
-    cometa_users
 from bot.context import app_context
 from bot.db.model import BotUser
 from bot.db.users import create_user, get_user_by_tg, bot_users
 from bot.env import FEEDBACK_COMMAND, bot_settings, SUPPORT_COMMAND, MESSAGE_ALL_COMMAND
+from bot.formatting import format_user_pool
+from bot.phrase_manager import Phrases
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
-
+from core.db.cometa_users import filter_compoundable_pools, filter_ended_pools, filter_no_action_pools, \
+    cometa_users
 # TODO: move commands to separate files
 from core.js_interop import start_js_interop_server
 
