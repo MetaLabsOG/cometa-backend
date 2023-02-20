@@ -9,6 +9,7 @@ from typing import Optional
 from dataclasses_json import dataclass_json
 
 from api.swaps import SwapInfo
+from api.wallet import send_nft
 from blockchain.nfts import get_nft_info
 from blockchain.node import init_algod_client
 from core.db.cometa_users import get_address_pools
@@ -161,3 +162,29 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
             return get_nft_prize(lottery, prize_id)
 
     return None
+
+
+def send_all_prizes():
+    res = []
+    sent_count = 0
+    error_count = 0
+    for draw in lottery_draws.get_many({'claimed': False, 'prize': {'$ne': None}}):
+        info = {
+            'wallet': draw.wallet,
+            'prize': draw.prize,
+            'lottery': draw.lottery_name
+        }
+        try:
+            send_nft(draw.wallet, draw.prize)
+            info['sent'] = datetime.utcnow()
+            sent_count += 1
+        except Exception as e:
+            info['error'] = str(e)
+            error_count += 1
+        res.append(info)
+
+    return {
+        'sent_count': sent_count,
+        'error_count': error_count,
+        'results': res
+    }
