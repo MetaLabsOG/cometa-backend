@@ -12,7 +12,8 @@ from uvicorn.logging import ColourizedFormatter
 
 from airdrop import airdrop, snapshot
 from api import stats
-from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking
+from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
+    LotteryDraw
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
 from core.cometa import fetch_user_pools
@@ -84,6 +85,14 @@ async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
         return await get_address_pools(address)
     else:
         return await fetch_user_pools(address)
+
+
+@app.get('/wallet/{address}/lottery-draws')
+async def wallet_pools(address: str, win: Optional[bool] = None) -> list[LotteryDraw]:
+    args = {'wallet': address}
+    if win is not None:
+        args['prize'] = {'$ne': None}
+    return lottery_draws.get_many(args)
 
 
 class AddContract(BaseModel):

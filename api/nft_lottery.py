@@ -2,6 +2,7 @@ import logging
 import random
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -51,6 +52,11 @@ class LotteryDraw:
     timestamp: Optional[float] = None
     lottery_name: Optional[str] = None
     claimed: bool = False
+    created_date: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.timestamp:
+            self.created_date = datetime.fromtimestamp(self.timestamp)
 
 
 nft_lotteries = DbManager[NftLottery](settings.db_name, 'nft_lotteries', 'name', NftLottery)

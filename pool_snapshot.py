@@ -5,7 +5,7 @@ from algosdk.v2client import indexer
 
 indexer_client = indexer.IndexerClient(indexer_token='', indexer_address='https://algoindexer.algoexplorerapi.io/')
 
-POOL_ADDRESS = 'FE3YL7U7OFVUPHELNJLDQ7XYHWX5NWQWOYGD5B62VUGUDOXBY5SYXKQKF4'
+POOL_ADDRESS = 'P2MVQM57OYFSAKAHYCKJVV4Q4CEFHKITJ6NDTNERVMYVLTCQ4Q6SZ5D5VM'
 ASSET_TRANSFER_TX = 'asset-transfer-transaction'
 APPLICATION_CALL_TX = 'application-transaction'
 PAYMENT_TX = 'payment-transaction'
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     balances = defaultdict(lambda: 0)
 
     while True:
-        data = indexer_client.search_transactions_by_address(address='FE3YL7U7OFVUPHELNJLDQ7XYHWX5NWQWOYGD5B62VUGUDOXBY5SYXKQKF4',
+        data = indexer_client.search_transactions_by_address(address=POOL_ADDRESS,
                                                              next_page=next_token)
         txns = data['transactions']
         print(f'New txns, cnt = {len(txns)}')
@@ -56,7 +56,7 @@ if __name__ == '__main__':
         else:
             break
 
-    with open('cosmic_snapshot_2.json', 'w') as write_file:
+    with open(f'cosmic_stakes_{current_round}.json', 'w') as write_file:
         json.dump(balances, write_file, indent=4, sort_keys=True)
 
     print(f'{len(all_txns)} processed!')
