@@ -195,7 +195,7 @@ def send_all_prizes():
 def update_lottery_draws():
     with open('draws.json') as f:
         data = json.load(f)
-        for draw_json in data:
+        for draw_json in data['results']:
             print(f'\n{draw_json}')
             draws = lottery_draws.get_many({'wallet': draw_json['wallet'],
                                             'prize': draw_json['prize'],
