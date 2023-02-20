@@ -5,7 +5,6 @@ from cachetools import cached, LRUCache
 
 from env import settings
 
-
 BASE_URL = settings.algo_indexer_address
 logger = logging.getLogger(__name__)
 

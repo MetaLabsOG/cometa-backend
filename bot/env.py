@@ -2,7 +2,6 @@ from datetime import timedelta
 
 from pydantic import BaseSettings
 
-
 FEEDBACK_COMMAND = 'feedback'
 SUPPORT_COMMAND = 'support'
 MESSAGE_ALL_COMMAND = 'message_all'

@@ -1,13 +1,7 @@
-import { MongoClient } from "mongodb";
-import humble, { fetchLiquidityPool } from "@reach-sh/humble-sdk";
+import {MongoClient} from "mongodb";
+import humble, {fetchLiquidityPool} from "@reach-sh/humble-sdk";
 
-import {
-  MONGO_HOST,
-  MONGO_PORT,
-  COMETA_ENV,
-  NETWORK,
-  MNEMONIC,
-} from "./config.mjs";
+import {COMETA_ENV, MNEMONIC, MONGO_HOST, MONGO_PORT, NETWORK,} from "./config.mjs";
 
 const client = new MongoClient(`mongodb://${MONGO_HOST}:${MONGO_PORT}`);
 

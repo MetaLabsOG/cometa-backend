@@ -1,4 +1,3 @@
-import json
 import logging
 import random
 import time
@@ -179,10 +178,14 @@ def send_all_prizes():
         try:
             send_nft(draw.wallet, draw.prize)
             info['sent'] = datetime.utcnow()
+            draw.claimed = True
             sent_count += 1
         except Exception as e:
             info['error'] = str(e)
+            draw.send_error = str(e)
             error_count += 1
+
+        lottery_draws.update(draw)
         res.append(info)
 
     return {
@@ -190,26 +193,3 @@ def send_all_prizes():
         'error_count': error_count,
         'results': res
     }
-
-
-def update_lottery_draws():
-    with open('draws.json') as f:
-        data = json.load(f)
-        for draw_json in data['results']:
-            print(f'\n{draw_json}')
-            draws = lottery_draws.get_many({'wallet': draw_json['wallet'],
-                                            'prize': draw_json['prize'],
-                                            'lottery_name': draw_json['lottery']})
-
-            print(f'\n\ngot {len(draws)} draws for {draw_json}')
-
-            for draw in draws:
-                if not draw.claimed and draw.send_error is None:
-                    if draw_json.get('sent') is not None:
-                        draw.claimed = True
-                    else:
-                        draw.send_error = draw_json.get('error')
-
-                    print(f'\nUpdated draw: {draw}')
-                    lottery_draws.update(draw)
-                    break

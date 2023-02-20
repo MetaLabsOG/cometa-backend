@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from math import sqrt
 from pymongo import MongoClient
 
 from api import metapunks

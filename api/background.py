@@ -1,20 +1,19 @@
 import asyncio
 import logging
 import multiprocessing
-
 from contextlib import contextmanager
 
+from api.stats import save_snapshot
 from blockchain.node import get_current_round
 from core.cometa import calculate_tvl_for_type, get_pool_state
 from core.db.cometa_users import cometa_users, update_user_pools
 from core.db.contracts import get_contracts_by_type, update_contract, get_contracts
-from core.db.new_pools import new_pools, NewPoolInfo
-from core.decorators import safe_async_method, repeat_every
 from core.db.model import PoolStatus, PoolInfo, PoolType
+from core.db.new_pools import new_pools, NewPoolInfo
 from core.db.pools import pools_db
-from core.util import strip_version
+from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
-from api.stats import save_snapshot
+from core.util import strip_version
 from env import settings
 
 spawn = multiprocessing.get_context('spawn')
