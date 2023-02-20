@@ -1,3 +1,4 @@
+import json
 import logging
 import random
 import time
@@ -42,7 +43,7 @@ class NftLottery:
 
     def is_eligible(self, entity_id: int, amount: float) -> bool:
         return (entity_id == self.asset_id or entity_id == self.pool_id) and amount >= self.min_amount and (
-                    self.max_amount is None or amount <= self.max_amount)
+                self.max_amount is None or amount <= self.max_amount)
 
 
 @dataclass_json
@@ -54,6 +55,7 @@ class LotteryDraw:
     lottery_name: Optional[str] = None
     claimed: bool = False
     created_date: Optional[datetime] = None
+    send_error: Optional[str] = None
 
     def __post_init__(self):
         if self.timestamp:
@@ -188,3 +190,26 @@ def send_all_prizes():
         'error_count': error_count,
         'results': res
     }
+
+
+def update_lottery_draws():
+    with open('draws.json') as f:
+        data = json.load(f)
+        for draw_json in data:
+            print(f'\n{draw_json}')
+            draws = lottery_draws.get_many({'wallet': draw_json['wallet'],
+                                            'prize': draw_json['prize'],
+                                            'lottery_name': draw_json['lottery']})
+
+            print(f'\n\ngot {len(draws)} draws for {draw_json}')
+
+            for draw in draws:
+                if not draw.claimed and draw.send_error is None:
+                    if draw_json.get('sent') is not None:
+                        draw.claimed = True
+                    else:
+                        draw.send_error = draw_json.get('error')
+
+                    print(f'\nUpdated draw: {draw}')
+                    lottery_draws.update(draw)
+                    break
