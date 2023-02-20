@@ -7,7 +7,6 @@ from blockchain.assets import META_TOTAL_SUPPLY, META_DECIMALS, META_ASA_ID
 from blockchain.node import print_created_asset, init_algod_client
 from env import settings
 
-
 algod_client = init_algod_client()
 private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)

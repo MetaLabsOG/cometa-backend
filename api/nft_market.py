@@ -1,8 +1,8 @@
 from typing import List
 
-from .collection_manager import get_collection
 from blockchain.indexer import get_asset_creator
 from marketplaces import AlgoGems, RandGallery, AlgoXNft, Marketplace, Sale
+from .collection_manager import get_collection
 
 algogems = AlgoGems()
 randgallery = RandGallery()

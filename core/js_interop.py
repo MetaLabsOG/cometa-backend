@@ -1,12 +1,11 @@
 import asyncio
+import json
 import logging
-import subprocess
+import os
 import shutil
 import socket
-import json
-import os
+import subprocess
 import time
-
 from os import path
 
 from core.constants import DIR_PATH

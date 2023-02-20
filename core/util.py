@@ -2,7 +2,6 @@ import json
 
 from env import settings
 
-
 MINUTE_SECONDS = 60
 HOUR_SECONDS = 60 * MINUTE_SECONDS
 DAY_SECONDS = 24 * HOUR_SECONDS

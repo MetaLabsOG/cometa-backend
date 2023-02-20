@@ -5,7 +5,6 @@ from core.db.model import CometaUser
 from core.db.mongodb import get_db_collection
 from env import settings
 
-
 logger = logging.getLogger(__name__)
 
 
