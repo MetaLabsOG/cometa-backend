@@ -2,20 +2,23 @@
 def seconds_format(s: float):
     seconds = int(s)
     periods = [
-        ('year',        60*60*24*365),
-        ('month',       60*60*24*30),
-        ('day',         60*60*24),
-        ('hour',        60*60),
-        ('minute',      60),
-        ('second',      1)
+        ('год', 'года',      60*60*24*365),
+        ('месяц', 'месяца',  60*60*24*30),
+        ('день', 'дней',     60*60*24),
+        ('час', 'часа',      60*60),
+        ('минута', 'минут',  60),
+        ('секунда', 'секунд', 1)
     ]
 
-    strings=[]
-    for period_name, period_seconds in periods:
+    strings = []
+    for period_name, periods_name, period_seconds in periods:
         if seconds > period_seconds:
-            period_value , seconds = divmod(seconds, period_seconds)
-            has_s = 's' if period_value > 1 else ''
-            strings.append("%s %s%s" % (period_value, period_name, has_s))
+            period_value, seconds = divmod(seconds, period_seconds)
+            name = periods_name if period_value > 1 else period_name
+            return f'{period_value} {name}'
+
+            # TODO: remove return to have more details
+            # strings.append(f'{period_value} {name}')
 
     return ", ".join(strings)
 
