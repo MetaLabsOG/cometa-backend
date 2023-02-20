@@ -1,5 +1,6 @@
-from typing import List, Optional
 from dataclasses import dataclass
+from typing import List, Optional
+
 from dataclasses_json import dataclass_json
 
 from core.db.mongodb import get_db_collection

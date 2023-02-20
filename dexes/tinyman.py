@@ -4,17 +4,16 @@ from dataclasses import dataclass
 from typing import Optional
 
 from algosdk import account, encoding, mnemonic
+from algosdk.future.transaction import ApplicationOptInTxn, AssetOptInTxn, PaymentTxn
 from algosdk.v2client.algod import AlgodClient
 from cachetools import TTLCache, cached
 from tinyman.assets import Asset
-from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
 from tinyman.utils import TransactionGroup
-from algosdk.future.transaction import ApplicationOptInTxn, AssetOptInTxn, PaymentTxn
+from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
 
 from blockchain.assets import ALGO_ASA_ID, USDC_ASA_ID
 from blockchain.node import init_algod_client
 from env import settings
-
 
 ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
 

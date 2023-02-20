@@ -1,13 +1,13 @@
 import path from "path";
 import semver from "semver";
-import { fileURLToPath } from "url";
-import { readFileSync } from "fs";
-import { loadStdlib } from "@reach-sh/stdlib";
+import {fileURLToPath} from "url";
+import {readFileSync} from "fs";
+import {loadStdlib} from "@reach-sh/stdlib";
 import algosdk from 'algosdk';
 import * as RHC from '@reach-sh/stdlib/dist/cjs/ALGO_ReachHTTPClient.js';
 import * as UTBC from '@reach-sh/stdlib/dist/cjs/ALGO_UTBC.js';
 
-import { deployStandardContract } from "@metalabsog/common";
+import {deployStandardContract} from "@metalabsog/common";
 
 import * as crowdsale from "@metalabsog/crowdsale";
 import * as farm_17_2_4 from "metalabsog-farm-17_2_4";
@@ -15,7 +15,7 @@ import * as farm_17_2_5 from "metalabsog-farm-17_2_5";
 import * as distribution_17_0_4 from "metalabsog-distribution-17_0_4";
 import * as distribution_17_0_5 from "metalabsog-distribution-17_0_5";
 
-import { NETWORK, MNEMONIC, REACH_ALGO_ENV } from "./config.mjs";
+import {MNEMONIC, REACH_ALGO_ENV} from "./config.mjs";
 
 // This module is ES module because our contract modules are ES modules, and we want them
 // to be loaded synchronously.

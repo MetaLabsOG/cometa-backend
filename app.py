@@ -4,33 +4,32 @@ import sys
 from typing import List, Optional
 
 import uvicorn
+from algosdk import account, mnemonic, encoding
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
-from algosdk import account, mnemonic, encoding
 from uvicorn.logging import ColourizedFormatter
 
+import dexes.humble as humble
 from airdrop import airdrop, snapshot
 from api import stats
+from api.background import start_bg_tasks
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
-    LotteryDraw, send_all_prizes, update_lottery_draws
+    LotteryDraw, send_all_prizes
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
+from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 from core.cometa import fetch_user_pools
-from core.db.cometa_users import get_address_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
+from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
 from core.db.migrations.separate_user_info import migrate
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
-from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
-from core.util import parse_bignum, strip_version
 from core.js_interop import calljs, start_js_interop_server
-
-import dexes.humble as humble
+from core.util import parse_bignum, strip_version
 from env import settings
-from api.background import start_bg_tasks
 
 VERSION = '0.2.0'
 app = FastAPI(
@@ -424,9 +423,6 @@ if __name__ == "__main__":
     if settings.migrate:
         print('MIGRATE = TRUE')
         migrate()
-
-    # TODO: remove, temporary
-    update_lottery_draws()
 
     with start_js_interop_server():
         with start_bg_tasks():
