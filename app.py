@@ -13,7 +13,7 @@ from uvicorn.logging import ColourizedFormatter
 from airdrop import airdrop, snapshot
 from api import stats
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
-    LotteryDraw, send_all_prizes
+    LotteryDraw, send_all_prizes, update_lottery_draws
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
 from core.cometa import fetch_user_pools
@@ -347,13 +347,17 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 
 @app.patch('/lottery/claim')
 async def claim_prize_nft_for_swap(wallet: str) -> None:
-    wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False})
+    wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
     if len(wins) == 0:
         raise HTTPException(status_code=404, detail=f'Lottery draws for {wallet} are not found')
-    # for lottery_draw in wins:
     lottery_draw = wins[-1]
-    send_nft(lottery_draw.wallet, lottery_draw.prize)
-    lottery_draw.claimed = True
+
+    try:
+        send_nft(lottery_draw.wallet, lottery_draw.prize)
+        lottery_draw.claimed = True
+    except Exception as e:
+        lottery_draw.send_error = str(e)
+
     lottery_draws.update(lottery_draw)
 
 
@@ -420,6 +424,9 @@ if __name__ == "__main__":
     if settings.migrate:
         print('MIGRATE = TRUE')
         migrate()
+
+    # TODO: remove, temporary
+    update_lottery_draws()
 
     with start_js_interop_server():
         with start_bg_tasks():
