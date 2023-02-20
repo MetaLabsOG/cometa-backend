@@ -13,7 +13,7 @@ from uvicorn.logging import ColourizedFormatter
 from airdrop import airdrop, snapshot
 from api import stats
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
-    LotteryDraw
+    LotteryDraw, send_all_prizes
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
 from core.cometa import fetch_user_pools
@@ -361,6 +361,12 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
 async def get_lotteries(password: str) -> List[NftLottery]:
     check_password(password)
     return nft_lotteries.get_all()
+
+
+@app.get('/lotteries/resend')
+async def resend_prizes(password: str) -> List[NftLottery]:
+    check_password(password)
+    return send_all_prizes()
 
 
 # Statistics
