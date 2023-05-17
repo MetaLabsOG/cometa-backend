@@ -1,6 +1,7 @@
 import logging
 import secrets
 import sys
+from enum import Enum
 from typing import List, Optional
 
 import uvicorn
@@ -23,7 +24,7 @@ from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
-    remove_contracts, update_contract
+    remove_contracts, update_contract, get_all_contracts
 from core.db.migrations.separate_user_info import migrate
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
@@ -47,6 +48,7 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+logger = logging.getLogger(__name__)
 
 
 def check_password(password: str) -> None:
@@ -111,6 +113,8 @@ class ModifyContract(BaseModel):
 
 @app.post('/contract/add')
 async def add_new_contract(contract: AddContract, password: str) -> dict:
+    logger.info(f'Adding a new contract {contract}')
+
     check_password(password)
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
@@ -143,17 +147,12 @@ async def register_contract(contract: AddContract) -> None:
         # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
         target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
-        target_creation_fee = settings.farm_creation_fee
         target_flat_algo_creation_fee = settings.farm_flat_algo_creation_fee * 1000000  # in microtokens
 
         contract_beneficiary = view['initial']['beneficiary']
         if contract_beneficiary != target_beneficiary_hex:
             raise HTTPException(status_code=403,
                                 detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary}")
-
-        if parse_bignum(view['initial']['creationFee']) != target_creation_fee:
-            raise HTTPException(status_code=403,
-                                detail=f"Farm's creation fee is invalid (expected {target_creation_fee}")
 
         if parse_bignum(view['initial']['flatAlgoCreationFee']) != target_flat_algo_creation_fee:
             raise HTTPException(status_code=403,
@@ -227,9 +226,21 @@ async def get_local_states(type: str, address: str) -> dict:
     return {}
 
 
+class ContractType(Enum, str):
+    FARM = 'farm'
+    DISTRIBUTION = 'distribution'
+
+
 @app.get('/contracts')
-async def get_contracts(type: str) -> List[ContractInfo]:
-    return get_contracts_by_type(type)
+async def get_contracts(type: ContractType | None = None, max_count: int | None = None) -> List[ContractInfo]:
+    if type is None:
+        contracts = get_all_contracts()
+    else:
+        contracts = get_contracts_by_type(type)
+    contracts = contracts.reverse()
+    if max_count is not None:
+        contracts = contracts[:max_count]
+    return contracts
 
 
 @app.delete('/contracts')

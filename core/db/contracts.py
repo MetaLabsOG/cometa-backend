@@ -33,6 +33,10 @@ def get_contracts(args: dict) -> list[ContractInfo]:
     return list(map(ContractInfo.from_dict, collection.find(args)))
 
 
+def get_all_contracts() -> list[ContractInfo]:
+    return get_contracts({})
+
+
 def get_contracts_by_type(type: str) -> list[ContractInfo]:
     return get_contracts({'type': type})
 
