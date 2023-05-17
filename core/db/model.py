@@ -14,7 +14,7 @@ class ContractInfo:
     version: str
     deployed_timestamp: float
     description: str
-    deployed_date: datetime | None = None
+    deployed_date: Optional[datetime] = None
     metadata: Optional[dict] = None
 
     def __post_init__(self):
