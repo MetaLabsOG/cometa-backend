@@ -226,7 +226,7 @@ async def get_local_states(type: str, address: str) -> dict:
     return {}
 
 
-class ContractType(Enum, str):
+class ContractType(str, Enum):
     FARM = 'farm'
     DISTRIBUTION = 'distribution'
 
