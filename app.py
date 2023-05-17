@@ -232,7 +232,7 @@ class ContractType(Enum, str):
 
 
 @app.get('/contracts')
-async def get_contracts(type: ContractType | None = None, max_count: int | None = None) -> List[ContractInfo]:
+async def get_contracts(type: Optional[ContractType] = None, max_count: Optional[int] = None) -> List[ContractInfo]:
     if type is None:
         contracts = get_all_contracts()
     else:
