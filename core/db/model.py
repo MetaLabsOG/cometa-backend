@@ -14,7 +14,12 @@ class ContractInfo:
     version: str
     deployed_timestamp: float
     description: str
+    deployed_date: datetime | None = None
     metadata: Optional[dict] = None
+
+    def __post_init__(self):
+        if self.deployed_timestamp is not None:
+            self.deployed_date = datetime.fromtimestamp(self.deployed_timestamp)
 
 
 @dataclass_json

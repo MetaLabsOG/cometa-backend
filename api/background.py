@@ -110,7 +110,7 @@ async def update_contracts_worker():
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
 
-    # TODO: to use it on testnet we need to stop calculate prices with vestige
+    # TODO: to use it on testnet we need to stop calculate prices with vestige API
     if settings.is_mainnet():
         await update_pools_info()
         await update_all_user_pools()
