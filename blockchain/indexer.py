@@ -1,4 +1,6 @@
+import json
 import logging
+from typing import Optional
 
 import requests
 from cachetools import cached, LRUCache
@@ -73,6 +75,3 @@ def get_asset_ids_by_creator(address):
 
     return asset_ids
 
-
-if __name__ == '__main__':
-    print(get_asset_creator(485475194))
