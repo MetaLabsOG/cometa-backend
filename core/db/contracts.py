@@ -37,7 +37,9 @@ def get_all_contracts() -> list[ContractInfo]:
     return get_contracts({})
 
 
-def get_contracts_by_type(type: str) -> list[ContractInfo]:
+def get_contracts_by_type(type: str | None) -> list[ContractInfo]:
+    if type is None:
+        return get_contracts({'type': {'$in': ['distribution', 'farm']}})
     return get_contracts({'type': type})
 
 
