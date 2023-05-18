@@ -244,7 +244,7 @@ async def get_contracts(type: Optional[ContractType] = None, max_count: Optional
 
 
 @app.get('/contracts/type')
-async def get_contracts_by_type(type: str) -> List[ContractInfo]:
+async def get_contracts_with_type(type: str) -> List[ContractInfo]:
     return get_contracts_by_type(type)
 
 
