@@ -17,6 +17,7 @@ from api import stats
 from api.background import start_bg_tasks
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
+from api.pool_snapshot import get_pool_snapshot
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
@@ -268,6 +269,14 @@ async def verify_pool(pool_id: int, password: str) -> str:
     new_metadata = {**contract.metadata, 'verified': True}
     update_contract(pool_id, metadata=new_metadata)
     return 'Success!'
+
+
+@app.get('/pools/snapshot')
+async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[int] = None) -> dict:
+    if password != 'YouShallNotPass':
+        raise HTTPException(status_code=403, detail="Wrong password bro.")
+    wallets = get_pool_snapshot(pool_id, max_round)
+    return dict(sorted(wallets.items()))
 
 
 # HUMBLE POOLS
