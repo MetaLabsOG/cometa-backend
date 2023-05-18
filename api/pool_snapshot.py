@@ -16,29 +16,13 @@ PAYMENT_TX = 'payment-transaction'
 
 def get_pool_wallet(pool_id: int) -> Optional[str]:
     data = indexer_client.application_logs(application_id=pool_id, limit=10)
-
-    print(f'\n\n\n\n\n\nlog = {json.dumps(data, indent=2)}\n\n\n\n\n\n')
-
-    # url = f'{BASE_URL}/v2/applications/{pool_id}/logs?limit=10'
-    # data = requests.get(url).json()
     log_data = data.get('log-data')
     if log_data is None or len(log_data) == 0:
         return None
 
-    print(f'\n\n\n\n\n\nlog = {json.dumps(log_data, indent=2)}\n\n\n\n\n\n')
-
-    # I could use SDK here, but I'm lazy
     txid = log_data[0]['txid']
-    # url = f'{BASE_URL}/v2/transactions/{txid}'
-    # data = requests.get(url).json()
     data = indexer_client.transaction(txid=txid)
-
-    print(f'\n\n\n\n\n\nlog = {json.dumps(data, indent=2)}\n\n\n\n\n\n')
-
     transaction = data.get('transaction')
-
-    print(f'\n\n\n\n\n\ntx = {json.dumps(transaction, indent=2)}\n\n\n\n\n\n')
-
     if transaction is None:
         return None
 
