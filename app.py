@@ -243,6 +243,11 @@ async def get_contracts(type: Optional[ContractType] = None, max_count: Optional
     return contracts
 
 
+@app.get('/contracts/type')
+async def get_contracts_by_type(type: str) -> List[ContractInfo]:
+    return get_contracts_by_type(type)
+
+
 @app.delete('/contracts')
 async def remove_contracts_by_type(type: str, password: str) -> dict:
     check_password(password)
