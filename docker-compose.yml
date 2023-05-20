@@ -14,6 +14,8 @@ services:
             - "/tmp/cometa:/tmp"
         ports:
             - "${SERVER_PORT}:${SERVER_PORT}"
+        expose:
+            - "${SERVER_PORT}"
         depends_on:
             - mongodb
         logging:
