@@ -129,6 +129,8 @@ async def add_new_contract(contract: AddContract, password: str) -> dict:
 # really exists in the network, has a correct type and is fully deployed
 @app.post('/contract/register')
 async def register_contract(contract: AddContract) -> None:
+    logger.info(f'Registering a new contract {contract}')
+
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
@@ -164,6 +166,7 @@ async def register_contract(contract: AddContract) -> None:
         cache_metadata = {"cache": view}
 
     metadata = cache_metadata if contract.metadata is None else {**contract.metadata, **cache_metadata}
+    logger.info(f'Registering a contract with metadata:\n{metadata}')
     add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
 
 
@@ -176,6 +179,8 @@ class DeployContract(BaseModel):
 
 @app.post('/contract/deploy')
 async def deploy_contract(password: str, parameters: DeployContract) -> dict:
+    logger.info(f'Deploying a new contract {parameters}')
+
     check_password(password)
     version = await calljs("contractVersion", contractType=parameters.type)
     contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
@@ -185,6 +190,8 @@ async def deploy_contract(password: str, parameters: DeployContract) -> dict:
 
 @app.patch('/contract/update')
 async def update(contract: ModifyContract, password: str) -> dict:
+    logger.info(f'Updating contract {contract}')
+
     check_password(password)
     if get_contract(contract.id) is None:
         raise HTTPException(status_code=404, detail="Contract not found")
