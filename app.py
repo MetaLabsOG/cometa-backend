@@ -240,9 +240,14 @@ class ContractType(str, Enum):
 
 
 @app.get('/contracts')
-async def get_contracts(type: Optional[ContractType] = None, max_count: Optional[int] = None) -> List[ContractInfo]:
+async def get_contracts(
+        type: Optional[ContractType] = None,
+        max_count: Optional[int] = None,
+        new_first: bool = False
+) -> List[ContractInfo]:
     contracts = get_contracts_by_type(type)
-    contracts.reverse()
+    if new_first:
+        contracts.reverse()
     if max_count is not None:
         contracts = contracts[:max_count]
     return contracts
