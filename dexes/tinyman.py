@@ -18,6 +18,10 @@ from env import settings
 
 ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
 
+TXNS_FIELD = 'txns'
+SIGNED_TXNS_FIELD = 'signed_txns'
+TX_ID_FIELD = 'tx_id'
+
 
 private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)
@@ -247,7 +251,7 @@ def get_swap_data(client, token1_id, token2_id, token1_amount, slippage: float):
     }
 
 
-def zap(client: TinymanClient, user_address: str, asset_id: int, microalgos: int) -> dict:
+def zap(client: TinymanV2Client, user_address: str, asset_id: int, microalgos: int) -> dict:
     ALGO = client.fetch_asset(ALGO_ASA_ID)
     asset2 = client.fetch_asset(asset_id)
     pool = client.fetch_pool(ALGO, asset2)
