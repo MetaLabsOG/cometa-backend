@@ -1,4 +1,5 @@
 import json
+import logging
 import urllib.request
 from dataclasses import dataclass
 from typing import Optional
@@ -9,7 +10,7 @@ from algosdk.v2client.algod import AlgodClient
 from cachetools import TTLCache, cached
 from tinyman.assets import Asset
 from tinyman.utils import TransactionGroup
-from tinyman.v1.client import TinymanTestnetClient, TinymanMainnetClient, TinymanClient
+from tinyman.v2.client import TinymanV2MainnetClient, TinymanV2TestnetClient, TinymanV2Client
 
 from blockchain.assets import ALGO_ASA_ID, USDC_ASA_ID
 from blockchain.node import init_algod_client
@@ -21,19 +22,17 @@ ASSETS_PATH = 'https://asa-list.tinyman.org/assets.json'
 private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
-TXNS_FIELD = 'txns'
-SIGNED_TXNS_FIELD = 'signed_txns'
-TX_ID_FIELD = 'tx_id'
+logger = logging.getLogger(__name__)
 
 
-def tinyman_from_algod(algod_client: AlgodClient, address: Optional[str] = public_key) -> TinymanClient:
+def tinyman_from_algod(algod_client: AlgodClient, address: Optional[str] = public_key) -> TinymanV2Client:
     if settings.is_mainnet():
-        return TinymanMainnetClient(algod_client=algod_client, user_address=address)
+        return TinymanV2MainnetClient(algod_client=algod_client, user_address=address)
     else:
-        return TinymanTestnetClient(algod_client=algod_client, user_address=address)
+        return TinymanV2TestnetClient(algod_client=algod_client, user_address=address)
 
 
-def init_tinyman_client(address: Optional[str] = public_key) -> TinymanClient:
+def init_tinyman_client(address: Optional[str] = public_key) -> TinymanV2Client:
     algod_client = init_algod_client()
     return tinyman_from_algod(algod_client, address)
 
@@ -56,11 +55,17 @@ class PoolInfo:
     total_lp_tokens: float
 
 
-def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> PoolInfo:
+def get_pool_info(client: TinymanV2Client, asset1_id: int, asset2_id: int) -> PoolInfo:
+    # class are cached inside TinymanClient
     asset1 = client.fetch_asset(asset1_id)
     asset2 = client.fetch_asset(asset2_id)
 
     pool = client.fetch_pool(asset1, asset2)
+
+    logger.debug(f'Found pool for assets {asset1_id} and {asset2_id}: {pool}')
+
+    if pool.asset1_reserves is None or pool.asset2_reserves is None or pool.issued_liquidity is None:
+        raise ValueError(f'For assests {asset1_id} and {asset2_id} pool is empty:\n{pool}')
 
     asset1_reserve = get_amount(pool.asset1_reserves, pool.asset1)
     asset2_reserve = get_amount(pool.asset2_reserves, pool.asset2)
@@ -75,7 +80,7 @@ def get_pool_info(client: TinymanClient, asset1_id: int, asset2_id: int) -> Pool
     return PoolInfo(pool.liquidity_asset.name, asset1_reserve, asset2_reserve, total_lp_tokens)
 
 
-def get_price(client: TinymanClient, asset_id: int) -> float:
+def get_price(client: TinymanV2Client, asset_id: int) -> float:
     if asset_id == ALGO_ASA_ID:
         return 1
     ALGO = client.fetch_asset(ALGO_ASA_ID)
@@ -135,10 +140,10 @@ def get_optin_transactions(client, asset_id, optin_client=True):
     return encode_transactions(transaction_group.transactions), tx_id
 
 
-def check_optin(client: TinymanClient, asset_id: int, user_address: str):
+def check_optin(client: TinymanV2Client, asset_id: int, user_address: str):
     if not client.is_opted_in(user_address):
         print('Account not opted into app, opting in now..')
-        transaction_group = client.prepare_app_optin_transactions(user_address)
+        transaction_group = client.prepare_asset_optin_transactions(asset_id=asset_id, user_address=user_address)
         transaction_group.sign_with_private_key(public_key, private_key)
         result = client.submit(transaction_group, wait=True)
 

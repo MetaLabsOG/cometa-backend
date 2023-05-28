@@ -107,14 +107,29 @@ async def update_all_user_pools():
 @repeat_every(settings.contracts_cache_ttl)
 async def update_contracts_worker():
     logger.info('Updating contract caches...')
+
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
 
+    logger.info('Contract caches updated.')
+
+
+@repeat_every(settings.contracts_cache_ttl)
+async def update_pools_info_worker():
+    logger.info('Updating pools info...')
+
     # TODO: to use it on testnet we need to stop calculate prices with vestige API
-    if settings.is_mainnet():
-        await update_pools_info()
+    if not settings.is_mainnet():
+        return
+
+    await update_pools_info()
+
+    if settings.background_user_pools_update:
         await update_all_user_pools()
-        await record_contracts_stats()
+
+    await record_contracts_stats()
+
+    logger.info('Pools info updated.')
 
 
 # TODO: graceful shutdown here (with signal handling?)
@@ -122,9 +137,10 @@ def run_background():
     async def tasks():
         await asyncio.gather(
             update_contracts_worker(),
+            update_pools_info_worker()
         )
 
-    logger.info('Started background tasks')
+    logger.info('Started background tasks.')
     asyncio.run(tasks())
 
 

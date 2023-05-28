@@ -35,6 +35,8 @@ class Settings(BaseSettings):
 
     contracts_cache_ttl: int = 300
 
+    background_user_pools_update: bool = True
+
     class Config:
         env_file = '.env'
         arbitrary_types_allowed = True
