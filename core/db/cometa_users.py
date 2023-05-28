@@ -21,7 +21,7 @@ async def update_user_pools(user: CometaUser) -> list[UserPool]:
             cometa_users.update(user)
         return user_pools
     except Exception as e:
-        logger.error(f'Error updating user pools for {user.address}: {e}', exc_info=True)
+        logger.error(f'Error updating user pools for {user.address}, in API not found.')
         return []
 
 
