@@ -68,20 +68,20 @@ def get_pool_info(client: TinymanV2Client, asset1_id: int, asset2_id: int) -> Po
 
     logger.debug(f'Found pool for assets {asset1_id} and {asset2_id}: {pool}')
 
-    if pool.asset1_reserves is None or pool.asset2_reserves is None or pool.issued_liquidity is None:
+    if pool.asset_1_reserves is None or pool.asset_2_reserves is None or pool.issued_liquidity is None:
         raise ValueError(f'For assests {asset1_id} and {asset2_id} pool is empty:\n{pool}')
 
-    asset1_reserve = get_amount(pool.asset1_reserves, pool.asset1)
-    asset2_reserve = get_amount(pool.asset2_reserves, pool.asset2)
+    asset_1_reserve = get_amount(pool.asset_1_reserves, pool.asset1)
+    asset_2_reserve = get_amount(pool.asset_2_reserves, pool.asset2)
     total_lp_tokens = get_amount(pool.issued_liquidity, pool.liquidity_asset)
 
     # Because Tinyman SDK swap them inside Pool
     if asset1_id < asset2_id:
-        tmp = asset1_reserve
-        asset1_reserve = asset2_reserve
-        asset2_reserve = tmp
+        tmp = asset_1_reserve
+        asset_1_reserve = asset_2_reserve
+        asset_2_reserve = tmp
 
-    return PoolInfo(pool.liquidity_asset.name, asset1_reserve, asset2_reserve, total_lp_tokens)
+    return PoolInfo(pool.liquidity_asset.name, asset_1_reserve, asset_2_reserve, total_lp_tokens)
 
 
 def get_price(client: TinymanV2Client, asset_id: int) -> float:
