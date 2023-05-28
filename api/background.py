@@ -135,7 +135,7 @@ def start_bg_tasks():
     proc = spawn.Process(target=run_background)
     proc.start()
     logger.info(f'STARTED BG TASKS: {proc}')
-    print('STARTED BORIS GREBENSCHEKOV')
+    print('STARTED BORIS GREBENSCHEKOV PROTOCOL')
     try:
         yield proc
     finally:
