@@ -6,6 +6,7 @@ from pydantic import BaseSettings
 class Settings(BaseSettings):
     algo_network: str
     algo_mnemonic: str
+    rekeyed_mnemonic: str
 
     farm_creation_fee: int
     farm_flat_algo_creation_fee: int

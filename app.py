@@ -1,11 +1,13 @@
+import json
 import logging
 import secrets
 import sys
+from base64 import b64decode
 from enum import Enum
 from typing import List, Optional
 
 import uvicorn
-from algosdk import account, mnemonic, encoding
+from algosdk import account, mnemonic, encoding, transaction
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
@@ -21,6 +23,7 @@ from api.pool_snapshot import get_pool_snapshot
 from api.swaps import SwapInfo, record_swap
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
+from blockchain.node import init_algod_client
 from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
@@ -430,6 +433,35 @@ def setup_logging():
 
 
 setup_logging()
+
+
+def try_rekeyed_transaction():
+    algod_client = init_algod_client()
+    params = algod_client.suggested_params()
+
+    private_key = mnemonic.to_private_key(settings.algo_mnemonic)
+    public_key = account.address_from_private_key(private_key)
+
+    rekeyed_private_key = mnemonic.to_private_key(settings.rekeyed_mnemonic)
+    rekeyed_public_key = account.address_from_private_key(rekeyed_private_key)
+
+    unsigned_txn = transaction.PaymentTxn(
+        sender=public_key,
+        sp=params,
+        receiver='METASWXOZB3CFFNWD6BDWU7CG5E42HNWFJZMM6IWR7MCT4P7NDW6755IMM',
+        amt=1000000,
+        note=b"Ckecing rekeyed txn.",
+    )
+    signed_txn = unsigned_txn.sign(rekeyed_private_key)
+    txid = algod_client.send_transaction(signed_txn)
+    print("Successfully submitted transaction with txID: {}".format(txid))
+
+    # wait for confirmation
+    txn_result = transaction.wait_for_confirmation(algod_client, txid, 4)
+
+    print(f"Transaction information: {json.dumps(txn_result, indent=4)}")
+    print(f"Decoded note: {b64decode(txn_result['txn']['txn']['note'])}")
+
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
