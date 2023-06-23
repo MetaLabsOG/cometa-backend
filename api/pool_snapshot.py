@@ -7,7 +7,7 @@ from algosdk.v2client import indexer
 from blockchain.node import get_current_round
 from env import settings
 
-indexer_client = indexer.IndexerClient(indexer_token='', indexer_address=settings.algo_indexer_address)
+indexer_client = indexer.IndexerClient(indexer_token=settings.algod_token, indexer_address=settings.algo_indexer_address)
 
 ASSET_TRANSFER_TX = 'asset-transfer-transaction'
 APPLICATION_CALL_TX = 'application-transaction'
@@ -108,6 +108,6 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
     return balances
 
 
-# if __name__ == '__main__':
-#     snapshot = get_pool_snapshot(1097496346)
-#     print(json.dumps(snapshot, indent=4, sort_keys=True))
+if __name__ == '__main__':
+    snapshot = get_pool_snapshot(1010907359, watch_address='GRHZVZ7IGCD75RDJWTWJ4ZJOIYG3YGPHKRXJ7IN2W77AIMFQ57V7GBDVIA')
+    print(json.dumps(snapshot, indent=4, sort_keys=True))
