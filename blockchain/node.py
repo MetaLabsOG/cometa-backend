@@ -6,7 +6,7 @@ from cachetools import cached, TTLCache
 
 from env import settings
 
-BASE_URL = 'https://node.algoexplorerapi.io'
+BASE_URL = 'https://mainnet-api.algonode.cloud"'
 
 
 # TODO: maybe inject settings?
@@ -18,10 +18,12 @@ def init_algod_client() -> AlgodClient:
                        })
 
 
+algod_client = init_algod_client()
+
+
 @cached(cache=TTLCache(maxsize=1, ttl=settings.block_time))
 def get_current_round():
-    url = f'{BASE_URL}/v2/status'
-    data = requests.get(url).json()
+    data = algod_client.status()
     return data['last-round']
 
 
