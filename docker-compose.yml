@@ -11,7 +11,7 @@ services:
             SYNC_HUMBLE_POOLS: "1"
         volumes:
             - ".:/app"
-            - "/tmp/cometa:/tmp"
+            - "/tmp/cometa-${ALGO_NETWORK}:/tmp"
         ports:
             - "${SERVER_PORT}:${SERVER_PORT}"
         expose:
