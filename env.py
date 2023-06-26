@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     lottery_check_lock: bool = True
 
-    contracts_cache_ttl: int = 300
+    contracts_cache_ttl: int = 1
 
     background_user_pools_update: bool = True
 
@@ -56,3 +56,5 @@ settings = Settings()
 
 print(f'Algo Network = {settings.algo_network}')
 print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')
+
+print(f'All settings: {settings.dict()}')
