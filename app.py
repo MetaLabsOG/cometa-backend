@@ -389,6 +389,7 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
         lottery_draw.claimed = True
     except Exception as e:
         lottery_draw.send_error = str(e)
+        logger.error(f'Error sending NFT to {wallet}: {e}')
 
     lottery_draws.update(lottery_draw)
 
