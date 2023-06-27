@@ -139,7 +139,6 @@ async def register_contract(contract: AddContract) -> None:
 
     cache_metadata = {}
 
-    # TODO: check for LaaS contracts
     if contract.type in ('farm', 'distribution'):
         global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
                                     idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
@@ -151,7 +150,9 @@ async def register_contract(contract: AddContract) -> None:
 
         # Check that the contract's parameters are correct (beneficiary and creation fee are as we need them)
         # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
-        target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
+
+        # TODO: change front to deploy
+        target_beneficiary = 'METAFG5UBD74CKQFIIABWMMQXR45J7BAP3KV6BVR3V7LDPNAEKNEVLMBRE'  # cometa.algo
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
         target_flat_algo_creation_fee = settings.farm_flat_algo_creation_fee * 1000000  # in microtokens
 
