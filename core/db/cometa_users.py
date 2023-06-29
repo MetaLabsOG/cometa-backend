@@ -33,10 +33,14 @@ async def get_user_pools(user: CometaUser) -> list[UserPool]:
 
 async def get_address_pools(address: str) -> list[UserPool]:
     user = cometa_users.get_by_primary_key(address)
-    if not user:
+    if not user or not user.pools:
         pools = await fetch_user_pools(address)
         if pools:
-            cometa_users.create(CometaUser(address=address, pools=pools))
+            if user:
+                user.pools = pools
+                cometa_users.update(user)
+            else:
+                cometa_users.create(CometaUser(address=address, pools=pools))
         return pools
     return user.pools
 
