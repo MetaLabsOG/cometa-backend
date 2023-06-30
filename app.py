@@ -358,7 +358,7 @@ async def nft_lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
 
 @app.post('/lottery/staking')
 async def nft_lottery_for_staking(address: str, pool_id: int) -> Optional[NftPrize]:
-    return await lottery_for_staking(pool_id, address)
+    return await lottery_for_staking(pool_id, address, settings.is_mainnet())
 
 
 @app.post('/lottery/new')
