@@ -6,8 +6,6 @@ from cachetools import cached, TTLCache
 
 from env import settings
 
-BASE_URL = 'https://mainnet-api.algonode.cloud"'
-
 
 # TODO: maybe inject settings?
 def init_algod_client() -> AlgodClient:
