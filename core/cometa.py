@@ -50,7 +50,7 @@ def get_pool_state(contract: ContractInfo, is_mainnet: bool = True) -> PoolState
         additional['asset2_id'] = asset2_id
 
         total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
-        lp_price = get_lp_price(asset1_id, asset2_id)
+        lp_price = get_lp_price(asset1_id, asset2_id) if is_mainnet else 0
         total_cost = total_tokens * lp_price
     else:
         asset_info = get_asset(asset_id)
