@@ -51,12 +51,12 @@ def get_pool_state(contract: ContractInfo, is_mainnet: bool = True) -> PoolState
 
         total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
         lp_price = get_lp_price(asset1_id, asset2_id) if is_mainnet else 0
-        total_cost = total_tokens * lp_price
+        total_cost = total_tokens * lp_price if is_mainnet else 1
     else:
         asset_info = get_asset(asset_id)
         total_tokens = total_microtokens / (10 ** asset_info['params']['decimals'])
         asset_price = get_asset_price(asset_id) if is_mainnet else 0
-        total_cost = total_tokens * asset_price
+        total_cost = total_tokens * asset_price if is_mainnet else 1  # TODO: NU ETO issue
 
     start_block = parse_bignum(cache['initial']['beginBlock'])
     end_block = parse_bignum(cache['initial']['endBlock'])
