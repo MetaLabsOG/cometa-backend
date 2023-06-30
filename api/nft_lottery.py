@@ -12,6 +12,7 @@ from api.swaps import SwapInfo
 from api.wallet import send_nft
 from blockchain.nfts import get_nft_info
 from blockchain.node import init_algod_client
+from core.cometa import fetch_user_pools
 from core.db.cometa_users import get_address_pools
 from core.db.db_manager import DbManager
 from core.db.pools import pools_db
@@ -122,7 +123,7 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
         return None
     logger.info(f'Lotteries found for pools_id {pool_id}: {lotteries}')
 
-    pools = await get_address_pools(address, is_mainnet)
+    pools = await fetch_user_pools(address, is_mainnet)
     logger.info(f'Pools for address {address}: {pools}')
 
     user_pool = next((p for p in pools if int(p.pool_id) == pool_id), None)
