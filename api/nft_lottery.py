@@ -124,13 +124,7 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
     logger.info(f'Lotteries found for pools_id {pool_id}: {lotteries}')
 
     pools = await fetch_user_pools(address, is_mainnet)
-    if pools:
-        logger.info(f'Pools for address {address}:')
-        for pool in pools:
-            logger.info(f'{pool.name} = {pool.staked_tokens}')
-    else:
-        logger.info(f'No pools found for address {address}')
-        return None
+    logger.info(f'Pools for address {address}: pools')
 
     user_pool = next((p for p in pools if int(p.pool_id) == pool_id), None)
     if user_pool is None:
@@ -152,9 +146,13 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
         if user_lock_length < pool_info.lock_length_blocks:
             return None
 
+        logger.info(f'{user_lock_length} < {pool_info.lock_length_blocks}')
+
     for lottery in lotteries:
         if len(lottery.available_nfts) == 0:
             continue
+
+        logger.info(f'{lottery.min_amount} ? {user_pool.staked_tokens}')
 
         if not lottery.is_eligible(pool_id, user_pool.staked_tokens):
             continue
