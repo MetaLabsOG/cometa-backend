@@ -123,7 +123,7 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
         return None
     logger.info(f'Lotteries found for pools_id {pool_id}: {lotteries}')
 
-    pools = await fetch_user_pools(address, is_mainnet)
+    pools = await get_address_pools(address, is_mainnet)
     logger.info(f'Pools for address {address}: pools')
 
     user_pool = next((p for p in pools if int(p.pool_id) == pool_id), None)
