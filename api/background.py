@@ -2,6 +2,7 @@ import asyncio
 import logging
 import multiprocessing
 from contextlib import contextmanager
+from time import sleep
 
 from api.stats import save_snapshot
 from blockchain.node import get_current_round
@@ -61,7 +62,7 @@ async def update_pools_info() -> None:
     for contract in all_contracts:
         try:
             # TODO: not to get rate-limit
-            await asyncio.sleep(1)
+            sleep(1)
             pool_state = get_pool_state(contract, settings.is_mainnet())
             pool_status = PoolStatus.from_current_block(current_block, pool_state.start_block, pool_state.end_block)
 
@@ -121,7 +122,7 @@ async def update_contracts_worker():
 
 @repeat_every(settings.contracts_cache_ttl)
 async def update_pools_info_worker():
-    logger.info('Updating pools info...')
+    logger.info('Updating all pools info, users also...')
 
     await update_pools_info()
 
