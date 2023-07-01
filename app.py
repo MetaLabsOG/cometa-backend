@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import secrets
@@ -379,6 +380,8 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 
 @app.patch('/lottery/claim')
 async def claim_prize_nft_for_swap(wallet: str) -> None:
+    # to opt-in to go through
+    await asyncio.sleep(4)
     wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
     if len(wins) == 0:
         raise HTTPException(status_code=404, detail=f'Lottery draws for {wallet} are not found')
