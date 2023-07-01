@@ -13,15 +13,15 @@ cometa_users = DbManager[CometaUser](settings.db_name, 'cometa_users', 'address'
 
 
 @safe_async_method
-async def update_user_pools(user: CometaUser) -> list[UserPool]:
+async def update_user_pools(user: CometaUser, is_mainnet: bool = True) -> list[UserPool]:
     try:
-        user_pools = await fetch_user_pools(user.address)
+        user_pools = await fetch_user_pools(user.address, is_mainnet)
         if user_pools:
             user.pools = user_pools
             cometa_users.update(user)
         return user_pools
     except Exception as e:
-        logger.error(f'Error updating user pools for {user.address}, in API not found.')
+        logger.error(f'Error updating user pools for {user.address}: {e}', exc_info=True)
         return []
 
 
