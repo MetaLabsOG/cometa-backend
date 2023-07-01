@@ -13,7 +13,7 @@ from core.db.model import PoolStatus, PoolInfo, PoolType
 from core.db.pools import pools_db
 from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
-from core.util import strip_version
+from core.util import strip_version, parse_bignum
 from env import settings
 
 spawn = multiprocessing.get_context('spawn')
@@ -61,6 +61,9 @@ async def update_pools_info() -> None:
 
     for contract in all_contracts:
         try:
+            end_block = parse_bignum(contract.metadata['cache']['initial']['endBlock'])
+            if end_block < current_block:
+                continue
             # TODO: not to get rate-limit
             sleep(1)
             pool_state = get_pool_state(contract, settings.is_mainnet())
