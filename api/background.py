@@ -9,7 +9,6 @@ from core.cometa import calculate_tvl_for_type, get_pool_state
 from core.db.cometa_users import cometa_users, update_user_pools
 from core.db.contracts import get_contracts_by_type, update_contract, get_contracts
 from core.db.model import PoolStatus, PoolInfo, PoolType
-from core.db.new_pools import new_pools, NewPoolInfo
 from core.db.pools import pools_db
 from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
@@ -55,11 +54,13 @@ async def update_pools_info() -> None:
 
     all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
     current_block = get_current_round()
+
     pools = pools_db.get_all()
     current_pools = {p.id: p.status for p in pools}
+
     for contract in all_contracts:
         try:
-            pool_state = get_pool_state(contract)
+            pool_state = get_pool_state(contract, settings.is_mainnet())
             pool_status = PoolStatus.from_current_block(current_block, pool_state.start_block, pool_state.end_block)
 
             pool_info = PoolInfo(
@@ -78,19 +79,19 @@ async def update_pools_info() -> None:
                 last_updated=pool_state.last_updated
             )
 
+            # TODO: for new pools alert
             if pool_info.id in current_pools:
                 pools_db.update(pool_info)
-                old_status = current_pools[pool_info.id]
-                if old_status == PoolStatus.UPCOMING and pool_status == PoolStatus.LIVE:
-                    new_pools.create(NewPoolInfo(pool_info.id, pool_info.name, pool_info.type))
+                # old_status = current_pools[pool_info.id]
+            #     if old_status == PoolStatus.UPCOMING and pool_status == PoolStatus.LIVE:
+            #         new_pools.create(NewPoolInfo(pool_info.id, pool_info.name, pool_info.type))
             else:
                 pools_db.create(pool_info)
-                if pool_status == PoolStatus.LIVE:
-                    new_pools.create(NewPoolInfo(pool_info.id, pool_info.name, pool_info.type))
+            #     if pool_status == PoolStatus.LIVE:
+            #         new_pools.create(NewPoolInfo(pool_info.id, pool_info.name, pool_info.type))
 
         except Exception as e:
-            logger.error(f'Failed to get info for pool {contract.description}')
-            logger.exception(e, exc_info=True)
+            logger.error(f'Failed to get info for pool {contract.description}: {e}', exc_info=True)
 
     logger.info(f'Updated {len(all_contracts)} pools info')
 
@@ -99,7 +100,9 @@ async def update_pools_info() -> None:
 async def update_all_user_pools():
     logger.info('Updating user pools...')
     users = cometa_users.get_all()
-    user_updates = list(map(update_user_pools, users))
+    user_updates = []
+    for user in users:
+        user_updates.append(update_user_pools(user, settings.is_mainnet()))
     await asyncio.gather(*user_updates)
     logger.info(f'Updated pools for {len(users)} users')
 
@@ -118,16 +121,13 @@ async def update_contracts_worker():
 async def update_pools_info_worker():
     logger.info('Updating pools info...')
 
-    # TODO: to use it on testnet we need to stop calculate prices with vestige API
-    if not settings.is_mainnet():
-        return
-
     await update_pools_info()
 
     if settings.background_user_pools_update:
         await update_all_user_pools()
 
-    await record_contracts_stats()
+    if settings.is_mainnet():
+        await record_contracts_stats()
 
     logger.info('Pools info updated.')
 
@@ -137,7 +137,7 @@ def run_background():
     async def tasks():
         await asyncio.gather(
             update_contracts_worker(),
-            # update_pools_info_worker()
+            update_pools_info_worker()
         )
 
     logger.info('Started background tasks.')
