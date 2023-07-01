@@ -171,6 +171,9 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
                                          wallet=address,
                                          timestamp=time.time()))
         if prize_id is not None:
+            for l in lotteries:
+                l.available_nfts.remove(prize_id)
+                nft_lotteries.update(l)
             return get_nft_prize(lottery, prize_id)
 
     return None
