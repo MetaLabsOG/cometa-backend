@@ -60,6 +60,8 @@ async def update_pools_info() -> None:
 
     for contract in all_contracts:
         try:
+            # TODO: not to get rate-limit
+            await asyncio.sleep(1)
             pool_state = get_pool_state(contract, settings.is_mainnet())
             pool_status = PoolStatus.from_current_block(current_block, pool_state.start_block, pool_state.end_block)
 
