@@ -11,7 +11,7 @@ from dataclasses_json import dataclass_json
 from api.swaps import SwapInfo
 from api.wallet import send_nft
 from blockchain.nfts import get_nft_info
-from blockchain.node import init_algod_client
+from blockchain.node import init_algod_client, get_current_round
 from core.cometa import fetch_user_pools
 from core.db.cometa_users import get_address_pools
 from core.db.db_manager import DbManager
@@ -62,8 +62,17 @@ class LotteryDraw:
             self.created_date = datetime.fromtimestamp(self.timestamp)
 
 
+@dataclass_json
+@dataclass
+class LotteryParticipant:
+    address: str
+    pool_id: int
+    last_draw_block: int
+
+
 nft_lotteries = DbManager[NftLottery](settings.db_name, 'nft_lotteries', 'name', NftLottery)
 lottery_draws = DbManager[LotteryDraw](settings.db_name, 'lottery_draws', 'swap_txid', LotteryDraw)
+lottery_participants = DbManager[LotteryParticipant](settings.db_name, 'lottery_participants', 'address', LotteryParticipant)
 
 algod_client = init_algod_client()
 
@@ -121,60 +130,45 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
     if not lotteries:
         logger.info(f'No lotteries found for pools_id {pool_id}')
         return None
-    logger.info(f'Lotteries found for pools_id {pool_id}: {lotteries}')
+    logger.debug(f'Lotteries found for pools_id {pool_id}: {lotteries}')
 
-    pools = await get_address_pools(address, is_mainnet)
-    if not pools:
-        logger.info(f'No pools found for address {address}')
+    # FIXME: this code is for COOP/META pool only
+    lottery = lotteries[0]
+
+    if len(lottery.available_nfts) == 0:
         return None
 
-    logger.info(f'Pools for address {address}:')
-    for pool in pools:
-        logger.info(f'{pool.pool_id} {pool.name}: {pool.staked_tokens} tokens staked')
+    participant = lottery_participants.get_by_primary_key(address)
+    if participant is None:
+        participant = LotteryParticipant(address=address,
+                                         pool_id=pool_id,
+                                         last_draw_block=0)
+        lottery_participants.create(participant)
 
-    user_pool = next((p for p in pools if int(p.pool_id) == pool_id), None)
-    if user_pool is None:
+    lock_length = 78545 if is_mainnet else 1
+    current_block = get_current_round()
+
+    if participant.last_draw_block + lock_length > current_block:
+        logger.info(f'Still lock for address {address} {participant.last_draw_block + lock_length} > {current_block}')
         return None
 
-    logger.info(f'Found user pool {user_pool}')
+    logger.info(f'Lottery {lottery.name} for pool {pool_id} and address {address} started')
 
-    if settings.lottery_check_lock:
-        if user_pool.lock_timestamp == 0:
-            return None
+    prize_id = draw_id(lottery)
+    lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
+                                     prize=prize_id,
+                                     wallet=address,
+                                     timestamp=time.time()))
 
-        pool_info = pools_db.get_one({'id': pool_id})
-        if pool_info is None:
-            return None
+    participant.last_draw_block = current_block
+    lottery_participants.update(participant)
 
-        current_round = algod_client.status().get('last-round')
-        user_lock_length = current_round - user_pool.lock_timestamp
+    if prize_id is not None:
+        for l in lotteries:
+            l.available_nfts.remove(prize_id)
+            nft_lotteries.update(l)
 
-        if user_lock_length < pool_info.lock_length_blocks:
-            return None
-
-        logger.info(f'{user_lock_length} < {pool_info.lock_length_blocks}')
-
-    for lottery in lotteries:
-        if len(lottery.available_nfts) == 0:
-            continue
-
-        logger.info(f'{lottery.min_amount} ? {user_pool.staked_tokens}')
-
-        if not lottery.is_eligible(pool_id, user_pool.staked_tokens):
-            continue
-
-        logger.info(f'Eligible for lottery {lottery}')
-
-        prize_id = draw_id(lottery)
-        lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
-                                         prize=prize_id,
-                                         wallet=address,
-                                         timestamp=time.time()))
-        if prize_id is not None:
-            for l in lotteries:
-                l.available_nfts.remove(prize_id)
-                nft_lotteries.update(l)
-            return get_nft_prize(lottery, prize_id)
+        return get_nft_prize(lottery, prize_id)
 
     return None
 
