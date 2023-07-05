@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     algo_network: str
     algo_mnemonic: str
 
+    cometa_algo_mnemonic: str
+    cometa_rekey_mnemonic: str
+
     farm_creation_fee: int
     farm_flat_algo_creation_fee: int
 
@@ -27,7 +30,7 @@ class Settings(BaseSettings):
     api_password: str
     logging_level: str = 'INFO'
 
-    block_time: float = 3.7
+    block_time: float = 3.3
 
     algo_price_ttl: int
     asset_prices_ttl: int
