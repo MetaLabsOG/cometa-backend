@@ -407,7 +407,7 @@ async def get_lotteries(password: str) -> List[NftLottery]:
 
 
 @app.get('/lotteries/resend')
-async def resend_prizes(password: str) -> List[NftLottery]:
+async def resend_prizes(password: str) -> dict:
     check_password(password)
     return send_all_prizes()
 
