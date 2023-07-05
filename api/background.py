@@ -129,8 +129,8 @@ async def update_pools_info_worker():
 
     await update_pools_info()
 
-    if settings.background_user_pools_update:
-        await update_all_user_pools()
+    # if settings.background_user_pools_update:
+    #     await update_all_user_pools()
 
     if settings.is_mainnet():
         await record_contracts_stats()
