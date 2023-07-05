@@ -383,6 +383,9 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
     # to opt-in to go through
     await asyncio.sleep(4)
     wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
+
+    logger.info(f'Lottery wins for {wallet}: {wins}')
+
     if len(wins) == 0:
         raise HTTPException(status_code=404, detail=f'Lottery draws for {wallet} are not found')
     lottery_draw = wins[-1]
