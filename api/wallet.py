@@ -6,7 +6,7 @@ from algosdk.future.transaction import AssetTransferTxn, wait_for_confirmation
 from blockchain.node import init_algod_client
 from env import settings
 
-cometa_private_key = mnemonic.to_private_key(settings.cometa_rekey_mnemonic)
+cometa_private_key = mnemonic.to_private_key(settings.cometa_algo_mnemonic)
 cometa_rekey_private_key = mnemonic.to_private_key(settings.cometa_rekey_mnemonic)
 cometa_public_key = account.address_from_private_key(cometa_private_key)
 
