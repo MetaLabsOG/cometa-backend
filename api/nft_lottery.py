@@ -160,6 +160,8 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
                                      wallet=address,
                                      timestamp=time.time()))
 
+    logger.info(f'The prize is {prize_id}')
+
     participant.last_draw_block = current_block
     lottery_participants.update(participant)
 
