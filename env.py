@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     lottery_check_lock: bool = True
 
-    contracts_cache_ttl: int = 1
+    contracts_cache_ttl: int = 120
 
     background_user_pools_update: bool = True
 
