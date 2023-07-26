@@ -482,7 +482,7 @@ if __name__ == "__main__":
                 print('Provide airdrop id!')
                 exit(1)
             airdrop_id = argv[1]
-            snapshot.make_snapshot(airdrop_id)
+            # snapshot.make_snapshot(airdrop_id)
             airdrop.run(airdrop_id)
             exit(0)
 
