@@ -126,6 +126,11 @@ def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
         if prize is None and not lottery.only_for_buy and lottery.is_eligible(swap.asset1_id, swap.asset1_amount):
             prize = draw_prize(lottery, swap.wallet)
 
+    if prize is not None:
+        for l in lotteries:
+            l.available_nfts.remove(prize.asa_id)
+            nft_lotteries.update(l)
+
     return prize
 
 
