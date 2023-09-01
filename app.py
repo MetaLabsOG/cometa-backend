@@ -5,6 +5,7 @@ import secrets
 import sys
 from base64 import b64decode
 from enum import Enum
+from time import sleep
 from typing import List, Optional
 
 import uvicorn
@@ -380,8 +381,6 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 
 @app.patch('/lottery/claim')
 async def claim_prize_nft_for_swap(wallet: str) -> None:
-    # to opt-in to go through
-    await asyncio.sleep(4)
     wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
 
     logger.info(f'Lottery wins for {wallet}: {wins}')
@@ -391,6 +390,8 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
     lottery_draw = wins[-1]
 
     try:
+        # to opt-in to go through
+        sleep(5)
         send_nft(lottery_draw.wallet, lottery_draw.prize)
         lottery_draw.claimed = True
     except Exception as e:

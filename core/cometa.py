@@ -75,7 +75,6 @@ def get_pool_state(contract: ContractInfo, is_mainnet: bool = True) -> PoolState
 
     reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
     reward_token_id = parse_bignum(cache['initial'][reward_token_field_name])
-    logger.debug(f'reward_id = {reward_token_id}')
     reward_asset_info = get_asset(reward_token_id)
 
     total_rewards_usd = 0
@@ -83,10 +82,8 @@ def get_pool_state(contract: ContractInfo, is_mainnet: bool = True) -> PoolState
     if is_mainnet:
         reward_asset_price = get_asset_price(reward_token_id)
         total_reward_token_usd = total_rewards / (10 ** reward_asset_info['params']['decimals']) * reward_asset_price
-        logger.debug(f'total_reward_usd = {total_reward_token_usd}')
 
         total_algo_rewards_usd = total_algo_rewards / (10 ** 6) * get_algo_price()
-        logger.debug(f'total_algo_reward_usd = {total_algo_rewards_usd}')
         total_rewards_usd = total_reward_token_usd + total_algo_rewards_usd
 
     current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR / length_blocks if total_cost > 0 else 0
@@ -181,9 +178,6 @@ async def fetch_user_pools(address: str, is_mainnet: bool = True) -> list[UserPo
 
             staked_asset = get_asset(pool_state.stake_token_id)
             staked_tokens = staked / (10 ** staked_asset['params']['decimals'])
-
-            logger.debug(contract.description)
-            logger.debug(contract.id)
 
             reward_per_token_paid = parse_bignum(state['rewardPerTokenPaid'])
             reward = recalculate_reward(pool_state, current_block, staked, reward, reward_per_token_paid)
