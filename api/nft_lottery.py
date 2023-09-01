@@ -6,10 +6,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from algosdk.v2client import indexer
 from dataclasses_json import dataclass_json
 
 from api.swaps import SwapInfo
-from api.wallet import send_nft
+from api.wallet import send_nft, cometa_public_key
 from blockchain.nfts import get_nft_info
 from blockchain.node import init_algod_client, get_current_round
 from core.db.db_manager import DbManager
@@ -72,6 +73,7 @@ lottery_draws = DbManager[LotteryDraw](settings.db_name, 'lottery_draws', 'swap_
 lottery_participants = DbManager[LotteryParticipant](settings.db_name, 'lottery_participants', 'address', LotteryParticipant)
 
 algod_client = init_algod_client()
+indexer_client = indexer.IndexerClient(indexer_token=settings.algod_token, indexer_address=settings.algo_indexer_address)
 
 logger = logging.getLogger(__name__)
 
@@ -79,11 +81,18 @@ logger = logging.getLogger(__name__)
 def draw_id(lottery: NftLottery) -> Optional[int]:
     if random.random() > lottery.probability:
         return None
-    if not lottery.available_nfts:
-        return None
-    res = random.choice(lottery.available_nfts)
-    lottery.available_nfts.remove(res)
-    nft_lotteries.update(lottery)
+    while True:
+        if not lottery.available_nfts:
+            return None
+        res = random.choice(lottery.available_nfts)
+        lottery.available_nfts.remove(res)
+        nft_lotteries.update(lottery)
+        data = indexer_client.lookup_account_assets(address=cometa_public_key, asset_id=res)
+        assets = data.get('assets', [])
+        if len(assets) > 0 and assets[0].get('amount', 0) > 0:
+            # drawn nft persists in the wallet
+            break
+        logger.info(f'NFT {res} is not in the wallet, drawing again')
     return res
 
 
@@ -125,12 +134,6 @@ def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
             prize = draw_prize(lottery, swap.wallet)
         if prize is None and not lottery.only_for_buy and lottery.is_eligible(swap.asset1_id, swap.asset1_amount):
             prize = draw_prize(lottery, swap.wallet)
-
-    if prize is not None:
-        for l in lotteries:
-            if prize.asa_id in l.available_nfts:
-                l.available_nfts.remove(prize.asa_id)
-                nft_lotteries.update(l)
 
     return prize
 
@@ -176,10 +179,6 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
     lottery_participants.update(participant)
 
     if prize_id is not None:
-        for l in lotteries:
-            l.available_nfts.remove(prize_id)
-            nft_lotteries.update(l)
-
         return get_nft_prize(lottery, prize_id)
 
     return None
