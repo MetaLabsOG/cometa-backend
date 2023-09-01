@@ -128,8 +128,9 @@ def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
 
     if prize is not None:
         for l in lotteries:
-            l.available_nfts.remove(prize.asa_id)
-            nft_lotteries.update(l)
+            if prize.asa_id in l.available_nfts:
+                l.available_nfts.remove(prize.asa_id)
+                nft_lotteries.update(l)
 
     return prize
 
