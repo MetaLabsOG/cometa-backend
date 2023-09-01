@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from pymongo import MongoClient
@@ -60,16 +61,20 @@ def make_snapshot(snapshot_id: str):
         nft_count += cur_cnt
 
     end_time = datetime.now()
+    snapshot_dict = {
+        'snapshot_id': snapshot_id,
+        'start_time': start_time,
+        'end_time': end_time,
+        'round': current_round,
+        'nft_count': nft_count,
+        'holders': [h.to_dict() for h in holders]
+    }
     db.snapshots.insert_one(
-        {
-            'snapshot_id': snapshot_id,
-            'start_time': start_time,
-            'end_time': end_time,
-            'round': current_round,
-            'nft_count': nft_count,
-            'holders': [h.to_dict() for h in holders]
-        }
+        snapshot_dict
     )
+
+    with open(f'snapshot_{snapshot_id}.json', 'w') as f:
+        json.dump(snapshot_dict, f, indent=4)
 
     print(f'Snapshot was made in {end_time - start_time}\n')
 
@@ -84,4 +89,4 @@ def make_snapshot(snapshot_id: str):
 
 
 if __name__ == '__main__':
-    make_snapshot('1')
+    make_snapshot('after_ybg')
