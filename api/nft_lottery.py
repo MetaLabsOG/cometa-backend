@@ -12,10 +12,7 @@ from api.swaps import SwapInfo
 from api.wallet import send_nft
 from blockchain.nfts import get_nft_info
 from blockchain.node import init_algod_client, get_current_round
-from core.cometa import fetch_user_pools
-from core.db.cometa_users import get_address_pools
 from core.db.db_manager import DbManager
-from core.db.pools import pools_db
 from env import settings
 
 
@@ -98,7 +95,9 @@ class NftPrize:
     title: str
 
 
-def get_nft_prize(lottery: NftLottery, asa_id: int) -> NftPrize:
+def get_nft_prize(lottery: NftLottery, asa_id: Optional[int]) -> Optional[NftPrize]:
+    if asa_id is None:
+        return None
     prize_info = get_nft_info(asa_id)
     return NftPrize(asa_id=asa_id,
                     name=prize_info.name,
@@ -106,23 +105,28 @@ def get_nft_prize(lottery: NftLottery, asa_id: int) -> NftPrize:
                     title=lottery.win_title)
 
 
+def draw_prize(lottery: NftLottery, address: str) -> Optional[NftPrize]:
+    logger.debug(f'Drawing lottery {lottery.name} for {address}')
+    prize_id = draw_id(lottery)
+    lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
+                                     prize=prize_id,
+                                     wallet=address,
+                                     timestamp=time.time()))
+    return get_nft_prize(lottery, prize_id)
+
+
 def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
     lotteries = nft_lotteries.get_many({'type': LotteryType.SWAP})
+    logger.debug(f'Swap lotteries cnt = {len(lotteries)}')
 
+    prize = None
     for lottery in lotteries:
-        swap_parts = [(swap.asset2_id, swap.asset2_amount)]
-        if not lottery.only_for_buy:
-            swap_parts.append((swap.asset1_id, swap.asset1_amount))
-        for asset_id, amount in swap_parts:
-            if lottery.is_eligible(asset_id, amount):
-                prize_id = draw_id(lottery)
-                lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
-                                                 prize=prize_id,
-                                                 wallet=swap.wallet,
-                                                 timestamp=time.time()))
-                if prize_id is not None:
-                    return get_nft_prize(lottery, prize_id)
-    return None
+        if prize is None and lottery.is_eligible(swap.asset2_id, swap.asset2_amount):
+            prize = draw_prize(lottery, swap.wallet)
+        if prize is None and not lottery.only_for_buy and lottery.is_eligible(swap.asset1_id, swap.asset1_amount):
+            prize = draw_prize(lottery, swap.wallet)
+
+    return prize
 
 
 async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = True) -> Optional[NftPrize]:
