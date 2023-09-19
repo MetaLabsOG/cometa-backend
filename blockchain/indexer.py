@@ -1,6 +1,4 @@
-import json
 import logging
-from typing import Optional
 
 import requests
 from cachetools import cached, LRUCache

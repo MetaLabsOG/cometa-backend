@@ -143,7 +143,7 @@ def run_background():
     async def tasks():
         await asyncio.gather(
             update_contracts_worker(),
-            update_pools_info_worker()
+            # update_pools_info_worker()
         )
 
     logger.info('Started background tasks.')
