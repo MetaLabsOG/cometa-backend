@@ -306,6 +306,9 @@ async def humble_pool_by_id(pool_id: int) -> Optional[humble.HumblePool]:
 
 @app.get('/humble/pools')
 async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.HumblePool]:
+    # FIXME: just don't ask me please ever
+    if assetA == 796425061 and assetB == 1138500612:
+        return humble.get_pools_by_assets(assetB, assetA)
     return humble.get_pools_by_assets(assetA, assetB)
 
 
