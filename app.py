@@ -270,7 +270,6 @@ async def get_contracts(
         max_count: Optional[int] = None,
         new_first: bool = False
 ) -> List[ContractInfo]:
-    await notify_cometa_channel(f'get_contracts: {type}, {max_count}, {new_first}')
     contracts = get_contracts_by_type(type)
     if new_first:
         contracts.reverse()
