@@ -1,7 +1,7 @@
 import logging
 
 from algosdk import mnemonic, account
-from algosdk.future.transaction import AssetTransferTxn, wait_for_confirmation
+from algosdk.transaction import AssetTransferTxn, wait_for_confirmation
 
 from blockchain.node import init_algod_client
 from env import settings
