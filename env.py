@@ -45,6 +45,10 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
+    reach_no_warn: bool = False
+    reach_connector_mode: str = 'ALGO'
+    sync_humble_pools: int = 0
+
     def is_mainnet(self):
         return self.algo_network == 'mainnet'
 
