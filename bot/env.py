@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 FEEDBACK_COMMAND = 'feedback'
 SUPPORT_COMMAND = 'support'
@@ -32,9 +32,7 @@ class Settings(BaseSettings):
 
     db_name: str = 'COMETA_BOT'
 
-    class Config:
-        env_file = 'bot/.env'
-        arbitrary_types_allowed = True
+    model_config = SettingsConfigDict(env_file='bot/.env', env_file_encoding='utf-8')
 
     @property
     def remind_again_delay(self):

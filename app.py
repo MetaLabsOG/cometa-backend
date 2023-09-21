@@ -19,10 +19,12 @@ import dexes.humble as humble
 from airdrop import airdrop, snapshot
 from api import stats
 from api.background import start_bg_tasks
+from api.db_model import ContractType
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
 from api.pool_snapshot import get_pool_snapshot
 from api.swaps import SwapInfo, record_swap
+from api.telegram_notify import notify_cometa_channel, notify_new_pool
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 from blockchain.node import init_algod_client
@@ -103,7 +105,7 @@ async def wallet_pools(address: str, win: Optional[bool] = None) -> list[Lottery
 
 
 class AddContract(BaseModel):
-    type: str
+    type: ContractType
     id: int = ...
     version: str
     description: Optional[str] = None
@@ -175,9 +177,20 @@ async def register_contract(contract: AddContract) -> None:
     logger.info(f'Registering a contract with metadata:\n{metadata}')
     add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
 
+    await notify_new_pool(
+        description=contract.description,
+        begin_block=parse_bignum(cache_metadata['initial']['beginBlock']),
+        end_block=parse_bignum(cache_metadata['initial']['endBlock']),
+        lock_length_blocks=parse_bignum(cache_metadata['initial']['lockLengthBlocks']),
+        type=contract.type,
+        metadata=contract.metadata,
+    )
+
+    return None
+
 
 class DeployContract(BaseModel):
-    type: str
+    type: ContractType
     settings: dict
     metadata: Optional[dict] = None
     description: Optional[str] = None
@@ -187,11 +200,22 @@ class DeployContract(BaseModel):
 async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     logger.info(f'Deploying a new contract {parameters}')
 
-    check_password(password)
-    version = await calljs("contractVersion", contractType=parameters.type)
-    contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
-    added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
-    return {'internal_id': added}
+    # check_password(password)
+    # version = await calljs("contractVersion", contractType=parameters.type)
+    # contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
+    # internal_id = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
+    internal_id = 'zhopa'
+
+    await notify_new_pool(
+        description=parameters.description,
+        begin_block=parameters.settings['beginBlock'],
+        end_block=parameters.settings['endBlock'],
+        lock_length_blocks=parameters.settings['lockLengthBlocks'],
+        type=parameters.type,
+        metadata=parameters.metadata,
+    )
+
+    return {'internal_id': internal_id}
 
 
 @app.patch('/contract/update')
@@ -240,17 +264,13 @@ async def get_local_states(type: str, address: str) -> dict:
     return {}
 
 
-class ContractType(str, Enum):
-    FARM = 'farm'
-    DISTRIBUTION = 'distribution'
-
-
 @app.get('/contracts')
 async def get_contracts(
         type: Optional[ContractType] = None,
         max_count: Optional[int] = None,
         new_first: bool = False
 ) -> List[ContractInfo]:
+    await notify_cometa_channel(f'get_contracts: {type}, {max_count}, {new_first}')
     contracts = get_contracts_by_type(type)
     if new_first:
         contracts.reverse()
