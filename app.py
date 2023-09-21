@@ -173,15 +173,15 @@ async def register_contract(contract: AddContract) -> None:
         # the contract is created even without connected wallet.
         cache_metadata = {"cache": view}
 
-    metadata = cache_metadata if contract.metadata is None else {**contract.metadata, **cache_metadata}
+    metadata = {**contract.metadata, **cache_metadata} if contract.metadata is not None else cache_metadata
     logger.info(f'Registering a contract with metadata:\n{metadata}')
     add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
 
     await notify_new_pool(
         description=contract.description,
-        begin_block=parse_bignum(cache_metadata['initial']['beginBlock']),
-        end_block=parse_bignum(cache_metadata['initial']['endBlock']),
-        lock_length_blocks=parse_bignum(cache_metadata['initial']['lockLengthBlocks']),
+        begin_block=metadata['begin_block'],
+        end_block=metadata['end_block'],
+        lock_length_blocks=metadata['lock_length_blocks'],
         type=contract.type,
         metadata=contract.metadata,
     )
