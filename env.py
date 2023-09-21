@@ -30,13 +30,13 @@ class Settings(BaseSettings):
 
     block_time: float = 3.3
 
+    contracts_cache_ttl: int = 120
     algo_price_ttl: int
     asset_prices_ttl: int
     total_tvl_ttl: int
 
     lottery_check_lock: bool = True
 
-    contracts_cache_ttl: int = 120
 
     background_user_pools_update: bool = True
 
