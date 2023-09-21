@@ -1,7 +1,6 @@
 from datetime import datetime
 
-from algosdk import mnemonic, account
-from algosdk.future import transaction
+from algosdk import mnemonic, account, transaction
 from pymongo import MongoClient
 
 from blockchain.assets import META_ASA_ID, META_DECIMALS
