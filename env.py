@@ -1,6 +1,4 @@
-from functools import cached_property
-
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -42,10 +40,10 @@ class Settings(BaseSettings):
 
     background_user_pools_update: bool = True
 
-    class Config:
-        env_file = '.env'
-        arbitrary_types_allowed = True
-        keep_untouched = (cached_property,)
+    telegram_bot_api_token: str
+    telegram_channel_id: int
+
+    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
     def is_mainnet(self):
         return self.algo_network == 'mainnet'

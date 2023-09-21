@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from algosdk import account, encoding, mnemonic
-from algosdk.future.transaction import ApplicationOptInTxn, AssetOptInTxn, PaymentTxn
+from algosdk.transaction import ApplicationOptInTxn, AssetOptInTxn, PaymentTxn
 from algosdk.v2client.algod import AlgodClient
 from cachetools import TTLCache, cached
 from tinyman.assets import Asset
