@@ -59,30 +59,31 @@ async def announce_farm(
     asset2 = get_asset(int(asset2_id))
     reward_token = get_asset(int(reward_token_id))
 
-    asset1_link = 'https://vestige.fi/asset/{asset1_id}'
-    asset2_link = 'https://vestige.fi/asset/{asset2_id}'
+    asset1_link = f'https://vestige.fi/asset/{asset1_id}'
+    asset2_link = f'https://vestige.fi/asset/{asset2_id}'
+    lp_pool_address = lp_token['params']['reserve']
+    get_lp_link = f'https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity'
 
     asset1_name = asset1['params']['unit-name']
     asset2_name = asset2['params']['unit-name']
     reward_token_name = reward_token['params']['unit-name']
-    lp_pool_address = lp_token['params']['reserve']
 
     try:
         lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
         asset1_str = f'<a href="{asset1_link}">{asset1_name}</a>' if asset1_id != 0 else 'ALGO'
         asset2_str = f'<a href="{asset2_link}">{asset2_name}</a>' if asset2_id != 0 else 'ALGO'
         telegram_text = f'''
-💥 New FARMING pool on Cometa!
-
-💸 {asset1_str}/{asset2_str} ⟶ <a href="https://vestige.fi/asset/{reward_token_id}">{reward_token_name}</a>
-
-<a href="https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity">Buy LP tokens on Tinyman.</a>
+💸 New pool {asset1_str}/{asset2_str} → <a href="https://vestige.fi/asset/{reward_token_id}">{reward_token_name}</a>
 
 ⏳ <b>{duration.days} days</b>
 {lock_str}
-<i>Don't miss it and enjoy farming!</i> ❤️
 
-☄️ https://app.cometa.farm/
+<i>Get LP tokens on <a href="{get_lp_link}">Tinyman</a>.</i>
+
+
+Enjoy farming! ❤️
+
+https://app.cometa.farm/
         '''
         await notify_cometa_telegram_channel(telegram_text)
     except Exception as e:
@@ -91,21 +92,19 @@ async def announce_farm(
     try:
         lock_str = '' if lock_duration.days == 0 else f'🔒 **{lock_duration.days} days**\n'
         discord_text = f'''
-💥 New FARMING pool on Cometa!
-
-💸 **{asset1_name}/{asset2_name} ⟶ {reward_token_name}**
-
-{asset1_name} {asset1_link}
-{asset2_name} {asset2_link}
-
-Buy LP tokens on Tinyman.
-https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity
+💸 New pool **{asset1_name}/{asset2_name} → {reward_token_name}**
 
 ⏳ **{duration.days} days**
 {lock_str}
-*Don't miss it and enjoy farming!* ❤️
+***{asset1_name}** — {asset1_link}*
+***{asset2_name}** — {asset2_link}*
 
-☄️ https://app.cometa.farm/
+✅ *Get LP tokens on Tinyman: {get_lp_link}*
+
+
+Enjoy farming! ❤️
+
+https://app.cometa.farm/
         '''
         notify_discord_webhook(discord_text)
     except Exception as e:
@@ -128,17 +127,17 @@ async def announce_distribution(
         lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
         token_str = f'<a href="{token_link}">{stake_token_name}</a>'
         telegram_text = f'''
-💥 New STAKING pool on Cometa!
-
-💸 {token_str} ⟶ {token_str}
-
-<a href="{token_buy_link}">Buy {stake_token_name} on Cometa Swap.</a>
+💸 New pool {token_str} → {token_str}
 
 ⏳ <b>{duration.days} days</b>
 {lock_str}
-<i>Don't miss it and enjoy farming!</i> ❤️
 
-☄️ https://app.cometa.farm/
+<i>Buy {stake_token_name} on <a href="{token_buy_link}">Cometa Swap</a>.</i>
+
+
+Enjoy staking ❤️
+
+https://app.cometa.farm/
     '''
         await notify_cometa_telegram_channel(telegram_text)
     except Exception as e:
@@ -147,17 +146,18 @@ async def announce_distribution(
     try:
         lock_str = '' if lock_duration.days == 0 else f'🔒 **{lock_duration.days} days**\n'
         discord_text = f'''
-💥 New STAKING pool on Cometa!
-
-💸 **{stake_token_name} ⟶ {stake_token_name}**
-
-Buy {stake_token_name} {token_buy_link}
+💸 New pool **{stake_token_name} → {stake_token_name}**
 
 ⏳ **{duration.days} days**
 {lock_str}
-*Don't miss it and enjoy farming!* ❤️
+***{stake_token_name}** — {token_link}*
 
-☄️ https://app.cometa.farm/
+✅ *Buy {stake_token_name} on {token_buy_link}*
+
+
+Enjoy staking! ❤️
+
+https://app.cometa.farm/
     '''
         notify_discord_webhook(discord_text)
     except Exception as e:
@@ -173,12 +173,15 @@ async def notify_new_pool(
         type: str,
         metadata: Optional[dict] = None
 ):
-    duration = duration_from_blocks(end_block - begin_block + 1)
-    lock_duration = duration_from_blocks(lock_length_blocks)
+    try:
+        duration = duration_from_blocks(end_block - begin_block + 1)
+        lock_duration = duration_from_blocks(lock_length_blocks)
 
-    if type == ContractType.FARM:
-        return await announce_farm(duration, lock_duration, metadata)
-    elif type == ContractType.DISTRIBUTION:
-        return await announce_distribution(duration, lock_duration, metadata)
-    else:
-        raise Exception(f'Unknown contract type: {type}')
+        if type == ContractType.FARM:
+            return await announce_farm(duration, lock_duration, metadata)
+        elif type == ContractType.DISTRIBUTION:
+            return await announce_distribution(duration, lock_duration, metadata)
+        else:
+            raise Exception(f'Unknown contract type: {type}')
+    except Exception as e:
+        logger.exception(e)
