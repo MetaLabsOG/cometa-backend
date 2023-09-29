@@ -178,7 +178,6 @@ async def register_contract(contract: AddContract) -> None:
     add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
 
     await notify_new_pool(
-        description=contract.description,
         begin_block=metadata['begin_block'],
         end_block=metadata['end_block'],
         lock_length_blocks=metadata['lock_length_blocks'],
@@ -200,14 +199,12 @@ class DeployContract(BaseModel):
 async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     logger.info(f'Deploying a new contract {parameters}')
 
-    # check_password(password)
-    # version = await calljs("contractVersion", contractType=parameters.type)
-    # contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
-    # internal_id = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
-    internal_id = 'zhopa'
+    check_password(password)
+    version = await calljs("contractVersion", contractType=parameters.type)
+    contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
+    internal_id = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
 
     await notify_new_pool(
-        description=parameters.description,
         begin_block=parameters.settings['beginBlock'],
         end_block=parameters.settings['endBlock'],
         lock_length_blocks=parameters.settings['lockLengthBlocks'],
