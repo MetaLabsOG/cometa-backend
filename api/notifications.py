@@ -20,7 +20,8 @@ async def notify_telegram_chat(chat_id: int, text: str):
     return await bot.send_message(
         chat_id=chat_id,
         text=text,
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True
     )
 
 
@@ -31,10 +32,8 @@ async def notify_cometa_telegram_channel(text: str):
 def notify_discord_webhook(text: str):
     if settings.discord_notify_webhook_url is None:
         return
-    webhook = DiscordWebhook(url=settings.discord_notify_webhook_url, content=text)
-    response = webhook.execute()
-    print(response)
-
+    webhook = DiscordWebhook(url=settings.discord_notify_webhook_url, content=text, embeds=[])
+    _ = webhook.execute()
 
 
 def duration_from_blocks(blocks: int) -> timedelta:
@@ -77,7 +76,6 @@ async def announce_farm(
 
 ⏳ <b>{duration.days} days</b>
 {lock_str}
-
 <i>Get LP tokens on <a href="{get_lp_link}">Tinyman</a>.</i>
 
 
