@@ -6,8 +6,6 @@ from cachetools import cached, TTLCache
 
 from env import settings
 
-BASE_URL = 'https://node.algoexplorerapi.io'
-
 
 # TODO: maybe inject settings?
 def init_algod_client() -> AlgodClient:
@@ -18,10 +16,12 @@ def init_algod_client() -> AlgodClient:
                        })
 
 
+algod_client = init_algod_client()
+
+
 @cached(cache=TTLCache(maxsize=1, ttl=settings.block_time))
 def get_current_round():
-    url = f'{BASE_URL}/v2/status'
-    data = requests.get(url).json()
+    data = algod_client.status()
     return data['last-round']
 
 
@@ -39,4 +39,20 @@ def print_created_asset(algodclient, account, assetid):
         if (scrutinized_asset['index'] == assetid):
             print("Asset ID: {}".format(scrutinized_asset['index']))
             print(json.dumps(my_account_info['params'], indent=4))
+            break
+
+
+#   Utility function used to print asset holding for account and assetid
+def print_asset_holding(algodclient, account, assetid):
+    # note: if you have an indexer instance available it is easier to just use this
+    # response = myindexer.accounts(asset_id = assetid)
+    # then loop thru the accounts returned and match the account you are looking for
+    account_info = algodclient.account_info(account)
+    idx = 0
+    for my_account_info in account_info['assets']:
+        scrutinized_asset = account_info['assets'][idx]
+        idx = idx + 1
+        if scrutinized_asset['asset-id'] == assetid:
+            print("Asset ID: {}".format(scrutinized_asset['asset-id']))
+            print(json.dumps(scrutinized_asset, indent=4))
             break

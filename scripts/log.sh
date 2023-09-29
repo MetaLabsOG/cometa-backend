@@ -6,4 +6,4 @@ then
   PREF="-testnet"
 fi
 
-docker logs "cometa-backend${PREF}_app_1" -f $@
+docker logs "cometa-backend${PREF}_app_1" -f "$@"

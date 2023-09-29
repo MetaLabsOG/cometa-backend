@@ -1,31 +1,38 @@
+import asyncio
+import json
 import logging
 import secrets
 import sys
+from base64 import b64decode
 from enum import Enum
+from time import sleep
 from typing import List, Optional
 
 import uvicorn
-from algosdk import account, mnemonic, encoding
+from algosdk import account, mnemonic, encoding, transaction
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from uvicorn.logging import ColourizedFormatter
 
 import dexes.humble as humble
-from airdrop import airdrop, snapshot
+from airdrop import airdrop
 from api import stats
 from api.background import start_bg_tasks
+from api.db_model import ContractType
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
 from api.pool_snapshot import get_pool_snapshot
 from api.swaps import SwapInfo, record_swap
+from api.notifications import notify_new_pool
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
+from blockchain.node import init_algod_client
 from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
-    remove_contracts, update_contract, get_all_contracts
+    remove_contracts, update_contract
 from core.db.migrations.separate_user_info import migrate
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
@@ -33,7 +40,7 @@ from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
 
-VERSION = '0.2.0'
+VERSION = '1.1.3'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
@@ -42,10 +49,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[
-        'https://app.cometa.farm/meta-dao',
-        '*'
-    ],
+    allow_origins=['*'],
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -54,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 def check_password(password: str) -> None:
     if not secrets.compare_digest(settings.api_password, password):
-        raise HTTPException(status_code=401, detail="Invalid password")
+        raise HTTPException(status_code=401, detail='Invalid password')
 
 
 @app.get('/status')
@@ -98,7 +102,7 @@ async def wallet_pools(address: str, win: Optional[bool] = None) -> list[Lottery
 
 
 class AddContract(BaseModel):
-    type: str
+    type: ContractType
     id: int = ...
     version: str
     description: Optional[str] = None
@@ -136,7 +140,6 @@ async def register_contract(contract: AddContract) -> None:
 
     cache_metadata = {}
 
-    # TODO: check for LaaS contracts
     if contract.type in ('farm', 'distribution'):
         global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
                                     idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
@@ -148,7 +151,9 @@ async def register_contract(contract: AddContract) -> None:
 
         # Check that the contract's parameters are correct (beneficiary and creation fee are as we need them)
         # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
-        target_beneficiary = account.address_from_private_key(mnemonic.to_private_key(settings.algo_mnemonic))
+
+        # TODO: change front to deploy
+        target_beneficiary = 'METAFG5UBD74CKQFIIABWMMQXR45J7BAP3KV6BVR3V7LDPNAEKNEVLMBRE'  # cometa.algo
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
         target_flat_algo_creation_fee = settings.farm_flat_algo_creation_fee * 1000000  # in microtokens
 
@@ -165,13 +170,23 @@ async def register_contract(contract: AddContract) -> None:
         # the contract is created even without connected wallet.
         cache_metadata = {"cache": view}
 
-    metadata = cache_metadata if contract.metadata is None else {**contract.metadata, **cache_metadata}
+    metadata = {**contract.metadata, **cache_metadata} if contract.metadata is not None else cache_metadata
     logger.info(f'Registering a contract with metadata:\n{metadata}')
     add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
 
+    await notify_new_pool(
+        begin_block=metadata['begin_block'],
+        end_block=metadata['end_block'],
+        lock_length_blocks=metadata['lock_length_blocks'],
+        type=contract.type,
+        metadata=contract.metadata,
+    )
+
+    return None
+
 
 class DeployContract(BaseModel):
-    type: str
+    type: ContractType
     settings: dict
     metadata: Optional[dict] = None
     description: Optional[str] = None
@@ -184,8 +199,17 @@ async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     check_password(password)
     version = await calljs("contractVersion", contractType=parameters.type)
     contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
-    added = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
-    return {'internal_id': added}
+    internal_id = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
+
+    await notify_new_pool(
+        begin_block=parameters.settings['beginBlock'],
+        end_block=parameters.settings['endBlock'],
+        lock_length_blocks=parameters.settings['lockLengthBlocks'],
+        type=parameters.type,
+        metadata=parameters.metadata,
+    )
+
+    return {'internal_id': internal_id}
 
 
 @app.patch('/contract/update')
@@ -232,11 +256,6 @@ async def get_local_states(type: str, address: str) -> dict:
                               walletAddress=address)
         return states
     return {}
-
-
-class ContractType(str, Enum):
-    FARM = 'farm'
-    DISTRIBUTION = 'distribution'
 
 
 @app.get('/contracts')
@@ -300,6 +319,9 @@ async def humble_pool_by_id(pool_id: int) -> Optional[humble.HumblePool]:
 
 @app.get('/humble/pools')
 async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.HumblePool]:
+    # FIXME: just don't ask me please ever
+    if assetA == 796425061 and assetB == 1138500612:
+        return humble.get_pools_by_assets(assetB, assetA)
     return humble.get_pools_by_assets(assetA, assetB)
 
 
@@ -354,7 +376,7 @@ async def nft_lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
 
 @app.post('/lottery/staking')
 async def nft_lottery_for_staking(address: str, pool_id: int) -> Optional[NftPrize]:
-    return await lottery_for_staking(pool_id, address)
+    return await lottery_for_staking(pool_id, address, settings.is_mainnet())
 
 
 @app.post('/lottery/new')
@@ -376,15 +398,21 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 @app.patch('/lottery/claim')
 async def claim_prize_nft_for_swap(wallet: str) -> None:
     wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
+
+    logger.info(f'Lottery wins for {wallet}: {wins}')
+
     if len(wins) == 0:
         raise HTTPException(status_code=404, detail=f'Lottery draws for {wallet} are not found')
     lottery_draw = wins[-1]
 
     try:
+        # to opt-in to go through
+        sleep(5)
         send_nft(lottery_draw.wallet, lottery_draw.prize)
         lottery_draw.claimed = True
     except Exception as e:
         lottery_draw.send_error = str(e)
+        logger.error(f'Error sending NFT to {wallet}: {e}')
 
     lottery_draws.update(lottery_draw)
 
@@ -396,9 +424,27 @@ async def get_lotteries(password: str) -> List[NftLottery]:
 
 
 @app.get('/lotteries/resend')
-async def resend_prizes(password: str) -> List[NftLottery]:
+async def resend_prizes(password: str) -> dict:
     check_password(password)
     return send_all_prizes()
+
+
+@app.post('/test')
+async def handle_test(password: str, pool_id: int) -> None:
+    check_password(password)
+
+    contract = get_contract(pool_id)
+    if contract is None:
+        raise HTTPException(status_code=404, detail='Contract not found')
+
+    await notify_new_pool(
+        begin_block=contract.metadata['begin_block'],
+        end_block=contract.metadata['end_block'],
+        lock_length_blocks=contract.metadata['lock_length_blocks'],
+        type=contract.type,
+        metadata=contract.metadata,
+    )
+    return None
 
 
 # Statistics
@@ -431,6 +477,35 @@ def setup_logging():
 
 setup_logging()
 
+
+def try_rekeyed_transaction():
+    algod_client = init_algod_client()
+    params = algod_client.suggested_params()
+
+    private_key = mnemonic.to_private_key(settings.algo_mnemonic)
+    public_key = account.address_from_private_key(private_key)
+
+    rekeyed_private_key = mnemonic.to_private_key(settings.rekeyed_mnemonic)
+    rekeyed_public_key = account.address_from_private_key(rekeyed_private_key)
+
+    unsigned_txn = transaction.PaymentTxn(
+        sender=public_key,
+        sp=params,
+        receiver='METASWXOZB3CFFNWD6BDWU7CG5E42HNWFJZMM6IWR7MCT4P7NDW6755IMM',
+        amt=1000000,
+        note=b"Ckecing rekeyed txn.",
+    )
+    signed_txn = unsigned_txn.sign(rekeyed_private_key)
+    txid = algod_client.send_transaction(signed_txn)
+    print("Successfully submitted transaction with txID: {}".format(txid))
+
+    # wait for confirmation
+    txn_result = transaction.wait_for_confirmation(algod_client, txid, 4)
+
+    print(f"Transaction information: {json.dumps(txn_result, indent=4)}")
+    print(f"Decoded note: {b64decode(txn_result['txn']['txn']['note'])}")
+
+
 if __name__ == "__main__":
     argv = sys.argv[1:]
 
@@ -442,7 +517,7 @@ if __name__ == "__main__":
                 print('Provide airdrop id!')
                 exit(1)
             airdrop_id = argv[1]
-            snapshot.make_snapshot(airdrop_id)
+            # snapshot.make_snapshot(airdrop_id)
             airdrop.run(airdrop_id)
             exit(0)
 

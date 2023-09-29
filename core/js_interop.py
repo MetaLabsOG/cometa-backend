@@ -11,7 +11,7 @@ from os import path
 from core.constants import DIR_PATH
 from env import settings
 
-COMETA_SOCK = f'/tmp/cometa-js-interop-{settings.algo_network}.sock'
+COMETA_SOCK = f'/tmp/cometa-js-interop.sock'
 
 logger = logging.getLogger(__name__)
 

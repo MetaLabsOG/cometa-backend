@@ -13,12 +13,16 @@ cometa_users = DbManager[CometaUser](settings.db_name, 'cometa_users', 'address'
 
 
 @safe_async_method
-async def update_user_pools(user: CometaUser) -> list[UserPool]:
-    user_pools = await fetch_user_pools(user.address)
-    if user_pools:
-        user.pools = user_pools
-        cometa_users.update(user)
-    return user_pools
+async def update_user_pools(user: CometaUser, is_mainnet: bool = True) -> list[UserPool]:
+    try:
+        user_pools = await fetch_user_pools(user.address, is_mainnet)
+        if user_pools:
+            user.pools = user_pools
+            cometa_users.update(user)
+        return user_pools
+    except Exception as e:
+        logger.error(f'Error updating user pools for {user.address}: {e}', exc_info=True)
+        return []
 
 
 async def get_user_pools(user: CometaUser) -> list[UserPool]:
@@ -27,12 +31,16 @@ async def get_user_pools(user: CometaUser) -> list[UserPool]:
     return user.pools
 
 
-async def get_address_pools(address: str) -> list[UserPool]:
+async def get_address_pools(address: str, is_mainnet: bool = True) -> list[UserPool]:
     user = cometa_users.get_by_primary_key(address)
-    if not user:
-        pools = await fetch_user_pools(address)
+    if not user or not user.pools:
+        pools = await fetch_user_pools(address, is_mainnet)
         if pools:
-            cometa_users.create(CometaUser(address=address, pools=pools))
+            if user:
+                user.pools = pools
+                cometa_users.update(user)
+            else:
+                cometa_users.create(CometaUser(address=address, pools=pools))
         return pools
     return user.pools
 
