@@ -1,11 +1,14 @@
-from functools import cached_property
+from typing import Optional
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     algo_network: str
     algo_mnemonic: str
+
+    cometa_algo_mnemonic: str
+    cometa_rekey_mnemonic: str
 
     farm_creation_fee: int
     farm_flat_algo_creation_fee: int
@@ -20,25 +23,34 @@ class Settings(BaseSettings):
 
     mongodb_host: str
     mongodb_port: int
+
+    rekeyed_mnemonic: str = None
     migrate: bool = False
 
     api_password: str
     logging_level: str = 'INFO'
 
-    block_time: float = 3.7
+    block_time: float = 3.3
 
+    contracts_cache_ttl: int = 120
     algo_price_ttl: int
     asset_prices_ttl: int
     total_tvl_ttl: int
 
     lottery_check_lock: bool = True
 
-    contracts_cache_ttl: int = 300
+    background_user_pools_update: bool = True
 
-    class Config:
-        env_file = '.env'
-        arbitrary_types_allowed = True
-        keep_untouched = (cached_property,)
+    telegram_bot_api_token: str
+    telegram_channel_id: int
+
+    discord_notify_webhook_url: Optional[str] = None
+
+    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
+
+    reach_no_warn: bool = False
+    reach_connector_mode: str = 'ALGO'
+    sync_humble_pools: int = 0
 
     def is_mainnet(self):
         return self.algo_network == 'mainnet'
@@ -52,3 +64,5 @@ settings = Settings()
 
 print(f'Algo Network = {settings.algo_network}')
 print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')
+
+print(f'All settings: {settings.dict()}')

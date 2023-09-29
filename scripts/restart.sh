@@ -1,3 +1,3 @@
 #!/bin/bash
 
-scripts/stop.sh "$@" && scripts/start.sh "$@" && scripts/log.sh
+scripts/stop.sh && scripts/start.sh "$@" && scripts/log.sh

@@ -1,8 +1,7 @@
-import json
 import logging
-from typing import Optional
 
 import requests
+from algosdk.v2client import indexer
 from cachetools import cached, LRUCache
 
 from env import settings
@@ -37,6 +36,9 @@ def get_address_app_ids(address: str) -> list[int]:
     url = f'{BASE_URL}/v2/accounts/{address}'
     data = requests.get(url).json()
     logger.debug(f'Fetching app ids for {address} from {url}')
+    account = data.get('account')
+    if account is None:
+        raise Exception(f'Account {address} not found: {data}')
     if not data['account'].get('apps-local-state'):
         return []
     return [app['id'] for app in data['account']['apps-local-state']]
