@@ -21,7 +21,7 @@ async function upsertPool(collection, pool) {
 }
 
 async function updateHumblePools(account, collection, waitSecs) {
-    console.log(`Updating Humble pools`);
+    console.log(`JS: updating Humble pools`);
 
     while (true) {
         await sleep(waitSecs * 1000);
@@ -38,7 +38,7 @@ async function updateHumblePools(account, collection, waitSecs) {
             });
 
             if (succeeded) {
-                console.log(`Update Humble pools`);
+                console.log(`JS: Humble pools updated`);
                 return upsertPool(collection, data.pool);
             }
         });
@@ -80,7 +80,7 @@ try {
     const collection = client
         .db(COMETA_ENV.toUpperCase())
         .collection("humblePools");
-    console.log("JS connected to Mongo");
+    console.log("JS: connected to Mongo");
 
     await runHumble(collection);
 } catch (e) {

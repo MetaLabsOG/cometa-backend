@@ -11,6 +11,8 @@ algod_client = init_algod_client()
 private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
+rekeyed_private_key = mnemonic.to_private_key(settings.rekeyed_mnemonic)
+
 
 def mint_token() -> int:
     params = algod_client.suggested_params()
@@ -53,15 +55,15 @@ def change_meta_config():
         sp=params,
         index=META_ASA_ID,
         manager=public_key,
-        reserve=public_key,
+        reserve='3IX4JSNWFQAH55TKFLWGW7EVCGMDDKW3EEWLDDUME7J7H72LSQCUFWXJTY',
         freeze=None,
         clawback=None,
         strict_empty_address_check=False)
-    signed_txn = txn.sign(private_key)
+    signed_txn = txn.sign(rekeyed_private_key)
     txid = algod_client.send_transaction(signed_txn)
     confirmed_txn = transaction.wait_for_confirmation(algod_client, txid, 4)
     print_created_asset(algod_client, public_key, META_ASA_ID)
 
 
 if __name__ == '__main__':
-    print(mint_token())
+    change_meta_config()

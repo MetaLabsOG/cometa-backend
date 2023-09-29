@@ -19,7 +19,7 @@ BIG_NUM = 1000000000000000000
 logger = logging.getLogger(__name__)
 
 
-def get_pool_state(contract: ContractInfo) -> PoolState:
+def get_pool_state(contract: ContractInfo, is_mainnet: bool = True) -> PoolState:
     metadata = contract.metadata
     cache = metadata['cache']
     total_microtokens = parse_bignum(cache['global']['totalStaked'])
@@ -50,13 +50,13 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
         additional['asset2_id'] = asset2_id
 
         total_tokens = total_microtokens / (10 ** 6)  # TODO: fix not all lp tokens have 6 decimals
-        lp_price = get_lp_price(asset1_id, asset2_id)
-        total_cost = total_tokens * lp_price
+        lp_price = get_lp_price(asset1_id, asset2_id) if is_mainnet else 0
+        total_cost = total_tokens * lp_price if is_mainnet else 1
     else:
         asset_info = get_asset(asset_id)
         total_tokens = total_microtokens / (10 ** asset_info['params']['decimals'])
-        asset_price = get_asset_price(asset_id)
-        total_cost = total_tokens * asset_price
+        asset_price = get_asset_price(asset_id) if is_mainnet else 0
+        total_cost = total_tokens * asset_price if is_mainnet else 1  # TODO: NU ETO PIZEDC
 
     start_block = parse_bignum(cache['initial']['beginBlock'])
     end_block = parse_bignum(cache['initial']['endBlock'])
@@ -75,16 +75,16 @@ def get_pool_state(contract: ContractInfo) -> PoolState:
 
     reward_token_field_name = 'rewardToken' if contract.type == 'farm' else 'token'
     reward_token_id = parse_bignum(cache['initial'][reward_token_field_name])
-    logger.debug(f'reward_id = {reward_token_id}')
     reward_asset_info = get_asset(reward_token_id)
-    reward_asset_price = get_asset_price(reward_token_id)
 
-    total_reward_token_usd = total_rewards / (10 ** reward_asset_info['params']['decimals']) * reward_asset_price
-    logger.debug(f'total_reward_usd = {total_reward_token_usd}')
+    total_rewards_usd = 0
 
-    total_algo_rewards_usd = total_algo_rewards / (10 ** 6) * get_algo_price()
-    logger.debug(f'total_algo_reward_usd = {total_algo_rewards_usd}')
-    total_rewards_usd = total_reward_token_usd + total_algo_rewards_usd
+    if is_mainnet:
+        reward_asset_price = get_asset_price(reward_token_id)
+        total_reward_token_usd = total_rewards / (10 ** reward_asset_info['params']['decimals']) * reward_asset_price
+
+        total_algo_rewards_usd = total_algo_rewards / (10 ** 6) * get_algo_price()
+        total_rewards_usd = total_reward_token_usd + total_algo_rewards_usd
 
     current_apr = total_rewards_usd / total_cost * 100 * BLOCKS_IN_A_YEAR / length_blocks if total_cost > 0 else 0
 
@@ -146,7 +146,7 @@ def recalculate_reward(pool: PoolState, current_block: int, staked: int, reward:
     return reward + reward_to_pay_now
 
 
-async def fetch_user_pools(address: str) -> list[UserPool]:
+async def fetch_user_pools(address: str, is_mainnet: bool = True) -> list[UserPool]:
     all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
     app_ids = get_address_app_ids(address)
     contracts = list(filter(lambda contract: contract.id in app_ids, all_contracts))
@@ -167,7 +167,7 @@ async def fetch_user_pools(address: str) -> list[UserPool]:
             lock_timestamp = parse_bignum(state['lockTimestamp'])
 
             contract = contract_by_id[str(pool_id)]
-            pool_state = get_pool_state(contract)
+            pool_state = get_pool_state(contract, is_mainnet)
 
             current_block = get_current_round()
             ended_duration = None
@@ -179,20 +179,19 @@ async def fetch_user_pools(address: str) -> list[UserPool]:
             staked_asset = get_asset(pool_state.stake_token_id)
             staked_tokens = staked / (10 ** staked_asset['params']['decimals'])
 
-            logger.debug(contract.description)
-            logger.debug(contract.id)
-
             reward_per_token_paid = parse_bignum(state['rewardPerTokenPaid'])
             reward = recalculate_reward(pool_state, current_block, staked, reward, reward_per_token_paid)
 
             reward_asset = get_asset(pool_state.reward_token_id)
             reward_tokens = reward / (10 ** reward_asset['params']['decimals'])
 
-            reward_price = get_asset_price(pool_state.reward_token_id)
-            reward_usd = reward_tokens * reward_price
+            reward_usd = 0
+            if is_mainnet:
+                reward_price = get_asset_price(pool_state.reward_token_id)
+                reward_usd += reward_tokens * reward_price
 
-            reward_usd += reward * pool_state.total_algo_rewards // \
-                          pool_state.total_rewards * get_algo_price() / MICROALGOS_IN_ALGO
+                reward_usd += reward * pool_state.total_algo_rewards // \
+                              pool_state.total_rewards * get_algo_price() / MICROALGOS_IN_ALGO
 
             pools.append(UserPool(
                 pool_id,
