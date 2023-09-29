@@ -59,6 +59,9 @@ async def announce_farm(
     asset2 = get_asset(int(asset2_id))
     reward_token = get_asset(int(reward_token_id))
 
+    asset1_link = 'https://vestige.fi/asset/{asset1_id}'
+    asset2_link = 'https://vestige.fi/asset/{asset2_id}'
+
     asset1_name = asset1['params']['unit-name']
     asset2_name = asset2['params']['unit-name']
     reward_token_name = reward_token['params']['unit-name']
@@ -66,12 +69,12 @@ async def announce_farm(
 
     try:
         lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
-        asset1_link = f'<a href="https://vestige.fi/asset/{asset1_id}">{asset1_name}</a>' if asset1_id != 0 else 'ALGO'
-        asset2_link = f'<a href="https://vestige.fi/asset/{asset2_id}">{asset2_name}</a>' if asset2_id != 0 else 'ALGO'
+        asset1_str = f'<a href="{asset1_link}">{asset1_name}</a>' if asset1_id != 0 else 'ALGO'
+        asset2_str = f'<a href="{asset2_link}">{asset2_name}</a>' if asset2_id != 0 else 'ALGO'
         telegram_text = f'''
 💥 New FARMING pool on Cometa!
 
-💸 {asset1_link}/{asset2_link} ⟶ <a href="https://vestige.fi/asset/{reward_token_id}">{reward_token_name}</a>
+💸 {asset1_str}/{asset2_str} ⟶ <a href="https://vestige.fi/asset/{reward_token_id}">{reward_token_name}</a>
 
 <a href="https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity">Buy LP tokens on Tinyman.</a>
 
@@ -86,19 +89,21 @@ async def announce_farm(
         logger.exception(e)
 
     try:
-        lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
-        asset1_link = f'<a href="https://vestige.fi/asset/{asset1_id}">{asset1_name}</a>' if asset1_id != 0 else 'ALGO'
-        asset2_link = f'<a href="https://vestige.fi/asset/{asset2_id}">{asset2_name}</a>' if asset2_id != 0 else 'ALGO'
+        lock_str = '' if lock_duration.days == 0 else f'🔒 **{lock_duration.days} days**\n'
         discord_text = f'''
 💥 New FARMING pool on Cometa!
 
-💸 {asset1_link}/{asset2_link} ⟶ <a href="https://vestige.fi/asset/{reward_token_id}">{reward_token_name}</a>
+💸 **{asset1_name}/{asset2_name} ⟶ {reward_token_name}**
 
-<a href="https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity">Buy LP tokens on Tinyman.</a>
+{asset1_name} {asset1_link}
+{asset2_name} {asset2_link}
 
-⏳ <b>{duration.days} days</b>
+Buy LP tokens on Tinyman.
+https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity
+
+⏳ **{duration.days} days**
 {lock_str}
-<i>Don't miss it and enjoy farming!</i> ❤️
+*Don't miss it and enjoy farming!* ❤️
 
 ☄️ https://app.cometa.farm/
         '''
@@ -116,15 +121,16 @@ async def announce_distribution(
     stake_token = get_asset(int(stake_token_id))
     stake_token_name = stake_token['params']['unit-name']
 
-    lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
-    token_link = f'<a href="https://vestige.fi/asset/{stake_token_id}">{stake_token_name}</a>'
+    token_link = f'https://vestige.fi/asset/{stake_token_id}'
     token_buy_link = 'https://app.cometa.farm/swap'
 
     try:
+        lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
+        token_str = f'<a href="{token_link}">{stake_token_name}</a>'
         telegram_text = f'''
 💥 New STAKING pool on Cometa!
 
-💸 {token_link} ⟶ {token_link}
+💸 {token_str} ⟶ {token_str}
 
 <a href="{token_buy_link}">Buy {stake_token_name} on Cometa Swap.</a>
 
@@ -139,16 +145,17 @@ async def announce_distribution(
         logger.exception(e)
 
     try:
+        lock_str = '' if lock_duration.days == 0 else f'🔒 **{lock_duration.days} days**\n'
         discord_text = f'''
 💥 New STAKING pool on Cometa!
 
-💸 {token_link} ⟶ {token_link}
+💸 **{stake_token_name} ⟶ {stake_token_name}**
 
-<a href="{token_buy_link}">Buy {stake_token_name} on Cometa Swap.</a>
+Buy {stake_token_name} {token_buy_link}
 
-⏳ <b>{duration.days} days</b>
+⏳ **{duration.days} days**
 {lock_str}
-<i>Don't miss it and enjoy farming!</i> ❤️
+*Don't miss it and enjoy farming!* ❤️
 
 ☄️ https://app.cometa.farm/
     '''
