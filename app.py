@@ -16,7 +16,7 @@ from starlette.middleware.cors import CORSMiddleware
 from uvicorn.logging import ColourizedFormatter
 
 import dexes.humble as humble
-from airdrop import airdrop, snapshot
+from airdrop import airdrop
 from api import stats
 from api.background import start_bg_tasks
 from api.db_model import ContractType
@@ -24,7 +24,7 @@ from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery
     LotteryDraw, send_all_prizes
 from api.pool_snapshot import get_pool_snapshot
 from api.swaps import SwapInfo, record_swap
-from api.telegram_notify import notify_cometa_channel, notify_new_pool
+from api.notifications import notify_new_pool
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 from blockchain.node import init_algod_client
@@ -32,7 +32,7 @@ from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
-    remove_contracts, update_contract, get_all_contracts
+    remove_contracts, update_contract
 from core.db.migrations.separate_user_info import migrate
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
@@ -40,7 +40,7 @@ from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
 
-VERSION = '0.2.0'
+VERSION = '1.1.3'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
@@ -49,10 +49,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[
-        'https://app.cometa.farm/meta-dao',
-        '*'
-    ],
+    allow_origins=['*'],
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -61,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 def check_password(password: str) -> None:
     if not secrets.compare_digest(settings.api_password, password):
-        raise HTTPException(status_code=401, detail="Invalid password")
+        raise HTTPException(status_code=401, detail='Invalid password')
 
 
 @app.get('/status')
@@ -430,6 +427,24 @@ async def get_lotteries(password: str) -> List[NftLottery]:
 async def resend_prizes(password: str) -> dict:
     check_password(password)
     return send_all_prizes()
+
+
+@app.post('/test')
+async def handle_test(password: str, pool_id: int) -> None:
+    check_password(password)
+
+    contract = get_contract(pool_id)
+    if contract is None:
+        raise HTTPException(status_code=404, detail='Contract not found')
+
+    await notify_new_pool(
+        begin_block=contract.metadata['begin_block'],
+        end_block=contract.metadata['end_block'],
+        lock_length_blocks=contract.metadata['lock_length_blocks'],
+        type=contract.type,
+        metadata=contract.metadata,
+    )
+    return None
 
 
 # Statistics

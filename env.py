@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,11 +39,12 @@ class Settings(BaseSettings):
 
     lottery_check_lock: bool = True
 
-
     background_user_pools_update: bool = True
 
     telegram_bot_api_token: str
     telegram_channel_id: int
+
+    discord_notify_webhook_url: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
