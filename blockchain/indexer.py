@@ -1,6 +1,7 @@
 import logging
 
 import requests
+from algosdk.v2client import indexer
 from cachetools import cached, LRUCache
 
 from env import settings
