@@ -40,7 +40,7 @@ from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
 
-VERSION = '1.1.3'
+VERSION = '1.2.2'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
@@ -61,6 +61,8 @@ def check_password(password: str) -> None:
         raise HTTPException(status_code=401, detail='Invalid password')
 
 
+# COMMON API
+
 @app.get('/status')
 async def status() -> dict:
     return {
@@ -68,6 +70,8 @@ async def status() -> dict:
         'algo_network': settings.algo_network
     }
 
+
+# WALLET API
 
 @app.get('/wallet/{address}/assets')
 async def wallet_assets(address: str) -> list[AssetInfo]:
@@ -100,6 +104,8 @@ async def wallet_pools(address: str, win: Optional[bool] = None) -> list[Lottery
         args['prize'] = {'$ne': None}
     return lottery_draws.get_many(args)
 
+
+# CONTRACTS API
 
 class AddContract(BaseModel):
     type: ContractType
@@ -152,7 +158,6 @@ async def register_contract(contract: AddContract) -> None:
         # Check that the contract's parameters are correct (beneficiary and creation fee are as we need them)
         # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
 
-        # TODO: change front to deploy
         target_beneficiary = 'METAFG5UBD74CKQFIIABWMMQXR45J7BAP3KV6BVR3V7LDPNAEKNEVLMBRE'  # cometa.algo
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
         target_flat_algo_creation_fee = settings.farm_flat_algo_creation_fee * 1000000  # in microtokens
@@ -279,7 +284,7 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
     return {'deleted_count': cnt}
 
 
-# POOLS
+# POOLS API
 
 @app.get('/pools')
 async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: Optional[PoolStatus] = None) -> List[PoolInfo]:
@@ -308,6 +313,24 @@ async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[in
         raise HTTPException(status_code=403, detail="Wrong password bro.")
     wallets = get_pool_snapshot(pool_id, max_round)
     return dict(sorted(wallets.items()))
+
+
+@app.post('/pools/notify')
+async def handle_pools_notify_social_channels(password: str, pool_id: int) -> None:
+    check_password(password)
+
+    contract = get_contract(pool_id)
+    if contract is None:
+        raise HTTPException(status_code=404, detail='Contract not found')
+
+    await notify_new_pool(
+        begin_block=contract.metadata['begin_block'],
+        end_block=contract.metadata['end_block'],
+        lock_length_blocks=contract.metadata['lock_length_blocks'],
+        type=contract.type,
+        metadata=contract.metadata,
+    )
+    return None
 
 
 # HUMBLE POOLS
@@ -419,24 +442,6 @@ async def resend_prizes(password: str) -> dict:
     return send_all_prizes()
 
 
-@app.post('/test')
-async def handle_test(password: str, pool_id: int) -> None:
-    check_password(password)
-
-    contract = get_contract(pool_id)
-    if contract is None:
-        raise HTTPException(status_code=404, detail='Contract not found')
-
-    await notify_new_pool(
-        begin_block=contract.metadata['begin_block'],
-        end_block=contract.metadata['end_block'],
-        lock_length_blocks=contract.metadata['lock_length_blocks'],
-        type=contract.type,
-        metadata=contract.metadata,
-    )
-    return None
-
-
 # Statistics
 
 @app.get('/stats/tvl')
@@ -468,54 +473,10 @@ def setup_logging():
 setup_logging()
 
 
-def try_rekeyed_transaction():
-    algod_client = init_algod_client()
-    params = algod_client.suggested_params()
-
-    private_key = mnemonic.to_private_key(settings.algo_mnemonic)
-    public_key = account.address_from_private_key(private_key)
-
-    rekeyed_private_key = mnemonic.to_private_key(settings.rekeyed_mnemonic)
-    rekeyed_public_key = account.address_from_private_key(rekeyed_private_key)
-
-    unsigned_txn = transaction.PaymentTxn(
-        sender=public_key,
-        sp=params,
-        receiver='METASWXOZB3CFFNWD6BDWU7CG5E42HNWFJZMM6IWR7MCT4P7NDW6755IMM',
-        amt=1000000,
-        note=b"Ckecing rekeyed txn.",
-    )
-    signed_txn = unsigned_txn.sign(rekeyed_private_key)
-    txid = algod_client.send_transaction(signed_txn)
-    print("Successfully submitted transaction with txID: {}".format(txid))
-
-    # wait for confirmation
-    txn_result = transaction.wait_for_confirmation(algod_client, txid, 4)
-
-    print(f"Transaction information: {json.dumps(txn_result, indent=4)}")
-    print(f"Decoded note: {b64decode(txn_result['txn']['txn']['note'])}")
-
-
 if __name__ == "__main__":
     argv = sys.argv[1:]
 
-    if len(argv) > 0:
-        command = argv[0]
-
-        if command == 'airdrop':
-            if len(argv) < 2:
-                print('Provide airdrop id!')
-                exit(1)
-            airdrop_id = argv[1]
-            # snapshot.make_snapshot(airdrop_id)
-            airdrop.run(airdrop_id)
-            exit(0)
-
-        print(f'Command "{command}" is unknown!')
-        exit(1)
-
     if settings.migrate:
-        print('MIGRATE = TRUE')
         migrate()
 
     with start_js_interop_server():
