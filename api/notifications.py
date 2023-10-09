@@ -32,7 +32,7 @@ async def notify_cometa_telegram_channel(text: str):
 def notify_discord_webhook(text: str):
     if settings.discord_notify_webhook_url is None:
         return
-    webhook = DiscordWebhook(url=settings.discord_notify_webhook_url, content=text, embeds=[])
+    webhook = DiscordWebhook(url=settings.discord_notify_webhook_url, content=text, embeds=[], attachments=[])
     _ = webhook.execute()
 
 
@@ -48,18 +48,19 @@ async def announce_farm(
 ) -> None:
     # TODO: ONE ASSET CASE (staking)
 
-    lp_token_id = metadata['stake_token_id']
-    asset1_id = metadata['asset1_id']
-    asset2_id = metadata['asset2_id']
-    reward_token_id = metadata['reward_token_id']
+    lp_token_id = int(metadata['stake_token_id'])
+    asset1_id = int(metadata['asset1_id'])
+    asset2_id = int(metadata['asset2_id'])
+    reward_token_id = int(metadata['reward_token_id'])
 
-    lp_token = get_asset(int(lp_token_id))
-    asset1 = get_asset(int(asset1_id))
-    asset2 = get_asset(int(asset2_id))
-    reward_token = get_asset(int(reward_token_id))
+    lp_token = get_asset(lp_token_id)
+    asset1 = get_asset(asset1_id)
+    asset2 = get_asset(asset2_id)
+    reward_token = get_asset(reward_token_id)
 
     asset1_link = f'https://vestige.fi/asset/{asset1_id}'
     asset2_link = f'https://vestige.fi/asset/{asset2_id}'
+    reward_link = f'https://vestige.fi/asset/{reward_token_id}'
     lp_pool_address = lp_token['params']['reserve']
     get_lp_link = f'https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity'
 
@@ -72,16 +73,14 @@ async def announce_farm(
         asset1_str = f'<a href="{asset1_link}">{asset1_name}</a>' if asset1_id != 0 else 'ALGO'
         asset2_str = f'<a href="{asset2_link}">{asset2_name}</a>' if asset2_id != 0 else 'ALGO'
         telegram_text = f'''
-💸 New pool {asset1_str}/{asset2_str} → <a href="https://vestige.fi/asset/{reward_token_id}">{reward_token_name}</a>
+💸 New pool {asset1_str}/{asset2_str} → <a href="{reward_link}">{reward_token_name}</a>
 
 ⏳ <b>{duration.days} days</b>
 {lock_str}
-<i>Get LP tokens on <a href="{get_lp_link}">Tinyman</a>.</i>
+✅ <i><a href="{get_lp_link}">Get LP tokens.</a></i>
 
 
-Enjoy farming! ❤️
-
-https://app.cometa.farm/
+Enjoy farming ❤️ https://app.cometa.farm/
         '''
         await notify_cometa_telegram_channel(telegram_text)
     except Exception as e:
@@ -89,20 +88,22 @@ https://app.cometa.farm/
 
     try:
         lock_str = '' if lock_duration.days == 0 else f'🔒 **{lock_duration.days} days**\n'
+        assets_info_str = ''
+        if asset1_id != 0:
+            assets_info_str += f'**${asset1_name} —** *{asset1_link}*\n'
+        if asset2_id != 0:
+            assets_info_str += f'**${asset2_name} —** *{asset2_link}*\n'
+        if reward_token_id != asset1_id and reward_token_id != asset2_id:
+            assets_info_str += f'**${reward_token_name} —** *{reward_link}*\n'
         discord_text = f'''
 💸 New pool **{asset1_name}/{asset2_name} → {reward_token_name}**
 
 ⏳ **{duration.days} days**
 {lock_str}
-***{asset1_name}** — {asset1_link}*
-***{asset2_name}** — {asset2_link}*
+{assets_info_str}
+✅ Get LP tokens: *{get_lp_link}*
 
-✅ *Get LP tokens on Tinyman: {get_lp_link}*
-
-
-Enjoy farming! ❤️
-
-https://app.cometa.farm/
+Enjoy farming ❤️ https://app.cometa.farm/
         '''
         notify_discord_webhook(discord_text)
     except Exception as e:
@@ -130,12 +131,9 @@ async def announce_distribution(
 ⏳ <b>{duration.days} days</b>
 {lock_str}
 
-<i>Buy {stake_token_name} on <a href="{token_buy_link}">Cometa Swap</a>.</i>
+<i><a href="{token_buy_link}">Buy {stake_token_name}.</a></i>
 
-
-Enjoy staking ❤️
-
-https://app.cometa.farm/
+Enjoy staking ❤️ https://app.cometa.farm/
     '''
         await notify_cometa_telegram_channel(telegram_text)
     except Exception as e:
@@ -148,14 +146,11 @@ https://app.cometa.farm/
 
 ⏳ **{duration.days} days**
 {lock_str}
-***{stake_token_name}** — {token_link}*
+**${stake_token_name} —** *{token_link}*
 
-✅ *Buy {stake_token_name} on {token_buy_link}*
+✅ Buy {stake_token_name} — *{token_buy_link}*
 
-
-Enjoy staking! ❤️
-
-https://app.cometa.farm/
+Enjoy staking ❤️ https://app.cometa.farm/
     '''
         notify_discord_webhook(discord_text)
     except Exception as e:
