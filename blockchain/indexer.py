@@ -10,9 +10,27 @@ BASE_URL = settings.algo_indexer_address
 logger = logging.getLogger(__name__)
 
 
+# TODO: INFO NOT FULL, handle get_asset(0) better
+ALGO_ASSET_INFO = {
+            'created-at-round': 3317341,
+            'deleted': False,
+            'index': 0,
+            'params': {
+                'creator': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
+                'total': 1000000000000000000000000000,
+                'decimals': 6,
+                'default-frozen': False,
+                'unit-name': 'ALGO',
+                'name': 'Algorand',
+                'url': 'https://algorand.foundation/'
+            }
+        }
+
 # TODO: use SDK
 @cached(cache=LRUCache(maxsize=2048))
 def get_asset(asset_id: int):
+    if asset_id == 0:
+        return ALGO_ASSET_INFO
     url = f'{BASE_URL}/v2/assets/{asset_id}'
     logger.debug(f'Fetching asset {asset_id} from {url}')
     return requests.get(url).json()['asset']
