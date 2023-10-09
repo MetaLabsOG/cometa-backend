@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Union
 
 from dataclasses_json import dataclass_json
 
@@ -13,8 +14,8 @@ class SwapInfo:
     wallet: str
     asset1_id: int
     asset2_id: int
-    asset1_amount: int
-    asset2_amount: int
+    asset1_amount: Union[int, float]
+    asset2_amount: Union[int, float]
 
 
 swaps = DbManager(settings.db_name, 'swaps', '_id', SwapInfo)
