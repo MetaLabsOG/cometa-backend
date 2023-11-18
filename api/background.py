@@ -2,6 +2,7 @@ import asyncio
 import logging
 import multiprocessing
 from contextlib import contextmanager
+from datetime import datetime
 from time import sleep
 
 from api.stats import save_snapshot
@@ -52,6 +53,7 @@ async def record_contracts_stats() -> None:
 @safe_async_method
 async def update_pools_info() -> None:
     logger.info('Updating pools info...')
+    start_time = datetime.now()
 
     all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
     current_block = get_current_round()
@@ -59,10 +61,13 @@ async def update_pools_info() -> None:
     pools = pools_db.get_all()
     current_pools = {p.id: p.status for p in pools}
 
+    skipped = 0
     for contract in all_contracts:
         try:
             end_block = parse_bignum(contract.metadata['cache']['initial']['endBlock'])
-            if end_block < current_block:
+            staked_microtokens = parse_bignum(contract.metadata['cache']['global']['totalStaked'])
+            if end_block < current_block and staked_microtokens <= 1:
+                skipped += 1
                 continue
             # TODO: not to get rate-limit
             sleep(1)
@@ -85,21 +90,16 @@ async def update_pools_info() -> None:
                 last_updated=pool_state.last_updated
             )
 
-            # TODO: for new pools alert
             if pool_info.id in current_pools:
                 pools_db.update(pool_info)
-                # old_status = current_pools[pool_info.id]
-            #     if old_status == PoolStatus.UPCOMING and pool_status == PoolStatus.LIVE:
-            #         new_pools.create(NewPoolInfo(pool_info.id, pool_info.name, pool_info.type))
             else:
                 pools_db.create(pool_info)
-            #     if pool_status == PoolStatus.LIVE:
-            #         new_pools.create(NewPoolInfo(pool_info.id, pool_info.name, pool_info.type))
 
         except Exception as e:
             logger.error(f'Failed to get info for pool {contract.description}: {e}', exc_info=True)
 
-    logger.info(f'Updated {len(all_contracts)} pools info')
+    time_delta = datetime.now() - start_time
+    logger.info(f'Updated {len(all_contracts)} pools info ({skipped} skipped) in {time_delta.total_seconds()}s')
 
 
 @safe_async_method
@@ -143,7 +143,7 @@ def run_background():
     async def tasks():
         await asyncio.gather(
             update_contracts_worker(),
-            # update_pools_info_worker()
+            update_pools_info_worker()
         )
 
     logger.info('Started background tasks.')
