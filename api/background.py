@@ -90,12 +90,12 @@ async def update_pools_info() -> None:
     pools = pools_db.get_all()
     current_pools = {p.id: p.status for p in pools}
 
+    OLD_BLOCK_THRESHOLD = 2000000  # ~90 days
     skipped = 0
     for contract in all_contracts:
         try:
             end_block = parse_bignum(contract.metadata['cache']['initial']['endBlock'])
-            staked_microtokens = parse_bignum(contract.metadata['cache']['global']['totalStaked'])
-            if end_block < current_block and staked_microtokens <= 1:
+            if end_block + OLD_BLOCK_THRESHOLD < current_block:
                 skipped += 1
                 continue
             # TODO: not to get rate-limit
