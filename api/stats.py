@@ -45,6 +45,8 @@ def get_lp_price(asset1_id: int, asset2_id: int) -> float:
     price1 = get_asset_price(asset1_id)
     price2 = get_asset_price(asset2_id)
     total_cost = price1 * pool.asset1_reserve + price2 * pool.asset2_reserve
+    if pool.total_lp_tokens == 0:
+        return 0
     lp_price = total_cost / pool.total_lp_tokens
     return lp_price
 

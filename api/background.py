@@ -23,11 +23,37 @@ logger = logging.getLogger(__name__)
 
 @safe_async_method
 async def update_contracts_cache(type: str) -> None:
-    contracts = get_contracts_by_type(type)
-    if len(contracts) > 0:
-        ids_and_versions = [{ 'id': info.id, 'version': strip_version(info.version) } for info in contracts]
-        existing_metadatas = { info.id: info.metadata for info in contracts }
-        states = await calljs("fetchContractsGlobalViews", contractType=type, idVersions=ids_and_versions)
+    start_time = datetime.now()
+
+    all_contracts = get_contracts_by_type(type)
+    contracts = []
+    skipped = 0
+
+    try:
+        for contract in all_contracts:
+            if contract.metadata is None or contract.metadata.get('cache') is None:
+                contracts.append(contract)
+            else:
+                end_block = parse_bignum(contract.metadata['cache']['initial']['endBlock'])
+                staked_microtokens = parse_bignum(contract.metadata['cache']['global']['totalStaked'])
+                if end_block < get_current_round() and staked_microtokens <= 1:
+                    skipped += 1
+                    continue
+                contracts.append(contract)
+    except Exception as e:
+        logger.error(f'Failed to filter contracts: {e}', exc_info=True)
+        contracts = all_contracts
+
+
+    existing_metadatas = { info.id: info.metadata for info in contracts }
+    ids_and_versions = [{ 'id': info.id, 'version': strip_version(info.version) } for info in contracts]
+
+    chunk_size = 20
+    start_index = 0
+
+    while start_index < len(ids_and_versions):
+        states = await calljs("fetchContractsGlobalViews", contractType=type,
+                              idVersions=ids_and_versions[start_index:start_index + chunk_size])
 
         for s_id, state in states.items():
             id = int(s_id)
@@ -37,8 +63,11 @@ async def update_contracts_cache(type: str) -> None:
 
             new_metadata = {**old_metadata, "cache": state}
             update_contract(id, metadata=new_metadata)
-    
-        logger.info(f'Updated state cache for contracts: {type}')
+
+        start_index += chunk_size
+
+    time_delta = datetime.now() - start_time
+    logger.info(f'Updated state cache for {len(all_contracts)} contracts: {type} ({skipped} skipped) in {time_delta.total_seconds()}s')
 
 
 @safe_async_method
@@ -125,7 +154,7 @@ async def update_contracts_worker():
 
 @repeat_every(settings.contracts_cache_ttl)
 async def update_pools_info_worker():
-    logger.info('Updating all pools info, users also...')
+    logger.info('Updating pools...')
 
     await update_pools_info()
 
