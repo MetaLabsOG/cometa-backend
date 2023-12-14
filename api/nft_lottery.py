@@ -85,8 +85,6 @@ def draw_id(lottery: NftLottery) -> Optional[int]:
         if not lottery.available_nfts:
             return None
         res = random.choice(lottery.available_nfts)
-        lottery.available_nfts.remove(res)
-        nft_lotteries.update(lottery)
         data = indexer_client.lookup_account_assets(address=cometa_public_key, asset_id=res)
         assets = data.get('assets', [])
         if len(assets) > 0 and assets[0].get('amount', 0) > 0:
@@ -184,7 +182,9 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
     # lottery_participants.update(participant)
 
     if prize_id is not None:
-        return get_nft_prize(lottery, prize_id)
+        prize_info = get_nft_prize(lottery, prize_id)
+        logger.info(f'Prize info: {prize_info}')
+        return prize_info
 
     return None
 
