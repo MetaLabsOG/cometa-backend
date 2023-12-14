@@ -106,9 +106,13 @@ def get_nft_prize(lottery: NftLottery, asa_id: Optional[int]) -> Optional[NftPri
     if asa_id is None:
         return None
     prize_info = get_nft_info(asa_id)
+
+    PINATA_URL = 'https://gateway.pinata.cloud/ipfs/'
+    image_url = prize_info.image_url.replace('ipfs://', PINATA_URL)
+
     return NftPrize(asa_id=asa_id,
                     name=prize_info.name,
-                    image_url=prize_info.image_url,
+                    image_url=image_url,
                     title=lottery.win_title)
 
 
