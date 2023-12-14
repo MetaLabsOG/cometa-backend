@@ -60,13 +60,12 @@ async def announce_stake(
     token_buy_link = 'https://app.cometa.farm/swap'
 
     try:
-        lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>'
+        lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
         telegram_text = f'''
 💸 New pool <a href="{stake_token_link}">{stake_token_name}</a> → <a href="{reward_token_link}">{reward_token_name}</a>
 
 ⏳ <b>{duration.days} days</b>
 {lock_str}
-
 ✅ <a href="{token_buy_link}">Buy {stake_token_name}.</a>
 
 Enjoy farming ❤️ 
@@ -226,6 +225,8 @@ async def notify_new_pool(
 ):
     try:
         duration = duration_from_blocks(end_block - begin_block + 1)
+        if lock_length_blocks != 0:
+            lock_length_blocks += 2619  # epsilon to get more accurate number of days (10% of ~26181 blocks per day)
         lock_duration = duration_from_blocks(lock_length_blocks)
 
         if type == ContractType.FARM:
