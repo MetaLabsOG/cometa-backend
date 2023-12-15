@@ -194,6 +194,8 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
 
 
 def send_all_prizes():
+    logger.info('Sending all failed NFT prizes...')
+
     res = []
     sent_count = 0
     error_count = 0
@@ -213,8 +215,11 @@ def send_all_prizes():
             draw.send_error = str(e)
             error_count += 1
 
+        logger.info(f'Sent NFT: {info}')
+
         lottery_draws.update(draw)
         res.append(info)
+
 
     return {
         'sent_count': sent_count,
