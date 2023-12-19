@@ -91,6 +91,8 @@ def draw_id(lottery: NftLottery) -> Optional[int]:
             # drawn nft persists in the wallet
             break
         logger.info(f'NFT {res} is not in the wallet, drawing again')
+        lottery.available_nfts.remove(res)
+        nft_lotteries.update(lottery)
     return res
 
 
