@@ -274,7 +274,22 @@ async def get_contracts(
         contracts.reverse()
     if max_count is not None:
         contracts = contracts[:max_count]
-    return contracts
+    # TODO: remove this hack
+    LATEST_BLOCK = 35264929 # 17.01.24 00:55
+    MONTH_BLOCKS = 785454
+    THRESHOLD_BLOCK = LATEST_BLOCK - MONTH_BLOCKS
+    recent_pools = []
+    for contract in contracts:
+        cache = contract.metadata.get('cache')
+        if cache is None:
+            continue
+        initial = cache.get('initial')
+        if initial is None:
+            continue
+        end_block = parse_bignum(initial['endBlock'])
+        if end_block > THRESHOLD_BLOCK:
+            recent_pools.append(contract)
+    return recent_pools
 
 
 @app.delete('/contracts')
