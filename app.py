@@ -17,6 +17,7 @@ from uvicorn.logging import ColourizedFormatter
 
 import dexes.humble as humble
 from airdrop import airdrop
+from airdrop_all_active_stakers import snapshot_all
 from api import stats
 from api.background import start_bg_tasks
 from api.db_model import ContractType
@@ -328,6 +329,14 @@ async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[in
         raise HTTPException(status_code=403, detail="Wrong password bro.")
     wallets = get_pool_snapshot(pool_id, max_round)
     return dict(sorted(wallets.items()))
+
+
+@app.get('/pools/snapshot_all')
+async def make_pool_snapshot(password: str, max_round: Optional[int] = None) -> dict:
+    if password != 'YouShallNotPass':
+        raise HTTPException(status_code=403, detail="Wrong password bro.")
+    wallets = snapshot_all()
+    return wallets
 
 
 @app.post('/pools/notify')
