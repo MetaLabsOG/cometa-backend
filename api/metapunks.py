@@ -63,15 +63,17 @@ def asset_owner(asset_id):
     return asset_id, get_asset_owner(asset_id)
 
 
-def get_holders_async() -> List[HolderInfo]:
+def get_holders_async() -> dict:
     ids = get_unlisted_ids()
     print(f'Got {len(ids)} unlisted Metapunks!')
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = executor.map(asset_owner, ids)
-    holders = defaultdict(list)
+    holders = {}
     for asa_id, address in results:
+        if address not in holders:
+            holders[address] = []
         holders[address].append(asa_id)
-    return [HolderInfo(k, v) for k, v in holders.items()]
+    return holders
 
 
 def get_available() -> List[HolderInfo]:
