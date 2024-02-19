@@ -65,4 +65,4 @@ settings = Settings()
 print(f'Algo Network = {settings.algo_network}')
 print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')
 
-print(f'All settings: {settings.dict()}')
+print(f'All settings: {settings.model_dump()}')
