@@ -276,7 +276,7 @@ async def get_contracts(
     if max_count is not None:
         contracts = contracts[:max_count]
     # TODO: remove this hack
-    LATEST_BLOCK = 35264929 # 17.01.24 00:55
+    LATEST_BLOCK = 36957814 # 13.03.24 12:50 gmt+8
     MONTH_BLOCKS = 785454
     THRESHOLD_BLOCK = LATEST_BLOCK - MONTH_BLOCKS
     recent_pools = []
