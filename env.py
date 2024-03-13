@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     api_password: str
     logging_level: str = 'INFO'
 
-    block_time: float = 3.3
+    block_time: float = 2.7
 
     contracts_cache_ttl: int = 120
     algo_price_ttl: int
