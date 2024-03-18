@@ -5,11 +5,12 @@ from contextlib import contextmanager
 from datetime import datetime
 from time import sleep
 
+from api.migrations import update_pool_start_end_dates
 from api.stats import save_snapshot
 from blockchain.node import get_current_round
 from core.cometa import calculate_tvl_for_type, get_pool_state
 from core.db.cometa_users import cometa_users, update_user_pools
-from core.db.contracts import get_contracts_by_type, update_contract, get_contracts
+from core.db.contracts import get_contracts_by_type, update_contract, get_contracts, get_all_pool_contracts
 from core.db.model import PoolStatus, PoolInfo, PoolType
 from core.db.pools import pools_db
 from core.decorators import safe_async_method, repeat_every
@@ -84,7 +85,7 @@ async def update_pools_info() -> None:
     logger.info('Updating pools info...')
     start_time = datetime.now()
 
-    all_contracts = get_contracts({'type': {'$in': ['farm', 'distribution']}})
+    all_contracts = get_all_pool_contracts()
     current_block = get_current_round()
 
     pools = pools_db.get_all()
@@ -145,6 +146,10 @@ async def update_all_user_pools():
 @repeat_every(settings.contracts_cache_ttl)
 async def update_contracts_worker():
     logger.info('Updating contract caches...')
+
+    if settings.migrate:
+        await update_pool_start_end_dates()
+        settings.migrate = False
 
     await update_contracts_cache('farm')
     await update_contracts_cache('distribution')
