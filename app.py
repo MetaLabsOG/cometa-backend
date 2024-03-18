@@ -132,7 +132,7 @@ async def add_new_contract(contract: AddContract, password: str) -> dict:
     return {'internal_id': added}
 
 
-def parse_cache(cache: dict | None) -> dict:
+def parse_cache(cache: Optional[dict]) -> dict:
     if cache is None:
         return {}
 
