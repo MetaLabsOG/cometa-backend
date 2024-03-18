@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+from typing import Any, Optional
 
 from env import settings
 
@@ -22,6 +24,18 @@ def get_second_arg(*args, **kwargs):
 def parse_bignum(obj: dict) -> int:
     assert 'type' in obj and 'hex' in obj and obj['type'] == 'BigNumber'
     return int(obj['hex'], 16)
+
+
+def parse_datetime(date_obj: Any) -> Optional[datetime]:
+    if date_obj is None:
+        return None
+    if isinstance(date_obj, datetime):
+        return date_obj
+    if isinstance(date_obj, str):
+        return datetime.fromisoformat(date_obj)
+    if isinstance(date_obj, int):
+        return datetime.fromtimestamp(date_obj)
+    return None
 
 
 def blocks_to_seconds(start_block: int, last_block: int) -> float:
