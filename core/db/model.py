@@ -16,10 +16,27 @@ class ContractInfo:
     description: str
     metadata: Optional[dict] = None
     deployed_date: Optional[datetime] = None
+    begin_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
 
     def __post_init__(self):
         if self.deployed_timestamp is not None:
             self.deployed_date = datetime.fromtimestamp(self.deployed_timestamp)
+
+    def without_cache(self) -> 'ContractInfo':
+        metadata = dict(self.metadata) if self.metadata is not None else None
+        metadata['cache'] = None
+        return ContractInfo(
+            type=self.type,
+            id=self.id,
+            version=self.version,
+            deployed_timestamp=self.deployed_timestamp,
+            description=self.description,
+            metadata=metadata,
+            deployed_date=self.deployed_date,
+            begin_date=self.begin_date,
+            end_date=self.end_date
+        )
 
 
 @dataclass_json
