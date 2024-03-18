@@ -25,11 +25,13 @@ from api.notifications import notify_new_pool
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
 from blockchain.indexer import get_address_app_ids
+from blockchain.node import get_current_round
+from blockchain.util import date_from_block
 from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
-    remove_contracts, update_contract, get_all_pool_contracts
+    remove_contracts, update_contract, get_all_pool_contracts, insert_contract
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
@@ -130,11 +132,47 @@ async def add_new_contract(contract: AddContract, password: str) -> dict:
     return {'internal_id': added}
 
 
+def parse_cache(cache: dict | None) -> dict:
+    if cache is None:
+        return {}
+
+    begin_block = parse_bignum(cache['initial']['beginBlock'])
+    end_block = parse_bignum(cache['initial']['endBlock'])
+    current_time = datetime.now()
+    current_block = get_current_round()
+    return {
+        'begin_block': begin_block,
+        'end_block': end_block,
+        'begin_date': date_from_block(begin_block, current_block, current_time),
+        'end_date': date_from_block(end_block, current_block, current_time),
+        'lock_length_blocks': parse_bignum(cache['initial']['lockLengthBlocks']),
+    }
+
+
+def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractInfo:
+    cache = new_metadata.get('cache')
+    metadata_fields = parse_cache(cache)
+    current_date = datetime.now()
+    contract = ContractInfo(
+        type=contract_info.type,
+        id=contract_info.id,
+        version=contract_info.version,
+        description=contract_info.description,
+        deployed_timestamp=current_date.timestamp(),
+        deployed_date=current_date,
+        begin_date=metadata_fields.get('begin_date'),
+        end_date=metadata_fields.get('end_date'),
+        metadata=new_metadata
+    )
+    insert_contract(contract)
+    return contract
+
+
 # This method is NOT password-protected: it is intended to be used by users who add contracts themselves.
 # The only thing we do here to ensure that our database isn't spammed with bullshit is checking that the contract
 # really exists in the network, has a correct type and is fully deployed
 @app.post('/contract/register')
-async def register_contract(contract: AddContract) -> None:
+async def register_contract(contract: AddContract) -> ContractInfo:
     logger.info(f'Registering a new contract {contract}')
 
     if get_contract(contract.id) is not None:
@@ -173,17 +211,20 @@ async def register_contract(contract: AddContract) -> None:
 
     metadata = {**contract.metadata, **cache_metadata} if contract.metadata is not None else cache_metadata
     logger.info(f'Registering a contract with metadata:\n{metadata}')
-    add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
+    rich_contract = create_contract(contract, metadata)
 
-    await notify_new_pool(
-        begin_block=metadata['begin_block'],
-        end_block=metadata['end_block'],
-        lock_length_blocks=metadata['lock_length_blocks'],
-        type=contract.type,
-        metadata=contract.metadata,
-    )
+    try:
+        await notify_new_pool(
+            begin_block=rich_contract.metadata['begin_block'],
+            end_block=rich_contract.metadata['end_block'],
+            lock_length_blocks=rich_contract.metadata['lock_length_blocks'],
+            type=contract.type,
+            metadata=contract.metadata,
+        )
+    except Exception as e:
+        logger.error(f'Error notifying about new pool: {e}', exc_info=True)
 
-    return None
+    return rich_contract
 
 
 class DeployContract(BaseModel):
