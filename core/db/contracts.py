@@ -29,12 +29,20 @@ def update_contract(id: int, description: Optional[str] = None, metadata: Option
         return False
 
 
+def update_contract_with(contract_id: int, **kwargs) -> bool:
+    if len(kwargs) > 0:
+        res = collection.update_one({'id': contract_id}, {'$set': kwargs})
+        return res.acknowledged
+    else:
+        return False
+
+
 def get_contracts(args: dict) -> list[ContractInfo]:
     return list(map(ContractInfo.from_dict, collection.find(args)))
 
 
-def get_all_contracts() -> list[ContractInfo]:
-    return get_contracts({})
+def get_all_pool_contracts() -> list[ContractInfo]:
+    return get_contracts({'type': {'$in': ['farm', 'distribution']}})
 
 
 def get_contracts_by_type(type: Optional[str]) -> list[ContractInfo]:
