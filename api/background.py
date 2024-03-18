@@ -49,7 +49,7 @@ async def update_contracts_cache(type: str) -> None:
     existing_metadatas = { info.id: info.metadata for info in contracts }
     ids_and_versions = [{ 'id': info.id, 'version': strip_version(info.version) } for info in contracts]
 
-    chunk_size = 20
+    chunk_size = settings.update_contracts_chunk_size
     start_index = 0
 
     while start_index < len(ids_and_versions):
