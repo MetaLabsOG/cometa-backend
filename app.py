@@ -29,14 +29,13 @@ from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
-from core.db.migrations.separate_user_info import migrate_contract_dates
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
 
-VERSION = '1.2.2'
+VERSION = '1.5.0'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
@@ -286,23 +285,6 @@ async def get_contracts(
 
     return recent_pools
 
-    # TODO: remove this hack
-    # LATEST_BLOCK = 36957814 # 13.03.24 12:50 gmt+8
-    # MONTH_BLOCKS = 785454
-    # THRESHOLD_BLOCK = LATEST_BLOCK - MONTH_BLOCKS
-    # recent_pools = []
-    # for contract in contracts:
-    #     cache = contract.metadata.get('cache')
-    #     if cache is None:
-    #         continue
-    #     initial = cache.get('initial')
-    #     if initial is None:
-    #         continue
-    #     end_block = parse_bignum(initial['endBlock'])
-    #     if end_block > THRESHOLD_BLOCK:
-    #         recent_pools.append(contract)
-    # return recent_pools
-
 
 @app.delete('/contracts')
 async def remove_contracts_by_type(type: str, password: str) -> dict:
@@ -514,9 +496,6 @@ setup_logging()
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
-
-    if settings.migrate:
-        migrate_contract_dates()
 
     with start_js_interop_server():
         with start_bg_tasks():
