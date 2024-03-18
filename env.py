@@ -6,31 +6,24 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     algo_network: str
     algo_mnemonic: str
-
     cometa_algo_mnemonic: str
     cometa_rekey_mnemonic: str
+    rekeyed_mnemonic: str = None
 
     farm_creation_fee: int
     farm_flat_algo_creation_fee: int
 
     algod_address: str
     algod_token: str
-
     algo_indexer_address: str
 
     server_port: int
     workers_num: int
-
     mongodb_host: str
     mongodb_port: int
 
-    rekeyed_mnemonic: str = None
-    migrate: bool = False
-    update_contract_caches: bool = True
-
     api_password: str
     logging_level: str = 'INFO'
-
     block_time: float = 2.7
 
     contracts_cache_ttl: int = 120
@@ -41,17 +34,20 @@ class Settings(BaseSettings):
     lottery_check_lock: bool = True
 
     background_user_pools_update: bool = True
+    migrate: bool = False
+
+    update_contract_caches: bool = True
+    update_contracts_chunk_size: int = 5
 
     telegram_bot_api_token: str
     telegram_channel_id: int
-
     discord_notify_webhook_url: Optional[str] = None
-
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
     reach_no_warn: bool = False
     reach_connector_mode: str = 'ALGO'
     sync_humble_pools: int = 0
+
+    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
     def is_mainnet(self):
         return self.algo_network == 'mainnet'
