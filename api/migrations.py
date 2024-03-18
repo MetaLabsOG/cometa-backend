@@ -65,13 +65,13 @@ async def update_pool_start_end_dates() -> None:
                 logger.info(f'Updated begin block for {contract.id} to {begin_block}')
 
             if metadata.get('end_date') is None:
-                end_date = date_from_block(end_block)
+                end_date = date_from_block(end_block, current_block, start_time)
                 metadata['end_date'] = end_date
                 contract.end_date = end_date
                 logger.info(f'Updated end date for {contract.id} to {end_date}')
 
             if metadata.get('begin_date') is None:
-                begin_date = date_from_block(begin_block)
+                begin_date = date_from_block(begin_block, current_block, start_time)
                 metadata['begin_date'] = begin_date
                 contract.begin_date = begin_date
                 logger.info(f'Updated begin date for {contract.id} to {begin_date}')
