@@ -277,7 +277,7 @@ async def get_contracts(
 
     address_app_ids = []
     if include_address_pools is not None:
-        address_app_ids = get_address_app_ids(include_address_pools)
+        address_app_ids = get_address_app_ids(include_address_pools, only_active=True)
 
     # TODO: move as arg to DB query
     matching_pools = []
@@ -483,9 +483,9 @@ async def tvl() -> dict:
 
 
 @app.get('/stats/app-ids')
-async def address_app_ids(password: str, address: str) -> dict:
+async def address_app_ids(password: str, address: str, only_active: bool = False) -> dict:
     check_password(password)
-    app_ids = get_address_app_ids(address)
+    app_ids = get_address_app_ids(address, only_active)
     contracts = get_all_pool_contracts()
     user_pools = []
     for contract in contracts:
