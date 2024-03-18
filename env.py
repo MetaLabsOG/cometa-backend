@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     api_password: str
     logging_level: str = 'INFO'
     block_time: float = 2.7
+    old_pool_end_date_days_ago: int = 30
 
     contracts_cache_ttl: int = 120
     algo_price_ttl: int

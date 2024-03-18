@@ -1,22 +1,18 @@
-import asyncio
-import json
 import logging
 import secrets
 import sys
-from base64 import b64decode
-from enum import Enum
+from datetime import datetime, timedelta
 from time import sleep
 from typing import List, Optional
 
 import uvicorn
-from algosdk import account, mnemonic, encoding, transaction
+from algosdk import encoding
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from uvicorn.logging import ColourizedFormatter
 
 import dexes.humble as humble
-from airdrop import airdrop
 from airdrop_all_active_stakers import snapshot_all
 from api import stats
 from api.background import start_bg_tasks
@@ -28,13 +24,12 @@ from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
-from blockchain.node import init_algod_client
 from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract
-from core.db.migrations.separate_user_info import migrate
+from core.db.migrations.separate_user_info import migrate_contract_dates
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
@@ -268,29 +263,45 @@ async def get_local_states(type: str, address: str) -> dict:
 async def get_contracts(
         type: Optional[ContractType] = None,
         max_count: Optional[int] = None,
-        new_first: bool = False
+        new_first: bool = False,
+        without_old_pools: bool = True
 ) -> List[ContractInfo]:
     contracts = get_contracts_by_type(type)
     if new_first:
         contracts.reverse()
-    if max_count is not None:
-        contracts = contracts[:max_count]
-    # TODO: remove this hack
-    LATEST_BLOCK = 36957814 # 13.03.24 12:50 gmt+8
-    MONTH_BLOCKS = 785454
-    THRESHOLD_BLOCK = LATEST_BLOCK - MONTH_BLOCKS
+    max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
+
+    # TODO: move as arg to DB query
     recent_pools = []
     for contract in contracts:
-        cache = contract.metadata.get('cache')
-        if cache is None:
+        if contract.end_date is None:
+            logger.warning(f'{contract.id} has no end date: {contract.format_str()}')
             continue
-        initial = cache.get('initial')
-        if initial is None:
+        if without_old_pools and contract.end_date < max_end_date:
             continue
-        end_block = parse_bignum(initial['endBlock'])
-        if end_block > THRESHOLD_BLOCK:
-            recent_pools.append(contract)
+        recent_pools.append(contract)
+
+    if max_count is not None and len(recent_pools) > max_count:
+        recent_pools = recent_pools[:max_count]
+
     return recent_pools
+
+    # TODO: remove this hack
+    # LATEST_BLOCK = 36957814 # 13.03.24 12:50 gmt+8
+    # MONTH_BLOCKS = 785454
+    # THRESHOLD_BLOCK = LATEST_BLOCK - MONTH_BLOCKS
+    # recent_pools = []
+    # for contract in contracts:
+    #     cache = contract.metadata.get('cache')
+    #     if cache is None:
+    #         continue
+    #     initial = cache.get('initial')
+    #     if initial is None:
+    #         continue
+    #     end_block = parse_bignum(initial['endBlock'])
+    #     if end_block > THRESHOLD_BLOCK:
+    #         recent_pools.append(contract)
+    # return recent_pools
 
 
 @app.delete('/contracts')
@@ -505,7 +516,7 @@ if __name__ == "__main__":
     argv = sys.argv[1:]
 
     if settings.migrate:
-        migrate()
+        migrate_contract_dates()
 
     with start_js_interop_server():
         with start_bg_tasks():
