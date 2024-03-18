@@ -88,7 +88,7 @@ async def update_pool_start_end_dates() -> None:
                 end_date=contract.end_date
             )
 
-            logger.info(f'Pool {contract.id} updated:\n{contract.without_cache().format_str()}\n')
+            logger.info(f'Pool {contract.id} updated: {contract.begin_date} - {contract.end_date}.')
 
         except Exception as e:
             logger.error(f'Failed to update pool {contract.id}: {e}', exc_info=True)
