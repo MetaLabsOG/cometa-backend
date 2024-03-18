@@ -24,11 +24,12 @@ from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
+from blockchain.indexer import get_address_app_ids
 from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
-    remove_contracts, update_contract
+    remove_contracts, update_contract, get_all_pool_contracts
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
@@ -263,27 +264,38 @@ async def get_contracts(
         type: Optional[ContractType] = None,
         max_count: Optional[int] = None,
         new_first: bool = False,
-        without_old_pools: bool = True
+        without_old_pools: bool = True,
+        include_address_pools: Optional[str] = None
 ) -> List[ContractInfo]:
     contracts = get_contracts_by_type(type)
     if new_first:
         contracts.reverse()
-    max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
+
+    max_end_date = None
+    if without_old_pools:
+        max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
+
+    address_app_ids = []
+    if include_address_pools is not None:
+        address_app_ids = get_address_app_ids(include_address_pools)
 
     # TODO: move as arg to DB query
-    recent_pools = []
+    matching_pools = []
     for contract in contracts:
+        if contract.id in address_app_ids:
+            matching_pools.append(contract)
+            continue
         if contract.end_date is None:
             logger.warning(f'{contract.id} has no end date: {contract.format_str()}')
             continue
         if without_old_pools and contract.end_date < max_end_date:
             continue
-        recent_pools.append(contract)
+        matching_pools.append(contract)
 
-    if max_count is not None and len(recent_pools) > max_count:
-        recent_pools = recent_pools[:max_count]
+    if max_count is not None and len(matching_pools) > max_count:
+        matching_pools = matching_pools[:max_count]
 
-    return recent_pools
+    return matching_pools
 
 
 @app.delete('/contracts')
@@ -468,6 +480,18 @@ async def resend_prizes(password: str) -> dict:
 @app.get('/stats/tvl')
 async def tvl() -> dict:
     return stats.get_tvl()
+
+
+@app.get('/stats/app-ids')
+async def address_app_ids(password: str, address: str) -> dict:
+    check_password(password)
+    app_ids = get_address_app_ids(address)
+    contracts = get_all_pool_contracts()
+    user_pools = []
+    for contract in contracts:
+        if contract.id in app_ids:
+            user_pools.append({'id': contract.id, 'description': contract.description})
+    return {'app_ids': app_ids, 'user_pools': user_pools}
 
 
 # Events
