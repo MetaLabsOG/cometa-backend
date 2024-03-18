@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     rekeyed_mnemonic: str = None
     migrate: bool = False
+    update_contract_caches: bool = True
 
     api_password: str
     logging_level: str = 'INFO'
