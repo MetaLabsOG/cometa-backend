@@ -15,6 +15,11 @@ def add_contract(type: str, id: int, version: str, description: str, metadata: O
     return str(res.inserted_id)
 
 
+def insert_contract(contract: ContractInfo) -> str:
+    res = collection.insert_one(contract.to_dict())
+    return str(res.inserted_id)
+
+
 def update_contract(id: int, description: Optional[str] = None, metadata: Optional[dict] = None) -> bool:
     upd_dict = {}
     if description is not None:

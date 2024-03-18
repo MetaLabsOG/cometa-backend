@@ -1,28 +1,13 @@
 import logging
 from datetime import datetime
 
-from algosdk.v2client import indexer
-
 from blockchain.node import get_current_round
-from blockchain.util import duration_from_blocks
+from blockchain.util import date_from_block
 from core.db.contracts import get_all_pool_contracts, update_contract_with
 from core.decorators import safe_async_method
 from core.util import parse_bignum
-from env import settings
 
 logger = logging.getLogger(__name__)
-
-indexer_client = indexer.IndexerClient(indexer_token=settings.algod_token, indexer_address=settings.algo_indexer_address)
-
-
-def date_from_block(round_num: int, current_round_num: int, current_date: datetime) -> datetime:
-    if round_num > current_round_num:
-        pool_time_remains = duration_from_blocks(current_round_num, round_num)
-        return current_date + pool_time_remains
-
-    round_info = indexer_client.block_info(round_num=round_num, header_only=True)
-    timestamp = round_info['timestamp']
-    return datetime.utcfromtimestamp(timestamp)
 
 
 @safe_async_method
