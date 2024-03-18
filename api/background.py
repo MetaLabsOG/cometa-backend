@@ -151,8 +151,9 @@ async def update_contracts_worker():
         await update_pool_start_end_dates()
         settings.migrate = False
 
-    await update_contracts_cache('farm')
-    await update_contracts_cache('distribution')
+    if settings.update_contract_caches:
+        await update_contracts_cache('farm')
+        await update_contracts_cache('distribution')
 
     logger.info('Contract caches updated.')
 
