@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -37,6 +38,9 @@ class ContractInfo:
             begin_date=self.begin_date,
             end_date=self.end_date
         )
+
+    def format_str(self) -> str:
+        return json.dumps(self.to_dict(), indent=4, default=str)
 
 
 @dataclass_json

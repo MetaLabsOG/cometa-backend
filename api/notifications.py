@@ -8,6 +8,7 @@ from telegram.ext import Application
 
 from api.db_model import ContractType
 from blockchain.indexer import get_asset
+from blockchain.util import duration_from_block_count
 from env import settings
 
 application = Application.builder().token(settings.telegram_bot_api_token).build()
@@ -34,11 +35,6 @@ def notify_discord_webhook(text: str):
         return
     webhook = DiscordWebhook(url=settings.discord_notify_webhook_url, content=text, embeds=[], attachments=[])
     _ = webhook.execute()
-
-
-def duration_from_blocks(blocks: int) -> timedelta:
-    length_seconds = blocks * settings.block_time
-    return timedelta(seconds=length_seconds)
 
 
 async def announce_stake(
@@ -224,10 +220,10 @@ async def notify_new_pool(
         metadata: Optional[dict] = None
 ):
     try:
-        duration = duration_from_blocks(end_block - begin_block + 1)
+        duration = duration_from_block_count(end_block - begin_block + 1)
         if lock_length_blocks != 0:
             lock_length_blocks += 2619  # epsilon to get more accurate number of days (10% of ~26181 blocks per day)
-        lock_duration = duration_from_blocks(lock_length_blocks)
+        lock_duration = duration_from_block_count(lock_length_blocks)
 
         if type == ContractType.FARM:
             return await announce_farm(duration, lock_duration, metadata)
