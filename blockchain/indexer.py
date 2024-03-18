@@ -9,6 +9,8 @@ from env import settings
 BASE_URL = settings.algo_indexer_address
 logger = logging.getLogger(__name__)
 
+indexer_client = indexer.IndexerClient(indexer_token=settings.algod_token, indexer_address=settings.algo_indexer_address)
+
 
 # TODO: INFO NOT FULL, handle get_asset(0) better
 ALGO_ASSET_INFO = {
