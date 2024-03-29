@@ -17,6 +17,7 @@ from airdrop_all_active_stakers import snapshot_all
 from api import stats
 from api.background import start_bg_tasks
 from api.db_model import ContractType
+from api.migrations import update_contract_start_end_dates
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
 from api.pool_snapshot import get_pool_snapshot
@@ -327,8 +328,13 @@ async def get_contracts(
             matching_pools.append(contract)
             continue
         if contract.end_date is None:
-            logger.warning(f'{contract.id} has no end date: {contract.format_str()}')
-            continue
+            # TODO: move method to proper file from migrations
+            updated_contract = update_contract_start_end_dates(contract)
+            if updated_contract is None:
+                logger.warning(f'{contract.id} has no end date: {contract.format_str()}')
+                continue
+            contract = updated_contract
+            logger.info(f'Updated contract {contract.id} with end date {contract.end_date}')
         if without_old_pools and contract.end_date < max_end_date:
             continue
         matching_pools.append(contract)
