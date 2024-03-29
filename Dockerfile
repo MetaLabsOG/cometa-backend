@@ -1,4 +1,4 @@
-FROM nikolaik/python-nodejs:python3.9-nodejs16-bullseye
+FROM nikolaik/python-nodejs:python3.12-nodejs21-slim-canary
 
 COPY . /app
 WORKDIR /app
