@@ -28,6 +28,7 @@ ALGO_ASSET_INFO = {
             }
         }
 
+
 # TODO: use SDK
 @cached(cache=LRUCache(maxsize=2048))
 def get_asset(asset_id: int):
