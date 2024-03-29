@@ -20,7 +20,8 @@ from api.db_model import ContractType
 from api.migrations import update_contract_start_end_dates
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
-from api.pool_snapshot import get_pool_snapshot
+from core.new.db.model import PoolTransaction, PoolState
+from core.new.pool_state import get_pool_snapshot, update_pool_state, fetch_new_transactions
 from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
@@ -429,30 +430,6 @@ async def humble_pools_all() -> List[humble.HumblePool]:
     return humble.get_pools({})
 
 
-# CROWDSALE
-
-# def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
-#     contract = get_contract(contract_id)
-#     if contract is None or contract.type != 'crowdsale':
-#         raise HTTPException(status_code=404, detail="Contract not found")
-#
-#     whitelist = contract.metadata["whitelist"]
-#     if address not in whitelist:
-#         raise HTTPException(status_code=403, detail="Address not whitelisted")
-#
-#
-# @app.put('/whitelist_confirm')
-# async def whitelist_confirm(contract_id: int, address: str) -> bool:
-#     check_crowdsale_whitelist(contract_id, address)
-#     return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
-#
-#
-# @app.get('/whitelist_check')
-# async def whitelist_check(contract_id: int, address: str) -> bool:
-#     check_crowdsale_whitelist(contract_id, address)
-#     return True
-
-
 # LOTTERY
 
 @app.post('/lottery/swap')
@@ -520,6 +497,17 @@ async def get_lotteries(password: str) -> List[NftLottery]:
 async def resend_prizes(password: str) -> dict:
     check_password(password)
     return send_all_prizes()
+
+
+@app.get('/pool/transactions')
+async def get_pool_transactions(pool_id: int) -> list[PoolTransaction]:
+    pool_state = update_pool_state(pool_id)
+    return fetch_new_transactions(pool_state)
+
+
+@app.get('/pool/state')
+async def get_pool_transactions(pool_id: int) -> PoolState:
+    return update_pool_state(pool_id)
 
 
 # Statistics
