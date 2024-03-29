@@ -9,6 +9,8 @@ from env import settings
 BASE_URL = settings.algo_indexer_address
 logger = logging.getLogger(__name__)
 
+indexer_client = indexer.IndexerClient(indexer_token=settings.algod_token, indexer_address=settings.algo_indexer_address)
+
 
 # TODO: INFO NOT FULL, handle get_asset(0) better
 ALGO_ASSET_INFO = {
@@ -50,7 +52,10 @@ def get_account_assets(address: str) -> dict:
     return assets
 
 
-def get_address_app_ids(address: str) -> list[int]:
+CONST_APP_STATE_BYTES = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+
+
+def get_address_app_ids(address: str, only_active: bool = False) -> list[int]:
     url = f'{BASE_URL}/v2/accounts/{address}'
     data = requests.get(url).json()
     logger.debug(f'Fetching app ids for {address} from {url}')
@@ -59,7 +64,19 @@ def get_address_app_ids(address: str) -> list[int]:
         raise Exception(f'Account {address} not found: {data}')
     if not data['account'].get('apps-local-state'):
         return []
-    return [app['id'] for app in data['account']['apps-local-state']]
+
+    app_ids = []
+    for app in data['account']['apps-local-state']:
+        if only_active:
+            key_value = app.get('key-value')
+            if key_value is None or len(key_value) == 0:
+                continue
+            bytes_str = key_value[0]['value']['bytes']
+            if bytes_str == CONST_APP_STATE_BYTES:
+                continue
+        app_ids.append(app['id'])
+
+    return app_ids
 
 
 def get_asset_creator(asset_id: int) -> str:

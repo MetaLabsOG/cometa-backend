@@ -1,22 +1,18 @@
-import asyncio
-import json
 import logging
 import secrets
 import sys
-from base64 import b64decode
-from enum import Enum
+from datetime import datetime, timedelta
 from time import sleep
 from typing import List, Optional
 
 import uvicorn
-from algosdk import account, mnemonic, encoding, transaction
+from algosdk import encoding
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from uvicorn.logging import ColourizedFormatter
 
 import dexes.humble as humble
-from airdrop import airdrop
 from airdrop_all_active_stakers import snapshot_all
 from api import stats
 from api.background import start_bg_tasks
@@ -28,20 +24,21 @@ from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
-from blockchain.node import init_algod_client
+from blockchain.indexer import get_address_app_ids
+from blockchain.node import get_current_round
+from blockchain.util import date_from_block
 from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
-    remove_contracts, update_contract
-from core.db.migrations.separate_user_info import migrate
+    remove_contracts, update_contract, get_all_pool_contracts, insert_contract
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
 
-VERSION = '1.2.2'
+VERSION = '1.5.0'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
@@ -135,11 +132,47 @@ async def add_new_contract(contract: AddContract, password: str) -> dict:
     return {'internal_id': added}
 
 
+def parse_cache(cache: Optional[dict]) -> dict:
+    if cache is None:
+        return {}
+
+    begin_block = parse_bignum(cache['initial']['beginBlock'])
+    end_block = parse_bignum(cache['initial']['endBlock'])
+    current_time = datetime.now()
+    current_block = get_current_round()
+    return {
+        'begin_block': begin_block,
+        'end_block': end_block,
+        'begin_date': date_from_block(begin_block, current_block, current_time),
+        'end_date': date_from_block(end_block, current_block, current_time),
+        'lock_length_blocks': parse_bignum(cache['initial']['lockLengthBlocks']),
+    }
+
+
+def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractInfo:
+    cache = new_metadata.get('cache')
+    metadata_fields = parse_cache(cache)
+    current_date = datetime.now()
+    contract = ContractInfo(
+        type=contract_info.type,
+        id=contract_info.id,
+        version=contract_info.version,
+        description=contract_info.description,
+        deployed_timestamp=current_date.timestamp(),
+        deployed_date=current_date,
+        begin_date=metadata_fields.get('begin_date'),
+        end_date=metadata_fields.get('end_date'),
+        metadata=new_metadata
+    )
+    insert_contract(contract)
+    return contract
+
+
 # This method is NOT password-protected: it is intended to be used by users who add contracts themselves.
 # The only thing we do here to ensure that our database isn't spammed with bullshit is checking that the contract
 # really exists in the network, has a correct type and is fully deployed
 @app.post('/contract/register')
-async def register_contract(contract: AddContract) -> None:
+async def register_contract(contract: AddContract) -> ContractInfo:
     logger.info(f'Registering a new contract {contract}')
 
     if get_contract(contract.id) is not None:
@@ -178,17 +211,20 @@ async def register_contract(contract: AddContract) -> None:
 
     metadata = {**contract.metadata, **cache_metadata} if contract.metadata is not None else cache_metadata
     logger.info(f'Registering a contract with metadata:\n{metadata}')
-    add_contract(contract.type, contract.id, contract.version, contract.description, metadata)
+    rich_contract = create_contract(contract, metadata)
 
-    await notify_new_pool(
-        begin_block=metadata['begin_block'],
-        end_block=metadata['end_block'],
-        lock_length_blocks=metadata['lock_length_blocks'],
-        type=contract.type,
-        metadata=contract.metadata,
-    )
+    try:
+        await notify_new_pool(
+            begin_block=rich_contract.metadata['begin_block'],
+            end_block=rich_contract.metadata['end_block'],
+            lock_length_blocks=rich_contract.metadata['lock_length_blocks'],
+            type=contract.type,
+            metadata=contract.metadata,
+        )
+    except Exception as e:
+        logger.error(f'Error notifying about new pool: {e}', exc_info=True)
 
-    return None
+    return rich_contract
 
 
 class DeployContract(BaseModel):
@@ -268,29 +304,39 @@ async def get_local_states(type: str, address: str) -> dict:
 async def get_contracts(
         type: Optional[ContractType] = None,
         max_count: Optional[int] = None,
-        new_first: bool = False
+        new_first: bool = False,
+        without_old_pools: bool = True,
+        include_address_pools: Optional[str] = None
 ) -> List[ContractInfo]:
     contracts = get_contracts_by_type(type)
     if new_first:
         contracts.reverse()
-    if max_count is not None:
-        contracts = contracts[:max_count]
-    # TODO: remove this hack
-    LATEST_BLOCK = 36957814 # 13.03.24 12:50 gmt+8
-    MONTH_BLOCKS = 785454
-    THRESHOLD_BLOCK = LATEST_BLOCK - MONTH_BLOCKS
-    recent_pools = []
+
+    max_end_date = None
+    if without_old_pools:
+        max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
+
+    address_app_ids = []
+    if include_address_pools is not None:
+        address_app_ids = get_address_app_ids(include_address_pools, only_active=True)
+
+    # TODO: move as arg to DB query
+    matching_pools = []
     for contract in contracts:
-        cache = contract.metadata.get('cache')
-        if cache is None:
+        if contract.id in address_app_ids:
+            matching_pools.append(contract)
             continue
-        initial = cache.get('initial')
-        if initial is None:
+        if contract.end_date is None:
+            logger.warning(f'{contract.id} has no end date: {contract.format_str()}')
             continue
-        end_block = parse_bignum(initial['endBlock'])
-        if end_block > THRESHOLD_BLOCK:
-            recent_pools.append(contract)
-    return recent_pools
+        if without_old_pools and contract.end_date < max_end_date:
+            continue
+        matching_pools.append(contract)
+
+    if max_count is not None and len(matching_pools) > max_count:
+        matching_pools = matching_pools[:max_count]
+
+    return matching_pools
 
 
 @app.delete('/contracts')
@@ -477,6 +523,18 @@ async def tvl() -> dict:
     return stats.get_tvl()
 
 
+@app.get('/stats/app-ids')
+async def address_app_ids(password: str, address: str, only_active: bool = False) -> dict:
+    check_password(password)
+    app_ids = get_address_app_ids(address, only_active)
+    contracts = get_all_pool_contracts()
+    user_pools = []
+    for contract in contracts:
+        if contract.id in app_ids:
+            user_pools.append({'id': contract.id, 'description': contract.description})
+    return {'app_ids': app_ids, 'user_pools': user_pools}
+
+
 # Events
 
 @app.on_event("startup")
@@ -503,9 +561,6 @@ setup_logging()
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
-
-    if settings.migrate:
-        migrate()
 
     with start_js_interop_server():
         with start_bg_tasks():
