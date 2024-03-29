@@ -1,6 +1,6 @@
 import json
 
-from api.pool_snapshot import get_pool_snapshot
+from core.new.pool_state import get_pool_snapshot
 from core.db.contracts import get_contracts_by_type
 from core.util import parse_bignum
 

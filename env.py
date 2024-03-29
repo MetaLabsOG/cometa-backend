@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     reach_connector_mode: str = 'ALGO'
     sync_humble_pools: int = 0
 
+    new_db_name: str = 'cometa-updated'
+
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
     def is_mainnet(self):
