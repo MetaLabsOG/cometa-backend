@@ -5,21 +5,21 @@ name = "pypi"
 
 [packages]
 arweave-python-client = "*"
-cachetools = "5.0.0"
-dataclasses-json = "0.5.7"
-discord-webhook = "1.3.0"
-fastapi = "0.70.1"
+cachetools = "*"
+dataclasses-json = "*"
+discord-webhook = "*"
+fastapi = "*"
 tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git"}
-py-algorand-sdk = "1.8.0"
-pyairtable = "1.2.0"
+py-algorand-sdk = "*"
+pyairtable = "*"
 pydantic = "*"
 pydantic-settings = "*"
-pymongo = "4.1.0"
-python-dotenv = "0.19.2"
-python-telegram-bot = "20.5"
-requests = "2.27.1"
-schedule = "1.1.0"
-uvicorn = "0.16.0"
+pymongo = "*"
+python-dotenv = "*"
+python-telegram-bot = "*"
+requests = "*"
+schedule = "*"
+uvicorn = "*"
 
 [dev-packages]
 
