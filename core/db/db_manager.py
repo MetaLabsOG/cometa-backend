@@ -7,6 +7,7 @@ from core.db.mongodb import get_db_collection
 T = TypeVar('T')
 
 
+# TODO: migrate all Cometa DB collections to CollectionManager
 @dataclass
 class DbManager(Generic[T]):
     db_name: str
