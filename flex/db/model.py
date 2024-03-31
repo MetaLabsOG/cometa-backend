@@ -3,8 +3,8 @@ from datetime import datetime
 
 from dataclasses_json import dataclass_json
 
-from core.new.db.classes.base_entity import BaseEntity
-from core.new.db.util import get_uuid
+from flex.db.classes.base_entity import BaseEntity
+from flex.db.util import get_uuid
 
 
 @dataclass_json
