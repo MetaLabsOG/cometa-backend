@@ -3,6 +3,7 @@ from datetime import datetime
 
 from dataclasses_json import dataclass_json
 
+from flex.blockchain import AssetInfo
 from flex.db.classes.base_entity import BaseEntity
 from flex.db.util import get_uuid
 
@@ -10,13 +11,49 @@ from flex.db.util import get_uuid
 @dataclass_json
 @dataclass
 class StakingPool(BaseEntity['StakingPool']):
-    pass
+    stake_token: AssetInfo
+    reward_token: AssetInfo
+
+    reward_amount_micros: int
+    algo_reward_amount_micros: int
+
+    begin_block: int
+    end_block: int
+    lock_length_blocks: int
+
+    deploy_date: datetime
+    begin_date: datetime
+    end_date: datetime
+
+    id: int
+    created: datetime = field(default_factory=datetime.now)
+    updated: datetime = field(default_factory=datetime.now)
 
 
 @dataclass_json
 @dataclass
 class FarmingPool(BaseEntity['FarmingPool']):
-    pass
+    first_token: AssetInfo
+    second_token: AssetInfo
+    dex_name: str
+
+    lp_token: AssetInfo
+    reward_token: AssetInfo
+
+    reward_amount_micros: int
+    algo_reward_amount_micros: int
+
+    begin_block: int
+    end_block: int
+    lock_length_blocks: int
+
+    deploy_date: datetime
+    begin_date: datetime
+    end_date: datetime
+
+    id: int
+    created: datetime = field(default_factory=datetime.now)
+    updated: datetime = field(default_factory=datetime.now)
 
 
 @dataclass_json
@@ -29,13 +66,14 @@ class TxInfo:
 @dataclass_json
 @dataclass
 class PoolTransaction(BaseEntity['PoolTransaction']):
-    pool_id: str
+    pool_id: int
+    pool_address: str
     user_address: str
     asa_id: str
     delta_amount_micros: int
     confirmed_round: int
-    id: str
 
+    id: str
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
 
@@ -47,17 +85,15 @@ class PoolTransaction(BaseEntity['PoolTransaction']):
 @dataclass
 class PoolState(BaseEntity['PoolState']):
     pool_id: int
-    stake_token_id: int
+    stake_token: AssetInfo
     address: str
 
-    staked_amount: float = 0
     staked_amount_micros: int = 0
-
     last_tx: TxInfo | None = None
 
+    id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
-    id: str = field(default_factory=get_uuid)
 
     @property
     def last_tx_id(self) -> str | None:
@@ -68,11 +104,11 @@ class PoolState(BaseEntity['PoolState']):
 
 @dataclass_json
 @dataclass
-class PoolStateInfo:
-    id: str
-    stake_token_id: int
-    staked_amount: float
-    staked_amount_micros: int
+class UserPoolState:
+    pool_id: str
+
+    stake_token: AssetInfo
+    staked_amount_micros: int = 0
 
     last_tx: TxInfo | None = None
 
@@ -81,10 +117,10 @@ class PoolStateInfo:
 @dataclass
 class UserState(BaseEntity['UserState']):
     address: str
-    id: str
 
-    pools: list[PoolStateInfo] = field(default_factory=list)
-    last_updated_round: int | None = None
+    pool_by_id: dict[int, UserPoolState] = field(default_factory=dict)
+    last_tx: TxInfo | None = None
 
+    id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
