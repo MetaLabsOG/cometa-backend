@@ -34,7 +34,8 @@ class Settings(BaseSettings):
 
     lottery_check_lock: bool = True
 
-    background_user_pools_update: bool = True
+    background_user_pools_update: bool = False
+    background_pools_update: bool = False
     migrate: bool = False
 
     update_contract_caches: bool = True

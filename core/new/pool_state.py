@@ -1,14 +1,11 @@
-import json
 import logging
-from collections import defaultdict
-from typing import Optional
 
 from algosdk.v2client import indexer
 
-from blockchain.node import get_current_round
+from core.db.contracts import get_contract
 from core.new import db
+from core.new.blockchain import asset_micros_to_amount
 from core.new.db.model import PoolState, PoolTransaction
-from core.new.meta_exception import MetaError
 from env import settings
 
 
@@ -37,7 +34,7 @@ def get_pool_address(pool_id: int) -> str | None:
     return transaction['inner-txns'][0]['sender']
 
 
-def pool_transaction_from_asset_transfer_tx_dict(pool_id: str, txid: str, tx: dict) -> PoolTransaction:
+def pool_transaction_from_asset_transfer_tx_dict(pool_id: int, txid: str, tx: dict) -> PoolTransaction:
     return PoolTransaction(
         id=txid,
         pool_id=pool_id,
@@ -48,26 +45,38 @@ def pool_transaction_from_asset_transfer_tx_dict(pool_id: str, txid: str, tx: di
     )
 
 
-def fetch_new_transactions(pool: PoolState) -> list[PoolTransaction]:
+def pool_fetch_new_transactions_by_id(
+        pool_id: int,
+        after_txid: str | None = None,
+        pool_address: str | None = None,
+        new_first: bool = False
+) -> list[PoolTransaction]:
+    logger.debug(f'Fetching new transactions for pool {pool_id}')
+
+    if pool_address is None:
+        pool_address = get_pool_address(pool_id)
+        if pool_address is None:
+            pass  # TODO: think
+
     new_transactions = []
     next_token = None
 
     while True:
         data = indexer_client.search_transactions_by_address(
-            address=pool.address,
+            address=pool_address,
             next_page=next_token
         )
         txns = data['transactions']
-        logger.debug(f'Pool {pool.id}: new {len(txns)} txns')
+        logger.debug(f'Pool {pool_id}: new {len(txns)} txns')
 
         for tx in txns:
             txid = tx['id']
-            if txid == pool.last_txid:
+            if txid == after_txid:
                 # all the next (previous) txns was already processed
                 break
 
             if ASSET_TRANSFER_TX in tx:
-                pool_tx = pool_transaction_from_asset_transfer_tx_dict(pool.id, txid, tx)
+                pool_tx = pool_transaction_from_asset_transfer_tx_dict(pool_id, txid, tx)
                 new_transactions.append(pool_tx)
 
             elif APPLICATION_CALL_TX in tx:
@@ -83,7 +92,7 @@ def fetch_new_transactions(pool: PoolState) -> list[PoolTransaction]:
 
                 for inner_tx in inner_txns:
                     if ASSET_TRANSFER_TX in inner_tx:
-                        pool_tx = pool_transaction_from_asset_transfer_tx_dict(pool.id, txid, inner_tx)
+                        pool_tx = pool_transaction_from_asset_transfer_tx_dict(pool_id, txid, inner_tx)
                         # TODO: use pooL_type withdraw/stake
                         pool_tx.delta_amount_micros = -pool_tx.delta_amount_micros
                         new_transactions.append(pool_tx)
@@ -93,101 +102,46 @@ def fetch_new_transactions(pool: PoolState) -> list[PoolTransaction]:
         else:
             break
 
+    logger.debug(f'Pool {pool_id}: fetched {len(new_transactions)} new txns')
+    if not new_first:
+        # txns are in reverse order in indexer response
+        new_transactions.reverse()
+
     return new_transactions
 
 
+def pool_fetch_new_transactions(pool: PoolState, new_first: bool = False) -> list[PoolTransaction]:
+    return pool_fetch_new_transactions_by_id(pool.pool_id, pool.last_tx_id, pool.address, new_first)
+
+
 def update_pool_state(pool_id: int) -> PoolState:
-    pool_state = db.pool_states.get_by_primary_key(pool_id, throw_ex=False)
+    logger.debug(f'Updating pool state {pool_id}')
+
+    pool_state = db.pool_states.get_one(pool_id=pool_id)
     if pool_state is None:
         pool_address = get_pool_address(pool_id)
         if pool_address is None:
             pass  # TODO: think
 
+        contract_info = get_contract(pool_id)
+        if contract_info is None:
+            pass  # TODO: ...
+
         pool_state = PoolState(
-            id=pool_id,
-            stake_token_id=0,  # TODO: set correct value
+            pool_id=pool_id,
+            stake_token_id=contract_info.metadata['stake_token_id'],
             address=pool_address
         )
-    new_transactions = fetch_new_transactions(pool_state)
-    new_transactions.reverse()
-    for tx in new_transactions:
-        pool_state.staked_amount_micros += tx.delta_amount_micros
-        pool_state.last_txid = tx.id
-        pool_state.last_updated_round = tx.confirmed_round
+        logger.debug(f'Created new pool state:\n{pool_state.pretty_str()}')
+
+    new_transactions = pool_fetch_new_transactions(pool_state)
+    if len(new_transactions) > 0:
+        db.pool_transactions.create_many(new_transactions)
+        logger.debug(f'Pool {pool_id}: saved {len(new_transactions)} new txns')
+
+        for tx in new_transactions:
+            pool_state.staked_amount_micros += tx.delta_amount_micros
+            pool_state.staked_amount += asset_micros_to_amount(pool_state.stake_token_id, tx.delta_amount_micros)
+            pool_state.last_tx = tx.to_info()
+
     return pool_state
-
-
-def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None):
-    pool_address = get_pool_address(pool_id)
-    if pool_address is None:
-        pool_address = get_pool_address(pool_id)
-    if pool_address is None:
-        raise MetaError(message=f'Pool {pool_id} not found, bro.')
-    print(f'Pool wallet: {pool_address}')
-
-    if max_round is None:
-        max_round = get_current_round()
-
-    next_token = None
-    all_txns = []
-    balances = defaultdict(lambda: 0)
-
-    while True:
-        data = indexer_client.search_transactions_by_address(address=pool_address,
-                                                             next_page=next_token)
-        txns = data['transactions']
-        print(f'New txns, cnt = {len(txns)}')
-
-        for tx in txns:
-            if ASSET_TRANSFER_TX in tx:
-                if max_round is not None and tx['confirmed-round'] > max_round:
-                    continue
-
-                sender = tx['sender']
-                amount = tx[ASSET_TRANSFER_TX]['amount']
-                if sender == watch_address:
-                    print(f'{balances[sender]} + {amount} = {balances[sender] + amount}')
-                balances[sender] += amount
-            elif APPLICATION_CALL_TX in tx:
-                inner_txns = tx['inner-txns']
-                is_claim = False
-                for inner_tx in inner_txns:
-                    if PAYMENT_TX in inner_tx:
-                        is_claim = True
-                if is_claim:
-                    continue
-                for inner_tx in inner_txns:
-                    if ASSET_TRANSFER_TX in inner_tx:
-                        if inner_tx['confirmed-round'] > max_round:
-                            continue
-
-                        receiver = inner_tx[ASSET_TRANSFER_TX]['receiver']
-                        amount = inner_tx[ASSET_TRANSFER_TX]['amount']
-                        if receiver == watch_address:
-                            print(f'{balances[receiver]} - {amount} = {balances[receiver] - amount}')
-                        balances[receiver] -= amount
-
-        print(f'{len(txns)} txns processed!')
-        print(f'Currently {len(balances)} balances')
-        print()
-
-        all_txns.extend(txns)
-        if 'next-token' in data:
-            next_token = data['next-token']
-        else:
-            break
-
-    res_filename = f'pool_{pool_id}_round_{max_round}.json'
-    with open(res_filename, 'w') as write_file:
-        json.dump(balances, write_file, indent=4, sort_keys=True)
-
-    print(f'{len(all_txns)} processed!')
-    print(f'{len(balances)} wallets are written to "{res_filename}"!')
-
-    total_microtokens = 0
-    for k, v in balances.items():
-        total_microtokens += v
-
-    print(f'In total {total_microtokens} microtokens')
-
-    return balances
