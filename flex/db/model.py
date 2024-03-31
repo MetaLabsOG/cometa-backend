@@ -83,6 +83,17 @@ class PoolTransaction(BaseEntity['PoolTransaction']):
 
 @dataclass_json
 @dataclass
+class PoolStateInfo:
+    pool_id: int
+    stake_token: AssetInfo
+    address: str
+    staked_amount_micros: int
+    staked_amount: float
+    last_tx: TxInfo | None = None
+
+
+@dataclass_json
+@dataclass
 class PoolState(BaseEntity['PoolState']):
     pool_id: int
     stake_token: AssetInfo
@@ -100,6 +111,16 @@ class PoolState(BaseEntity['PoolState']):
         if self.last_tx is None:
             return None
         return self.last_tx.id
+
+    def to_info(self) -> PoolStateInfo:
+        return PoolStateInfo(
+            pool_id=self.pool_id,
+            stake_token=self.stake_token,
+            address=self.address,
+            staked_amount_micros=self.staked_amount_micros,
+            staked_amount=self.stake_token.micros_to_amount(self.staked_amount_micros),
+            last_tx=self.last_tx
+        )
 
 
 @dataclass_json
