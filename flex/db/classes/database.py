@@ -1,8 +1,8 @@
-from typing import Type, TypeVar
+from typing import Type
 
 from pymongo.database import Database as MongoDatabase
 
-from core.new.db.classes.collection_manager import CollectionManager
+from flex.db.classes.collection_manager import CollectionManager
 
 
 # HOW TO IMPLEMENT THIS CLASS? Example!

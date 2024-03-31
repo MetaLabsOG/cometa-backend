@@ -21,8 +21,8 @@ from api.migrations import update_contract_start_end_dates
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
 from api.pool_snapshot import get_pool_snapshot
-from core.new.db.model import PoolTransaction, PoolState
-from core.new.pool_state import update_pool_state, pool_fetch_new_transactions, pool_fetch_new_transactions_by_id
+from flex.db.model import PoolTransaction, PoolState
+from flex.pool_state import update_pool_state, pool_fetch_new_transactions_by_id
 from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
