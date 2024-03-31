@@ -21,7 +21,7 @@ from api.migrations import update_contract_start_end_dates
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
 from api.pool_snapshot import get_pool_snapshot
-from flex.db.model import PoolTransaction, PoolState
+from flex.db.model import PoolTransaction, PoolState, PoolStateInfo
 from flex.pool_state import record_new_pool_transactions, update_all_pool_states
 from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
@@ -42,7 +42,7 @@ from core.util import parse_bignum, strip_version
 from env import settings
 from flex.pools import pool_fetch_new_transactions_by_id
 
-VERSION = '1.5.0'
+VERSION = '1.9.2'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
@@ -75,23 +75,23 @@ async def status() -> dict:
 
 # WALLET API
 
-@app.get('/wallet/{address}/assets')
+@app.get('/wallet/{address}/assets', tags=['Wallet'])
 async def wallet_assets(address: str) -> list[AssetInfo]:
     assets = get_wallet_assets(address)
     return assets
 
 
-@app.get('/wallet/{address}/total_cost/')
+@app.get('/wallet/{address}/total_cost/', tags=['Wallet'])
 async def total_cost(address: str, weeks_count: Optional[int] = 1) -> list[TimedCost]:
     return get_wallet_total_cost(address, weeks_count)
 
 
-@app.get('/wallet/{address}/nfts')
+@app.get('/wallet/{address}/nfts', tags=['Wallet'])
 async def wallet_nfts(address: str) -> list[NftInfo]:
     return get_wallet_nfts(address)
 
 
-@app.get('/wallet/{address}/pools')
+@app.get('/wallet/{address}/pools', tags=['Wallet'])
 async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
     if cached:
         return await get_address_pools(address)
@@ -99,7 +99,7 @@ async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
         return await fetch_user_pools(address)
 
 
-@app.get('/wallet/{address}/lottery-draws')
+@app.get('/wallet/{address}/lottery-draws', tags=['Wallet'])
 async def wallet_pools(address: str, win: Optional[bool] = None) -> list[LotteryDraw]:
     args = {'wallet': address}
     if win is not None:
@@ -124,7 +124,7 @@ class ModifyContract(BaseModel):
     metadata: Optional[dict] = None
 
 
-@app.post('/contract/add')
+@app.post('/contract/add', tags=['Contracts'])
 async def add_new_contract(contract: AddContract, password: str) -> dict:
     logger.info(f'Adding a new contract {contract}')
 
@@ -175,7 +175,7 @@ def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractI
 # This method is NOT password-protected: it is intended to be used by users who add contracts themselves.
 # The only thing we do here to ensure that our database isn't spammed with bullshit is checking that the contract
 # really exists in the network, has a correct type and is fully deployed
-@app.post('/contract/register')
+@app.post('/contract/register', tags=['Contracts'])
 async def register_contract(contract: AddContract) -> ContractInfo:
     logger.info(f'Registering a new contract {contract}')
 
@@ -238,7 +238,7 @@ class DeployContract(BaseModel):
     description: Optional[str] = None
 
 
-@app.post('/contract/deploy')
+@app.post('/contract/deploy', tags=['Contracts'])
 async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     logger.info(f'Deploying a new contract {parameters}')
 
@@ -258,7 +258,7 @@ async def deploy_contract(password: str, parameters: DeployContract) -> dict:
     return {'internal_id': internal_id}
 
 
-@app.patch('/contract/update')
+@app.patch('/contract/update', tags=['Contracts'])
 async def update(contract: ModifyContract, password: str) -> dict:
     logger.info(f'Updating contract {contract}')
 
@@ -270,7 +270,7 @@ async def update(contract: ModifyContract, password: str) -> dict:
     return {'updated': res}
 
 
-@app.get('/contract/{contract_id}')
+@app.get('/contract/{contract_id}', tags=['Contracts'])
 async def get_contract_by_id(contract_id: int) -> ContractInfo:
     contract = get_contract(contract_id)
     if contract is None:
@@ -278,20 +278,20 @@ async def get_contract_by_id(contract_id: int) -> ContractInfo:
     return contract
 
 
-@app.delete('/contract/{contract_id}')
+@app.delete('/contract/{contract_id}', tags=['Contracts'])
 async def remove_contract_by_id(contract_id: int, password: str) -> dict:
     check_password(password)
     cnt = remove_contract(contract_id=contract_id)
     return {'deleted_count': cnt}
 
 
-@app.get('/contracts/version')
+@app.get('/contracts/version', tags=['Contracts'])
 async def get_contract_version(type: str) -> dict:
     version = await calljs("contractVersion", contractType=type)
     return {'version': version}
 
 
-@app.get('/contracts/local_state')
+@app.get('/contracts/local_state', tags=['Contracts'])
 async def get_local_states(type: str, address: str) -> dict:
     contracts = get_contracts_by_type(type)
     if len(contracts) > 0:
@@ -304,7 +304,7 @@ async def get_local_states(type: str, address: str) -> dict:
     return {}
 
 
-@app.get('/contracts')
+@app.get('/contracts', tags=['Contracts'])
 async def get_contracts(
         type: Optional[ContractType] = None,
         max_count: Optional[int] = None,
@@ -348,7 +348,7 @@ async def get_contracts(
     return matching_pools
 
 
-@app.delete('/contracts')
+@app.delete('/contracts', tags=['Contracts'])
 async def remove_contracts_by_type(type: str, password: str) -> dict:
     check_password(password)
     cnt = remove_contracts(type=type)
@@ -357,7 +357,7 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
 
 # POOLS API
 
-@app.get('/pools')
+@app.get('/pools', tags=['Pools'])
 async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: Optional[PoolStatus] = None) -> List[PoolInfo]:
     args = {}
     if type:
@@ -367,7 +367,7 @@ async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: O
     return pools_db.get_many(args)
 
 
-@app.patch('/pools/verify')
+@app.patch('/pools/verify', tags=['Pools'])
 async def verify_pool(pool_id: int, password: str) -> str:
     check_password(password)
     contract = get_contract(pool_id)
@@ -378,7 +378,7 @@ async def verify_pool(pool_id: int, password: str) -> str:
     return 'Success!'
 
 
-@app.get('/pools/snapshot')
+@app.get('/pools/snapshot', tags=['Pools'])
 async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[int] = None) -> dict:
     if password != 'YouShallNotPass':
         raise HTTPException(status_code=403, detail="Wrong password bro.")
@@ -386,7 +386,7 @@ async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[in
     return dict(sorted(wallets.items()))
 
 
-@app.get('/pools/snapshot_all')
+@app.get('/pools/snapshot_all', tags=['Pools'])
 async def make_pool_snapshot(password: str, max_round: Optional[int] = None) -> dict:
     if password != 'YouShallNotPass':
         raise HTTPException(status_code=403, detail="Wrong password bro.")
@@ -394,7 +394,7 @@ async def make_pool_snapshot(password: str, max_round: Optional[int] = None) -> 
     return wallets
 
 
-@app.post('/pools/notify')
+@app.post('/pools/notify', tags=['Pools'])
 async def handle_pools_notify_social_channels(password: str, pool_id: int) -> None:
     check_password(password)
 
@@ -414,12 +414,12 @@ async def handle_pools_notify_social_channels(password: str, pool_id: int) -> No
 
 # HUMBLE POOLS
 
-@app.get('/humble/pool/{pool_id}')
+@app.get('/humble/pool/{pool_id}', tags=['Humble'])
 async def humble_pool_by_id(pool_id: int) -> Optional[humble.HumblePool]:
     return humble.get_pool_by_id(pool_id)
 
 
-@app.get('/humble/pools')
+@app.get('/humble/pools', tags=['Humble'])
 async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.HumblePool]:
     # FIXME: just don't ask me please ever
     if assetA == 796425061 and assetB == 1138500612:
@@ -427,14 +427,14 @@ async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.Humble
     return humble.get_pools_by_assets(assetA, assetB)
 
 
-@app.get('/humble/pools/all')
+@app.get('/humble/pools/all', tags=['Humble'])
 async def humble_pools_all() -> List[humble.HumblePool]:
     return humble.get_pools({})
 
 
 # LOTTERY
 
-@app.post('/lottery/swap')
+@app.post('/lottery/swap', tags=['Lottery'])
 async def nft_lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
     # TODO: check swap already recorded
 
@@ -442,12 +442,12 @@ async def nft_lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
     return lottery_for_swap(swap)
 
 
-@app.post('/lottery/staking')
+@app.post('/lottery/staking', tags=['Lottery'])
 async def nft_lottery_for_staking(address: str, pool_id: int) -> Optional[NftPrize]:
     return await lottery_for_staking(pool_id, address, settings.is_mainnet())
 
 
-@app.post('/lottery/new')
+@app.post('/lottery/new', tags=['Lottery'])
 async def create_a_new_nft_lottery(lottery: NftLottery, password: str) -> None:
     check_password(password)
     if nft_lotteries.get_by_primary_key(lottery.name) is not None:
@@ -455,7 +455,7 @@ async def create_a_new_nft_lottery(lottery: NftLottery, password: str) -> None:
     nft_lotteries.create(lottery)
 
 
-@app.post('/lottery/update')
+@app.post('/lottery/update', tags=['Lottery'])
 async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
     check_password(password)
     if nft_lotteries.get_by_primary_key(lottery.name) is None:
@@ -463,7 +463,7 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
     nft_lotteries.update(lottery)
 
 
-@app.patch('/lottery/claim')
+@app.patch('/lottery/claim', tags=['Lottery'])
 async def claim_prize_nft_for_swap(wallet: str) -> None:
     wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
 
@@ -489,13 +489,13 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
     lottery_draws.update(lottery_draw)
 
 
-@app.get('/lotteries/')
+@app.get('/lotteries/', tags=['Lottery'])
 async def get_lotteries(password: str) -> List[NftLottery]:
     check_password(password)
     return nft_lotteries.get_all()
 
 
-@app.get('/lotteries/resend')
+@app.get('/lotteries/resend', tags=['Lottery'])
 async def resend_prizes(password: str) -> dict:
     check_password(password)
     return send_all_prizes()
@@ -503,29 +503,30 @@ async def resend_prizes(password: str) -> dict:
 
 # Pool Stats API
 
-@app.get('/pool/transactions', tags=['Pool Stats'])
+@app.get('/pool/transactions', tags=['Pool State'])
 async def get_pool_transactions(pool_id: int) -> list[PoolTransaction]:
     return pool_fetch_new_transactions_by_id(pool_id)
 
 
-@app.get('/pool/state', tags=['Pool Stats'])
-async def get_pool_state(pool_id: int) -> PoolState:
-    return record_new_pool_transactions(pool_id)
+@app.get('/pool/state', tags=['Pool State'])
+async def get_pool_state(pool_id: int) -> PoolStateInfo:
+    return record_new_pool_transactions(pool_id).to_info()
 
 
-@app.get('/pool/all', tags=['Pool Stats'])
-async def get_pool_state() -> list[PoolState]:
-    return update_all_pool_states()
+@app.get('/pool/all', tags=['Pool State'])
+async def get_pool_state() -> list[PoolStateInfo]:
+    updated_states = update_all_pool_states()
+    return [state.to_info() for state in updated_states]
 
 
 # Overall Statistics
 
-@app.get('/stats/tvl')
+@app.get('/stats/tvl', tags=['Stats'])
 async def tvl() -> dict:
     return stats.get_tvl()
 
 
-@app.get('/stats/app-ids')
+@app.get('/stats/app-ids', tags=['Stats'])
 async def address_app_ids(password: str, address: str, only_active: bool = False) -> dict:
     check_password(password)
     app_ids = get_address_app_ids(address, only_active)
