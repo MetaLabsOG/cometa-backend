@@ -10,8 +10,8 @@ from algosdk import encoding
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
-from uvicorn.logging import ColourizedFormatter
 
+import core
 import dexes.humble as humble
 from airdrop_all_active_stakers import snapshot_all
 from api import stats
@@ -20,8 +20,9 @@ from api.db_model import ContractType
 from api.migrations import update_contract_start_end_dates
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
+from api.pool_snapshot import get_pool_snapshot
 from core.new.db.model import PoolTransaction, PoolState
-from core.new.pool_state import get_pool_snapshot, update_pool_state, fetch_new_transactions
+from core.new.pool_state import update_pool_state, pool_fetch_new_transactions, pool_fetch_new_transactions_by_id
 from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
@@ -499,18 +500,19 @@ async def resend_prizes(password: str) -> dict:
     return send_all_prizes()
 
 
-@app.get('/pool/transactions')
+# Pool Stats API
+
+@app.get('/pool/transactions', tags=['Pool Stats'])
 async def get_pool_transactions(pool_id: int) -> list[PoolTransaction]:
-    pool_state = update_pool_state(pool_id)
-    return fetch_new_transactions(pool_state)
+    return pool_fetch_new_transactions_by_id(pool_id)
 
 
-@app.get('/pool/state')
-async def get_pool_transactions(pool_id: int) -> PoolState:
+@app.get('/pool/state', tags=['Pool Stats'])
+async def get_pool_state(pool_id: int) -> PoolState:
     return update_pool_state(pool_id)
 
 
-# Statistics
+# Overall Statistics
 
 @app.get('/stats/tvl')
 async def tvl() -> dict:
@@ -529,17 +531,31 @@ async def address_app_ids(password: str, address: str, only_active: bool = False
     return {'app_ids': app_ids, 'user_pools': user_pools}
 
 
-# Events
+# DB API
 
-@app.on_event("startup")
-async def startup_event():
-    logger = logging.getLogger("uvicorn.access")
-    console_formatter = ColourizedFormatter(
-        fmt=LOG_FORMAT,
-        datefmt=LOG_DATE_FORMAT,
-        use_colors=True
-    )
-    logger.handlers[0].setFormatter(console_formatter)
+class DbGetParams(BaseModel):
+    collection_name: str
+    query: dict = {}
+    show_last_cnt: int | None = None
+    reverse: bool = False
+
+
+@app.post('/db/find', tags=['DB'])
+async def get_entities_by_dict_query(
+        password: str,
+        params: DbGetParams
+) -> list[dict]:
+    check_password(password)
+    collection = core.new.db.get_collection_by_name(params.collection_name)
+    if collection is None:
+        raise HTTPException(status_code=404, detail=f'No such collection: {params.collection_name}!')
+    entities = collection.get_many(**params.query)
+    entity_dicts = [e.to_dict() for e in entities]
+    if params.reverse:
+        entity_dicts = reversed(entity_dicts)
+    if params.show_last_cnt is not None and len(entity_dicts) > params.show_last_cnt:
+        entity_dicts = entity_dicts[-params.show_last_cnt:]
+    return entity_dicts
 
 
 def setup_logging():

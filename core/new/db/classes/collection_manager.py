@@ -5,7 +5,7 @@ from functools import cached_property
 from pymongo.collection import Collection as MongoCollection
 from typing import TypeVar, Generic, Any, Type
 
-from pymongo.database import Database
+from pymongo.database import Database as MongoDatabase
 
 
 @dataclass
@@ -116,7 +116,7 @@ class CollectionManager(Generic[EntityT]):
         return self.elem_type.primary_key_name()
 
     @classmethod
-    def create_for_type(cls, elem_type: Type[EntityT], mongodb_database: Database) -> 'CollectionManager[EntityT]':
+    def create_for_type(cls, elem_type: Type[EntityT], mongodb_database: MongoDatabase) -> 'CollectionManager[EntityT]':
         name = f'{elem_type.type_name_snake_case()}s'
         collection = mongodb_database[name]
         return cls(name, elem_type, collection)
