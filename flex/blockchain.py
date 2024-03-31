@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+from datetime import timedelta
 from functools import cached_property
 
 from algosdk.v2client.algod import AlgodClient
 from algosdk.v2client.indexer import IndexerClient
-from cachetools import cached, LRUCache
+from cachetools import cached, TTLCache
 from dataclasses_json import dataclass_json
 
 from env import settings
@@ -42,8 +43,7 @@ class AssetInfo:
         return micros / self.amount_multiplier
 
 
-# TODO: update cache method (time-based better)
-@cached(cache=LRUCache(maxsize=2048))
+@cached(cache=TTLCache(maxsize=65536, ttl=timedelta(hours=24).total_seconds()))
 def get_asset_info(asset_id: int) -> AssetInfo:
     data = indexer_client.asset_info(asset_id)
     params = data['asset']['params']
