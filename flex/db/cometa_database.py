@@ -1,7 +1,7 @@
 from pymongo.database import Database as MongoDatabase
 
-from core.new.db.classes.database import EntitiesDatabase
-from core.new.db.model import UserState, PoolState, PoolTransaction
+from flex.db.classes.database import EntitiesDatabase
+from flex.db.model import UserState, PoolState, PoolTransaction
 
 
 class CometaDatabase(EntitiesDatabase):
