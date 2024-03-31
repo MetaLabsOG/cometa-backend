@@ -2,9 +2,11 @@ import logging
 
 from core.db.contracts import get_contract, get_all_pool_contracts
 from core.db.model import ContractInfo
+from core.util import parse_bignum
 from flex import db
 from flex.blockchain import get_asset_info
 from flex.db.model import PoolState, UserState, UserPoolState, PoolTransaction
+from flex.db.util import dict_get_nested_field
 from flex.meta_error import MetaError
 from flex.pools import get_pool_address, pool_fetch_new_transactions
 
@@ -18,13 +20,20 @@ def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
         raise MetaError(f'Pool {contract.id} address not found')
 
     stake_token_id = contract.metadata['stake_token_id']
+
+    total_rewards_micros = contract.metadata.get('total_rewards_micros')
+    if total_rewards_micros is None:
+        total_rewards_encoded = dict_get_nested_field(contract.metadata, 'cache', 'initial', 'totalRewardsMicros')
+        total_rewards_micros = parse_bignum(total_rewards_encoded) if total_rewards_encoded is not None else 0
+
     pool_state = PoolState(
         pool_id=contract.id,
         address=pool_address,
-        stake_token=get_asset_info(stake_token_id)
+        stake_token=get_asset_info(stake_token_id),
+        staked_amount_micros=-total_rewards_micros,  # Rewards in transactions. TODO: calculate this when process transactions
     )
     db.pool_states.create(pool_state)
-    logger.debug(f'Created new pool state:\n{pool_state.pretty_str()}')
+    logger.info(f'Created new pool state:\n{pool_state.pretty_str()}')
     return pool_state
 
 
@@ -45,8 +54,7 @@ def get_or_create_pool_state(pool_id: int) -> PoolState:
     return pool_state
 
 
-# TODO: optimize and provide pooL-states
-def process_transactions(transactions: list[PoolTransaction]) -> list[PoolState]:
+def process_transactions(transactions: list[PoolTransaction], pool_states: list[PoolState] | None = None) -> list[PoolState]:
     if len(transactions) == 0:
         return []
 
@@ -54,7 +62,7 @@ def process_transactions(transactions: list[PoolTransaction]) -> list[PoolState]
     logger.debug(f'Saved {len(transactions)} to DB')
 
     user_state_by_address = {}
-    pool_state_by_id = {}
+    pool_state_by_id = {} if pool_states is None else {pool.pool_id: pool for pool in pool_states}
     for tx in transactions:
         pool_state = pool_state_by_id.get(tx.pool_id)
         if pool_state is None:
@@ -69,7 +77,7 @@ def process_transactions(transactions: list[PoolTransaction]) -> list[PoolState]
             user_state = db.user_states.get_one(address=tx.user_address)
             if user_state is None:
                 user_state = db.user_states.create(UserState(address=tx.user_address))
-                logger.debug(f'Created new user state:\n{user_state.pretty_str()}')
+                logger.debug(f'Created new user state:\n{user_state}')
             user_state_by_address[tx.user_address] = user_state
 
         user_pool_state = user_state.pool_by_id.get(pool_state.id)
@@ -86,20 +94,22 @@ def process_transactions(transactions: list[PoolTransaction]) -> list[PoolState]
     for pool_state in updated_pool_states:
         db.pool_states.update(pool_state)
 
+    logger.info(f'Updated {len(updated_pool_states)} pool states')
     return updated_pool_states
 
 
 def update_all_pool_states() -> list[PoolState]:
     all_contracts = get_all_pool_contracts()
     new_transactions = []
+    pool_states = []
     for contract in all_contracts:
         pool_state = get_or_create_from_contract(contract)
         pool_transactions = pool_fetch_new_transactions(pool_state)
         new_transactions.extend(pool_transactions)
+        pool_states.append(pool_state)
 
-    # TODO: finish
-
-    return []
+    new_transactions = sorted(new_transactions, key=lambda tx: tx.confirmed_round)
+    return process_transactions(new_transactions, pool_states)
 
 
 def record_new_pool_transactions(pool_id: int) -> PoolState:

@@ -22,7 +22,7 @@ from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery
     LotteryDraw, send_all_prizes
 from api.pool_snapshot import get_pool_snapshot
 from flex.db.model import PoolTransaction, PoolState
-from flex.pool_state import record_new_pool_transactions
+from flex.pool_state import record_new_pool_transactions, update_all_pool_states
 from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
@@ -511,6 +511,11 @@ async def get_pool_transactions(pool_id: int) -> list[PoolTransaction]:
 @app.get('/pool/state', tags=['Pool Stats'])
 async def get_pool_state(pool_id: int) -> PoolState:
     return record_new_pool_transactions(pool_id)
+
+
+@app.get('/pool/all', tags=['Pool Stats'])
+async def get_pool_state() -> list[PoolState]:
+    return update_all_pool_states()
 
 
 # Overall Statistics
