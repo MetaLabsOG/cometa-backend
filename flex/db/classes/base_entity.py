@@ -4,7 +4,7 @@ from datetime import datetime
 
 from typing import Any, TypeVar, Generic
 
-from core.new.db.util import string_to_snake_case
+from flex.db.util import string_to_snake_case
 
 EntityT = TypeVar('EntityT')
 
