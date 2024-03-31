@@ -2,8 +2,7 @@ from typing import Type, TypeVar
 
 from pymongo.database import Database as MongoDatabase
 
-
-EntityT = TypeVar('EntityT')
+from core.new.db.classes.collection_manager import CollectionManager
 
 
 # HOW TO IMPLEMENT THIS CLASS? Example!
@@ -18,12 +17,11 @@ class EntitiesDatabase:
         self.mongodb_database = mongodb_database
         self.collection_manager_by_name = {}
 
-    def get_collection_by_name(self, name: str) -> 'CollectionManager | None':
+    def get_collection_by_name(self, name: str) -> CollectionManager | None:
         return self.collection_manager_by_name.get(name)
 
     # def create_collection_manager_for_type[EntityT](self, elem_type: Type[EntityT]) -> 'CollectionManager[EntityT]':
-    def create_collection_manager_for_type(self, elem_type: Type[EntityT]):
-        from core.new.db.classes.collection_manager import CollectionManager
+    def create_collection_manager_for_type[EntityT](self, elem_type: Type[EntityT]) -> CollectionManager[EntityT]:
         collection_manager = CollectionManager.create_for_type(elem_type, self.mongodb_database)
         self.collection_manager_by_name[collection_manager.name] = collection_manager
         return collection_manager
