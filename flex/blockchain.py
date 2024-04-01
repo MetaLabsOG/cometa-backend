@@ -43,6 +43,15 @@ class AssetInfo:
         return micros / self.amount_multiplier
 
 
+# TODO: make it better somehow I don't know I'm tired as fuck bro
+ALGO_ASSET_INFO = AssetInfo(
+    id=0,
+    decimals=6,
+    name='Algorand',
+    unit_name='ALGO'
+)
+
+
 @cached(cache=TTLCache(maxsize=65536, ttl=timedelta(hours=24).total_seconds()))
 def get_asset_info(asset_id: int) -> AssetInfo:
     data = indexer_client.asset_info(asset_id)

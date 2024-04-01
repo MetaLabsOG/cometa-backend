@@ -12,19 +12,14 @@ PAYMENT_TX = 'payment-transaction'
 logger = logging.getLogger(__name__)
 
 
-def get_pool_address(pool_id: int) -> str | None:
+def get_pool_address(pool_id: int) -> str:
     data = indexer_client.application_logs(application_id=pool_id, limit=10)
-    log_data = data.get('log-data')
-    if log_data is None or len(log_data) == 0:
-        return None
+    log_data = data['log-data']
 
     txid = log_data[0]['txid']
     data = indexer_client.transaction(txid=txid)
-    transaction = data.get('transaction')
-    if transaction is None:
-        return None
 
-    return transaction['inner-txns'][0]['sender']
+    return data['transaction']['inner-txns'][0]['sender']
 
 
 def pool_fetch_new_transactions_by_id(
@@ -51,7 +46,7 @@ def pool_fetch_new_transactions_by_id(
             next_page=next_token
         )
         txns = data['transactions']
-        logger.debug(f'Pool {pool_id}: new {len(txns)} txns')
+        logger.debug(f'Pool {pool_id}: processing new {len(txns)} txns...')
 
         for tx in txns:
             txid = tx['id']
@@ -104,7 +99,7 @@ def pool_fetch_new_transactions_by_id(
         else:
             break
 
-    logger.debug(f'Pool {pool_id}: fetched {len(new_transactions)} new txns')
+    logger.debug(f'Pool {pool_id}: in total {len(new_transactions)} user txns')
 
     if not new_first:
         # txns are in reverse order in indexer response
