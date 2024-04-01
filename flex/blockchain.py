@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from functools import cached_property
 
+from algosdk import mnemonic, account
 from algosdk.v2client.algod import AlgodClient
 from algosdk.v2client.indexer import IndexerClient
 from cachetools import cached, TTLCache
@@ -22,6 +23,9 @@ algod_client: AlgodClient = AlgodClient(
         'X-API-Key': settings.algod_token
     }
 )
+
+private_key = mnemonic.to_private_key(settings.algo_mnemonic)
+public_key = account.address_from_private_key(private_key)
 
 
 @dataclass_json
