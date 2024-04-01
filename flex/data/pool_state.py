@@ -4,34 +4,50 @@ from core.db.contracts import get_contract, get_all_pool_contracts
 from core.db.model import ContractInfo
 from core.util import parse_bignum
 from flex import db
-from flex.blockchain import get_asset_info
-from flex.db.model import PoolState, UserState, UserPoolState, PoolTransaction
+from flex.blockchain import get_asset_info, get_app_address
+from flex.data.transactions import pool_fetch_new_transactions
+from flex.db.model import PoolState, UserState, UserPoolState, PoolTransaction, PoolType
 from flex.db.util import dict_get_nested_field
 from flex.meta_error import MetaError
-from flex.pools import get_pool_address, pool_fetch_new_transactions
 
 
 logger = logging.getLogger(__name__)
 
 
+def get_pool_type_from_contract(contract: ContractInfo) -> PoolType:
+    if contract.type == 'distribution':
+        return PoolType.STAKING
+    if contract.type == 'farm' and 'dex' in contract.metadata:
+        return PoolType.FARMING
+    return PoolType.STAKING
+
+
 async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
-    pool_address = get_pool_address(contract.id)
+    pool_address = get_app_address(contract.id)
     if pool_address is None:
         raise MetaError(f'Pool {contract.id} address not found')
 
     stake_token_id = contract.metadata['stake_token_id']
+    reward_token_id = contract.metadata['reward_token_id']
 
     total_rewards_micros = contract.metadata.get('total_rewards_micros')
     if total_rewards_micros is None:
-        total_rewards_encoded = dict_get_nested_field(contract.metadata, 'cache', 'initial', 'totalRewardsMicros')
-        total_rewards_micros = parse_bignum(total_rewards_encoded) if total_rewards_encoded is not None else 0
+        total_rewards_encoded = dict_get_nested_field(contract.metadata, 'cache', 'initial', 'totalRewardAmount')
+        if total_rewards_encoded is None:
+            raise MetaError(f'Pool {contract.id} total rewards not found')
+        total_rewards_micros = parse_bignum(total_rewards_encoded)
 
     pool_state = PoolState(
         pool_id=contract.id,
+        type=get_pool_type_from_contract(contract),
         address=pool_address,
-        stake_token=get_asset_info(stake_token_id),
-        total_staked_micros=-total_rewards_micros,  # Rewards in transactions. TODO: calculate this when process transactions
+        stake_token=get_asset_info(stake_token_id)
     )
+    if stake_token_id == reward_token_id:
+        logger.info(f'Pool {contract.id} has same stake and reward token\n\nyo\n')
+        # rewards and stakes are at the same address, we need only stakes
+        pool_state.total_staked_micros = -total_rewards_micros
+
     db.pool_states.create(pool_state)
     logger.info(f'Created new pool state: address = {pool_state.address}')
     return pool_state

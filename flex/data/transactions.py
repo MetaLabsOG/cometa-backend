@@ -1,6 +1,6 @@
 import logging
 
-from flex.blockchain import indexer_client
+from flex.blockchain import indexer_client, get_app_address
 from flex.db.model import PoolTransaction, PoolState
 
 # class TransactionTypeName:
@@ -12,16 +12,6 @@ PAYMENT_TX = 'payment-transaction'
 logger = logging.getLogger(__name__)
 
 
-def get_pool_address(pool_id: int) -> str:
-    data = indexer_client.application_logs(application_id=pool_id, limit=10)
-    log_data = data['log-data']
-
-    txid = log_data[0]['txid']
-    data = indexer_client.transaction(txid=txid)
-
-    return data['transaction']['inner-txns'][0]['sender']
-
-
 async def pool_fetch_new_transactions_by_id(
         pool_id: int,
         last_tx_id: str | None = None,
@@ -31,7 +21,7 @@ async def pool_fetch_new_transactions_by_id(
     logger.debug(f'Fetching new transactions for pool {pool_id}: after {last_tx_id}, pool_address {pool_address}, new_first {new_first}')
 
     if pool_address is None:
-        pool_address = get_pool_address(pool_id)
+        pool_address = get_app_address(pool_id)
         if pool_address is None:
             pass  # TODO: think
 

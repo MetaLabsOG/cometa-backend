@@ -39,6 +39,10 @@ class PoolInfo:
     begin_date: datetime
     end_date: datetime
 
+    @property
+    def length_blocks(self) -> int:
+        return self.end_block - self.begin_block
+
 
 @dataclass_json
 @dataclass
@@ -162,6 +166,7 @@ class PoolTransaction(BaseEntity['PoolTransaction']):
 @dataclass
 class PoolStateInfo:
     pool_id: int
+    type: PoolType
     stake_token: AssetInfo
     address: str
 
@@ -173,8 +178,18 @@ class PoolStateInfo:
 
 @dataclass_json
 @dataclass
+class PoolStateCost:
+    info: PoolStateInfo
+
+    staked_usd: float
+    current_apr: float
+
+
+@dataclass_json
+@dataclass
 class PoolState(BaseEntity['PoolState']):
     pool_id: int
+    type: PoolType
     stake_token: AssetInfo
     address: str
 
@@ -192,9 +207,14 @@ class PoolState(BaseEntity['PoolState']):
             return None
         return self.last_tx.id
 
+    @property
+    def total_staked(self) -> float:
+        return self.stake_token.micros_to_amount(self.total_staked_micros)
+
     def to_info(self) -> PoolStateInfo:
         return PoolStateInfo(
             pool_id=self.pool_id,
+            type=self.type,
             stake_token=self.stake_token,
             address=self.address,
             staked_micros_by_address=self.staked_micros_by_address,
@@ -256,3 +276,16 @@ class UserState(BaseEntity['UserState']):
             pool_by_address={pool_address: pool_state.to_info() for pool_address, pool_state in self.pool_by_address.items()},
             last_tx=self.last_tx
         )
+
+
+@dataclass_json
+@dataclass
+class LPToken(BaseEntity['UserState']):
+    asset1_id: int
+    asset2_id: int
+    name: str
+    dex: str
+
+    id: str = field(default_factory=get_uuid)
+    created: datetime = field(default_factory=datetime.now)
+    updated: datetime = field(default_factory=datetime.now)

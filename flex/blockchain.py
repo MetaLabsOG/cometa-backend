@@ -10,6 +10,10 @@ from dataclasses_json import dataclass_json
 
 from env import settings
 
+
+BLOCKS_IN_A_YEAR = int(timedelta(days=365).total_seconds() / settings.block_time)
+
+
 indexer_client: IndexerClient = IndexerClient(
     indexer_token=settings.algod_token,
     indexer_address=settings.algo_indexer_address
@@ -66,6 +70,16 @@ def get_asset_info(asset_id: int) -> AssetInfo:
         name=params['name'],
         unit_name=params['unit-name']
     )
+
+
+def get_app_address(app_id: int) -> str:
+    data = indexer_client.application_logs(application_id=app_id, limit=10)
+    log_data = data['log-data']
+
+    txid = log_data[0]['txid']
+    data = indexer_client.transaction(txid=txid)
+
+    return data['transaction']['inner-txns'][0]['sender']
 
 
 def asset_amount_to_micros(asset_id: int, amount: float) -> int:
