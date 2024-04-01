@@ -151,7 +151,7 @@ async def update_contracts_worker():
         await update_pool_start_end_dates()
         settings.migrate = False
 
-    if settings.update_contract_caches:
+    if settings.enable_js and settings.update_contract_caches:
         await update_contracts_cache('farm')
         await update_contracts_cache('distribution')
 
