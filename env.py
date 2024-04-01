@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     old_pool_end_date_days_ago: int = 30
 
     contracts_cache_ttl: int = 120
-    algo_price_ttl: int
-    asset_prices_ttl: int
+    algo_price_ttl: int = 15
+    asset_prices_ttl: int = 30
     total_tvl_ttl: int
 
     lottery_check_lock: bool = True
