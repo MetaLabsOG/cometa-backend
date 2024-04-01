@@ -500,7 +500,6 @@ async def resend_prizes(password: str) -> dict:
     return send_all_prizes()
 
 
-
 # Overall Statistics
 
 @app.get('/stats/tvl', tags=['Stats'])
@@ -518,33 +517,6 @@ async def address_app_ids(password: str, address: str, only_active: bool = False
         if contract.id in app_ids:
             user_pools.append({'id': contract.id, 'description': contract.description})
     return {'app_ids': app_ids, 'user_pools': user_pools}
-
-
-# DB API
-
-class DbGetParams(BaseModel):
-    collection_name: str
-    query: dict = {}
-    show_last_cnt: int | None = None
-    reverse: bool = False
-
-
-@app.post('/db/find', tags=['DB'])
-async def get_entities_by_dict_query(
-        password: str,
-        params: DbGetParams
-) -> list[dict]:
-    check_password(password)
-    collection = flex.db.get_collection_by_name(params.collection_name)
-    if collection is None:
-        raise HTTPException(status_code=404, detail=f'No such collection: {params.collection_name}!')
-    entities = collection.get_many(**params.query)
-    entity_dicts = [e.to_dict() for e in entities]
-    if params.reverse:
-        entity_dicts = reversed(entity_dicts)
-    if params.show_last_cnt is not None and len(entity_dicts) > params.show_last_cnt:
-        entity_dicts = entity_dicts[-params.show_last_cnt:]
-    return entity_dicts
 
 
 def setup_logging():

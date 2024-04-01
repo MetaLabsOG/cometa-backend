@@ -7,9 +7,8 @@ from core.db.contracts import get_contracts_by_type
 from core.db.model import ContractInfo
 from core.util import parse_bignum
 from flex import db
-from flex.blockchain import get_asset_info
-from flex.db.model import StakingPool, FarmingPool
-from flex.pools import get_pool_address
+from flex.blockchain import get_asset_info, get_app_address
+from flex.db.model import StakingPool, FarmingPool, LPToken
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ def staking_pool_from_contract_info(contract_info: ContractInfo) -> StakingPool:
     return StakingPool(
         id=contract_info.id,
         description=contract_info.description,
-        address=get_pool_address(contract_info.id),
+        address=get_app_address(contract_info.id),
 
         stake_token=get_asset_info(stake_token_id),
         reward_token=get_asset_info(reward_token_id),
@@ -71,15 +70,25 @@ def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
         begin_date = date_from_block(begin_block, current_block, start_time)
         end_date = date_from_block(end_block, current_block, start_time)
 
+    lp_token_info = get_asset_info(lp_token_id)
+    if not db.lp_tokens.exists(id=lp_token_id):
+        db.lp_tokens.create(LPToken(
+            id=lp_token_id,
+            asset1_id=first_token_id,
+            asset2_id=second_token_id,
+            name=lp_token_info.name,
+            dex=contract_info.metadata['dex']
+        ))
+
     return FarmingPool(
         id=contract_info.id,
         dex_name=contract_info.metadata['dex'],
         description=contract_info.description,
-        address=get_pool_address(contract_info.id),
+        address=get_app_address(contract_info.id),
 
         first_token=get_asset_info(first_token_id),
         second_token=get_asset_info(second_token_id),
-        stake_token=get_asset_info(lp_token_id),
+        stake_token=lp_token_info,
         reward_token=get_asset_info(reward_token_id),
 
         reward_amount_micros=reward_amount_micros,
