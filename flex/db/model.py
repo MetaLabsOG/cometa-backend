@@ -11,6 +11,7 @@ from flex.db.util import get_uuid
 @dataclass_json
 @dataclass
 class StakingPool(BaseEntity['StakingPool']):
+    description: str
     stake_token: AssetInfo
     reward_token: AssetInfo
 
@@ -33,10 +34,11 @@ class StakingPool(BaseEntity['StakingPool']):
 @dataclass_json
 @dataclass
 class FarmingPool(BaseEntity['FarmingPool']):
+    dex_name: str
+    description: str
+
     first_token: AssetInfo
     second_token: AssetInfo
-    dex_name: str
-
     lp_token: AssetInfo
     reward_token: AssetInfo
 
