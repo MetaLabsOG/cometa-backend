@@ -13,6 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 import core
 import dexes.humble as humble
+import flex.api
 from airdrop_all_active_stakers import snapshot_all
 from api import stats
 from api.background import start_bg_tasks
@@ -21,8 +22,6 @@ from api.migrations import update_contract_start_end_dates
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
     LotteryDraw, send_all_prizes
 from api.pool_snapshot import get_pool_snapshot
-from flex.db.model import PoolTransaction, PoolState, PoolStateInfo
-from flex.pool_state import record_new_pool_transactions, update_all_pool_states
 from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
@@ -40,7 +39,6 @@ from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
-from flex.pools import pool_fetch_new_transactions_by_id
 
 VERSION = '1.9.2'
 app = FastAPI(
@@ -55,6 +53,7 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+app.include_router(flex.api.router)
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +64,7 @@ def check_password(password: str) -> None:
 
 # COMMON API
 
-@app.get('/status')
+@app.get('/status', tags=['Common'])
 async def status() -> dict:
     return {
         'version': VERSION,
@@ -500,23 +499,6 @@ async def resend_prizes(password: str) -> dict:
     check_password(password)
     return send_all_prizes()
 
-
-# Pool Stats API
-
-@app.get('/pool/transactions', tags=['Pool State'])
-async def get_pool_transactions(pool_id: int) -> list[PoolTransaction]:
-    return pool_fetch_new_transactions_by_id(pool_id)
-
-
-@app.get('/pool/state', tags=['Pool State'])
-async def get_pool_state(pool_id: int) -> PoolStateInfo:
-    return record_new_pool_transactions(pool_id).to_info()
-
-
-@app.get('/pool/all', tags=['Pool State'])
-async def get_pool_state() -> list[PoolStateInfo]:
-    updated_states = update_all_pool_states()
-    return [state.to_info() for state in updated_states]
 
 
 # Overall Statistics
