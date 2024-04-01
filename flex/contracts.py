@@ -9,7 +9,7 @@ from core.util import parse_bignum
 from flex import db
 from flex.blockchain import get_asset_info
 from flex.db.model import StakingPool, FarmingPool
-
+from flex.pools import get_pool_address
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ def staking_pool_from_contract_info(contract_info: ContractInfo) -> StakingPool:
     return StakingPool(
         id=contract_info.id,
         description=contract_info.description,
+        address=get_pool_address(contract_info.id),
 
         stake_token=get_asset_info(stake_token_id),
         reward_token=get_asset_info(reward_token_id),
@@ -74,10 +75,11 @@ def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
         id=contract_info.id,
         dex_name=contract_info.metadata['dex'],
         description=contract_info.description,
+        address=get_pool_address(contract_info.id),
 
         first_token=get_asset_info(first_token_id),
         second_token=get_asset_info(second_token_id),
-        lp_token=get_asset_info(lp_token_id),
+        stake_token=get_asset_info(lp_token_id),
         reward_token=get_asset_info(reward_token_id),
 
         reward_amount_micros=reward_amount_micros,
@@ -93,13 +95,15 @@ def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
     )
 
 
-def all_contracts_to_pools() -> tuple[list[StakingPool], list[FarmingPool]]:
+async def all_contracts_to_pools() -> tuple[list[StakingPool], list[FarmingPool]]:
     staking_pools = []
     farming_pools = []
 
     distribution_contracts = get_contracts_by_type('distribution')
     logger.info(f'Migrating {len(distribution_contracts)} distribution contracts to Pools DB\n')
     for contract in distribution_contracts:
+        logger.debug(f'Processing distr contract {contract.id}')
+
         if db.staking_pools.exists(id=contract.id):
             logger.info(f'Staking pool {contract.id} already exists in DB')
             continue
@@ -111,6 +115,8 @@ def all_contracts_to_pools() -> tuple[list[StakingPool], list[FarmingPool]]:
     farm_contracts = get_contracts_by_type('farm')
     logger.info(f'Migrating {len(farm_contracts)} farm contracts to Pools DB\n')
     for contract in farm_contracts:
+        logger.debug(f'Processing farm contract {contract.id}')
+
         if 'dex' in contract.metadata:
             # ancient system: 'farm' can be staking A -> B. Do not bother refactoring if lol
             if db.farming_pools.exists(id=contract.id):

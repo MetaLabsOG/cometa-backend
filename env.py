@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     telegram_channel_id: int
     discord_notify_webhook_url: Optional[str] = None
 
+    enable_js: bool = True
+
     reach_no_warn: bool = False
     reach_connector_mode: str = 'ALGO'
     sync_humble_pools: int = 0
