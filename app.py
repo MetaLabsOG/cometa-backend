@@ -535,7 +535,7 @@ async def get_entities_by_dict_query(
         params: DbGetParams
 ) -> list[dict]:
     check_password(password)
-    collection = core.new.db.get_collection_by_name(params.collection_name)
+    collection = flex.db.get_collection_by_name(params.collection_name)
     if collection is None:
         raise HTTPException(status_code=404, detail=f'No such collection: {params.collection_name}!')
     entities = collection.get_many(**params.query)
