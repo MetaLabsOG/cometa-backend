@@ -3,7 +3,6 @@ import logging
 from flex import db
 from flex.db.model import UserState, UserPoolState
 
-
 logger = logging.getLogger(__name__)
 
 

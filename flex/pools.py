@@ -22,7 +22,7 @@ def get_pool_address(pool_id: int) -> str:
     return data['transaction']['inner-txns'][0]['sender']
 
 
-def pool_fetch_new_transactions_by_id(
+async def pool_fetch_new_transactions_by_id(
         pool_id: int,
         last_tx_id: str | None = None,
         pool_address: str | None = None,
@@ -46,7 +46,7 @@ def pool_fetch_new_transactions_by_id(
             next_page=next_token
         )
         txns = data['transactions']
-        logger.debug(f'Pool {pool_id}: processing new {len(txns)} txns...')
+        logger.debug(f'Pool {pool_id}: processing {len(txns)} txns...')
 
         for tx in txns:
             txid = tx['id']
@@ -99,7 +99,7 @@ def pool_fetch_new_transactions_by_id(
         else:
             break
 
-    logger.debug(f'Pool {pool_id}: in total {len(new_transactions)} user txns')
+    logger.debug(f'Pool {pool_id}: in total {len(new_transactions)} user action txns')
 
     if not new_first:
         # txns are in reverse order in indexer response
@@ -108,8 +108,8 @@ def pool_fetch_new_transactions_by_id(
     return new_transactions
 
 
-def pool_fetch_new_transactions(pool: PoolState, new_first: bool = False) -> list[PoolTransaction]:
-    return pool_fetch_new_transactions_by_id(
+async def pool_fetch_new_transactions(pool: PoolState, new_first: bool = False) -> list[PoolTransaction]:
+    return await pool_fetch_new_transactions_by_id(
         pool_id=pool.pool_id,
         last_tx_id=pool.last_tx_id,
         pool_address=pool.address,
