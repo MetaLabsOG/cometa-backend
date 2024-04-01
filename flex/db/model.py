@@ -164,8 +164,10 @@ class PoolStateInfo:
     pool_id: int
     stake_token: AssetInfo
     address: str
-    staked_amount_micros: int
-    staked_amount: float
+
+    total_staked_micros: int
+    total_staked: float
+    staked_micros_by_address: dict[str, int] = field(default_factory=dict)
     last_tx: TxInfo | None = None
 
 
@@ -176,7 +178,8 @@ class PoolState(BaseEntity['PoolState']):
     stake_token: AssetInfo
     address: str
 
-    staked_amount_micros: int = 0
+    staked_micros_by_address: dict[str, int] = field(default_factory=dict)
+    total_staked_micros: int = 0
     last_tx: TxInfo | None = None
 
     id: str = field(default_factory=get_uuid)
@@ -194,6 +197,35 @@ class PoolState(BaseEntity['PoolState']):
             pool_id=self.pool_id,
             stake_token=self.stake_token,
             address=self.address,
+            staked_micros_by_address=self.staked_micros_by_address,
+            total_staked_micros=self.total_staked_micros,
+            total_staked=self.stake_token.micros_to_amount(self.total_staked_micros),
+            last_tx=self.last_tx
+        )
+
+
+@dataclass_json
+@dataclass
+class UserPoolStateInfo:
+    pool_id: int
+    stake_token_id: int
+    staked_amount_micros: int
+    staked_amount: float
+    last_tx: TxInfo | None = None
+
+
+@dataclass_json
+@dataclass
+class UserPoolState:
+    pool_id: int
+    stake_token: AssetInfo
+    staked_amount_micros: int = 0
+    last_tx: TxInfo | None = None
+
+    def to_info(self) -> UserPoolStateInfo:
+        return UserPoolStateInfo(
+            pool_id=self.pool_id,
+            stake_token_id=self.stake_token.id,
             staked_amount_micros=self.staked_amount_micros,
             staked_amount=self.stake_token.micros_to_amount(self.staked_amount_micros),
             last_tx=self.last_tx
@@ -202,12 +234,9 @@ class PoolState(BaseEntity['PoolState']):
 
 @dataclass_json
 @dataclass
-class UserPoolState:
-    pool_id: str
-
-    stake_token: AssetInfo
-    staked_amount_micros: int = 0
-
+class UserStateInfo:
+    address: str
+    pool_by_address: dict[str, UserPoolStateInfo]
     last_tx: TxInfo | None = None
 
 
@@ -215,10 +244,15 @@ class UserPoolState:
 @dataclass
 class UserState(BaseEntity['UserState']):
     address: str
-
-    pool_by_id: dict[int, UserPoolState] = field(default_factory=dict)
+    pool_by_address: dict[str, UserPoolState] = field(default_factory=dict)
     last_tx: TxInfo | None = None
-
     id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
+
+    def to_info(self) -> UserStateInfo:
+        return UserStateInfo(
+            address=self.address,
+            pool_by_address={pool_address: pool_state.to_info() for pool_address, pool_state in self.pool_by_address.items()},
+            last_tx=self.last_tx
+        )
