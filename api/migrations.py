@@ -21,10 +21,6 @@ def update_contract_start_end_dates(contract: ContractInfo) -> ContractInfo | No
         return None
 
     cache = metadata.get('cache')
-    if cache is None:
-        logger.warning(f'Contract has no cache: {contract}')
-        return None
-
     logger.info(f'Updating pool {contract.id}...')
 
     end_block = metadata.get('end_block')
@@ -34,7 +30,7 @@ def update_contract_start_end_dates(contract: ContractInfo) -> ContractInfo | No
         logger.info(f'Updated end block for {contract.id} to {end_block}')
 
     begin_block = metadata.get('begin_block')
-    if begin_block is None:
+    if begin_block is None and cache is not None:
         begin_block = parse_bignum(cache['initial']['beginBlock'])
         metadata['begin_block'] = begin_block
         logger.info(f'Updated begin block for {contract.id} to {begin_block}')
@@ -51,7 +47,7 @@ def update_contract_start_end_dates(contract: ContractInfo) -> ContractInfo | No
         contract.begin_date = begin_date
         logger.info(f'Updated begin date for {contract.id} to {begin_date}')
 
-    if metadata.get('lock_length_blocks') is None:
+    if metadata.get('lock_length_blocks') is None and cache is not None:
         lock_length_blocks = parse_bignum(cache['initial']['lockLengthBlocks'])
         metadata['lock_length_blocks'] = lock_length_blocks
         logger.info(f'Updated lock length blocks for {contract.id} to {lock_length_blocks}')
