@@ -20,7 +20,7 @@ private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
 
-def send_tokens(address: str, amount: float, airdrop_id: str) -> float:
+def send_meta_tokens(address: str, amount: float, airdrop_id: str) -> float:
     done = db.airdrops.find_one({'airdrop_id': airdrop_id, 'address': address})
     if done is not None:
         print(f'Already sent {amount} to {address} before!')
@@ -96,7 +96,7 @@ def run(airdrop_id: str):
     for address, count in address_count.items():
         try:
             address_amount = count * tokens_per_part
-            amount = send_tokens(address, address_amount, airdrop_id)
+            amount = send_meta_tokens(address, address_amount, airdrop_id)
             amount_sent += amount
             addrs_sent += 1
             print(f'Sent {amount} to {address}')

@@ -23,30 +23,21 @@ def get_pool_type_from_contract(contract: ContractInfo) -> PoolType:
 
 
 async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
-    pool_address = get_app_address(contract.id)
-    if pool_address is None:
-        raise MetaError(f'Pool {contract.id} address not found')
-
-    stake_token_id = contract.metadata['stake_token_id']
-    reward_token_id = contract.metadata['reward_token_id']
-
-    total_rewards_micros = contract.metadata.get('total_rewards_micros')
-    if total_rewards_micros is None:
-        total_rewards_encoded = dict_get_nested_field(contract.metadata, 'cache', 'initial', 'totalRewardAmount')
-        if total_rewards_encoded is None:
-            raise MetaError(f'Pool {contract.id} total rewards not found')
-        total_rewards_micros = parse_bignum(total_rewards_encoded)
-
+    pool_type = get_pool_type_from_contract(contract)
+    if pool_type == PoolType.STAKING:
+        pool = db.staking_pools.get_by_primary_key(contract.id)
+    else:
+        pool = db.farming_pools.get_by_primary_key(contract.id)
     pool_state = PoolState(
         pool_id=contract.id,
         type=get_pool_type_from_contract(contract),
-        address=pool_address,
-        stake_token=get_asset_info(stake_token_id)
+        address=pool.address,
+        stake_token=pool.stake_token
     )
-    if stake_token_id == reward_token_id:
+    if pool.stake_token.id == pool.reward_token.id:
         logger.info(f'Pool {contract.id} has same stake and reward token\n\nyo\n')
         # rewards and stakes are at the same address, we need only stakes
-        pool_state.total_staked_micros = -total_rewards_micros
+        pool_state.total_staked_micros = -pool.reward_amount_micros
 
     db.pool_states.create(pool_state)
     logger.info(f'Created new pool state: address = {pool_state.address}')
@@ -119,8 +110,10 @@ async def update_pools_with_transactions(
     return updated_pool_states
 
 
-async def update_all_pool_states() -> list[PoolState]:
+async def update_all_pool_states(max_count: int | None = None) -> list[PoolState]:
     all_contracts = get_all_pool_contracts()
+    if max_count is not None:
+        all_contracts = all_contracts[:max_count]
     logger.info(f'Updating {len(all_contracts)} pool states')
 
     new_transactions = []

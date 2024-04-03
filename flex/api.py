@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from env import settings
 from flex import db
+from flex.blockchain import get_current_round
 from flex.data.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost
 from flex.data.pools import get_pool_info_by_id
@@ -44,9 +45,18 @@ async def get_pools_by(type: PoolType = PoolType.ANY) -> list[PoolInfo]:
 
 
 @router.post('/pools/state/', tags=['Pools 2.0'])
-async def get_pool_state() -> list[PoolStateInfo]:
-    updated_states = await update_all_pool_states()
+async def get_pool_state(max_count: int | None = None) -> list[PoolStateInfo]:
+    updated_states = await update_all_pool_states(max_count)
     return [state.to_info() for state in updated_states]
+
+
+@router.post('/pools/cost', tags=['Pools 2.0'])
+async def get_pool_states_cost() -> list[PoolStateCost]:
+    updated_states = await update_all_pool_states()
+    pool_costs = []
+    for state in updated_states:
+        pool_costs.append(calculate_pool_state_cost(state))
+    return pool_costs
 
 
 @router.post('/pools/user/', tags=['Pools 2.0'])

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 async def pool_fetch_new_transactions_by_id(
         pool_id: int,
+        asset_id: int,
         last_tx_id: str | None = None,
         pool_address: str | None = None,
         new_first: bool = False
@@ -47,12 +48,15 @@ async def pool_fetch_new_transactions_by_id(
 
             if ASSET_TRANSFER_TX in tx:
                 # Stake
+                tx_asa_id = int(tx[ASSET_TRANSFER_TX]['asset-id'])
+                if asset_id != tx_asa_id:
+                    continue
                 pool_tx = PoolTransaction(
                     id=txid,
                     pool_id=pool_id,
                     user_address=tx['sender'],
                     pool_address=pool_address,
-                    asa_id=tx[ASSET_TRANSFER_TX]['asset-id'],
+                    asa_id=tx_asa_id,
                     delta_amount_micros=tx[ASSET_TRANSFER_TX]['amount'],
                     confirmed_round=tx['confirmed-round']
                 )
@@ -65,6 +69,8 @@ async def pool_fetch_new_transactions_by_id(
                 for inner_tx in inner_txns:
                     if PAYMENT_TX in inner_tx:
                         is_claim = True
+                        if ASSET_TRANSFER_TX in inner_tx and inner_tx[ASSET_TRANSFER_TX]['asset-id'] == asset_id:
+                            print(f'There are claim + transfer lol: {txid}\n')
                 if is_claim:
                     # TODO: save claim tx as well
                     continue
@@ -72,12 +78,15 @@ async def pool_fetch_new_transactions_by_id(
                 for inner_tx in inner_txns:
                     if ASSET_TRANSFER_TX in inner_tx:
                         # Withdraw
+                        tx_asa_id = int(inner_tx[ASSET_TRANSFER_TX]['asset-id'])
+                        if asset_id != tx_asa_id:
+                            continue
                         pool_tx = PoolTransaction(
                             id=txid,
                             pool_id=pool_id,
                             user_address=inner_tx[ASSET_TRANSFER_TX]['receiver'],
                             pool_address=pool_address,
-                            asa_id=inner_tx[ASSET_TRANSFER_TX]['asset-id'],
+                            asa_id=tx_asa_id,
                             delta_amount_micros=-inner_tx[ASSET_TRANSFER_TX]['amount'],
                             confirmed_round=inner_tx['confirmed-round']
                         )
@@ -101,6 +110,7 @@ async def pool_fetch_new_transactions_by_id(
 async def pool_fetch_new_transactions(pool: PoolState, new_first: bool = False) -> list[PoolTransaction]:
     return await pool_fetch_new_transactions_by_id(
         pool_id=pool.pool_id,
+        asset_id=pool.stake_token.id,
         last_tx_id=pool.last_tx_id,
         pool_address=pool.address,
         new_first=new_first

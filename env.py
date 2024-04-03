@@ -22,8 +22,11 @@ class Settings(BaseSettings):
     mongodb_host: str
     mongodb_port: int
 
-    api_password: str
     logging_level: str = 'INFO'
+    logging_format: str = '[%(asctime)s][%(levelname)s][%(filename)s] %(message)s'
+    logging_date_format: str = '%I:%M:%S'
+
+    api_password: str
     block_time: float = 2.7
     old_pool_end_date_days_ago: int = 30
 
