@@ -147,6 +147,7 @@ class TxInfo:
 @dataclass_json
 @dataclass
 class PoolTransaction(BaseEntity['PoolTransaction']):
+    # TODO: remove one of the fields
     pool_id: int
     pool_address: str
     user_address: str
@@ -317,6 +318,28 @@ class AirdropReward(BaseEntity['AirdropReward']):
     asa_id: int
     amount_micros: int
     txid: str
+
+    id: str = field(default_factory=get_uuid)
+    created: datetime = field(default_factory=datetime.now)
+    updated: datetime = field(default_factory=datetime.now)
+
+
+@dataclass_json
+@dataclass
+class SyncState(BaseEntity['SyncState']):
+    last_round: int | None = None
+
+    id: str = field(default_factory=get_uuid)
+    created: datetime = field(default_factory=datetime.now)
+    updated: datetime = field(default_factory=datetime.now)
+
+
+@dataclass_json
+@dataclass
+class SyncBlock(BaseEntity['SyncBlock']):
+    round: int
+    timestamp: int
+    pool_tx_ids: list[str] = field(default_factory=list)
 
     id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)

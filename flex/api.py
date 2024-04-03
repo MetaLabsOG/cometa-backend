@@ -44,8 +44,8 @@ async def get_pools_by(type: PoolType = PoolType.ANY) -> list[PoolInfo]:
 
 
 @router.post('/pools/state/', tags=['Pools 2.0'])
-async def get_pool_state(max_count: int | None = None) -> list[PoolStateInfo]:
-    updated_states = await update_all_pool_states(max_count)
+async def get_pool_state() -> list[PoolStateInfo]:
+    updated_states = await update_all_pool_states()
     return [state.to_info() for state in updated_states]
 
 
