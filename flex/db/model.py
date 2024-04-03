@@ -178,15 +178,6 @@ class PoolStateInfo:
 
 @dataclass_json
 @dataclass
-class PoolStateCost:
-    info: PoolStateInfo
-
-    staked_usd: float
-    current_apr: float
-
-
-@dataclass_json
-@dataclass
 class PoolState(BaseEntity['PoolState']):
     pool_id: int
     type: PoolType
@@ -236,28 +227,32 @@ class UserPoolStateInfo:
 
 @dataclass_json
 @dataclass
+class UserStateInfo:
+    address: str
+    pool_by_address: dict[str, UserPoolStateInfo]
+    last_tx: TxInfo | None = None
+
+
+@dataclass_json
+@dataclass
 class UserPoolState:
     pool_id: int
     stake_token: AssetInfo
     staked_amount_micros: int = 0
     last_tx: TxInfo | None = None
 
+    @property
+    def staked_amount(self):
+        return self.stake_token.micros_to_amount(self.staked_amount_micros)
+
     def to_info(self) -> UserPoolStateInfo:
         return UserPoolStateInfo(
             pool_id=self.pool_id,
             stake_token_id=self.stake_token.id,
             staked_amount_micros=self.staked_amount_micros,
-            staked_amount=self.stake_token.micros_to_amount(self.staked_amount_micros),
+            staked_amount=self.staked_amount,
             last_tx=self.last_tx
         )
-
-
-@dataclass_json
-@dataclass
-class UserStateInfo:
-    address: str
-    pool_by_address: dict[str, UserPoolStateInfo]
-    last_tx: TxInfo | None = None
 
 
 @dataclass_json
@@ -280,7 +275,30 @@ class UserState(BaseEntity['UserState']):
 
 @dataclass_json
 @dataclass
-class LPToken(BaseEntity['UserState']):
+class PoolStateCost:
+    info: PoolStateInfo
+    staked_usd: float
+    current_apr: float
+
+
+@dataclass_json
+@dataclass
+class UserPoolCost:
+    pool_info: PoolInfo
+    staked_usd: float
+
+
+@dataclass_json
+@dataclass
+class UserCost:
+    address: str
+    total_staked_usd: float = 0
+    pools_by_id: dict[int, UserPoolCost] = field(default_factory=dict)
+
+
+@dataclass_json
+@dataclass
+class LPToken(BaseEntity['LPToken']):
     asset1_id: int
     asset2_id: int
     name: str
