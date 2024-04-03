@@ -40,7 +40,7 @@ from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
 
-VERSION = '1.9.2'
+VERSION = '1.9.3'
 app = FastAPI(
     title='Cometa',
     version=VERSION,

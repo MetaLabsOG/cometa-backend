@@ -13,9 +13,29 @@ from flex.db.model import StakingPool, FarmingPool, LPToken
 logger = logging.getLogger(__name__)
 
 
-def staking_pool_from_contract_info(contract_info: ContractInfo) -> StakingPool:
-    stake_token_id = int(contract_info.metadata['stake_token_id'])
-    reward_token_id = int(contract_info.metadata['reward_token_id'])
+def staking_pool_from_contract_info(contract_info: ContractInfo, distribution: bool = False) -> StakingPool:
+    # FIXME: I DON'T issue CARE, IT WORKS
+    if distribution:
+        stake_token_id = contract_info.metadata.get('stake_token_id')
+        if stake_token_id is None:
+            stake_token_id = parse_bignum(contract_info.metadata['cache']['initial']['token'])
+        stake_token_id = int(stake_token_id)
+
+        reward_token_id = contract_info.metadata.get('reward_token_id')
+        if reward_token_id is None:
+            reward_token_id = parse_bignum(contract_info.metadata['cache']['initial']['token'])
+        reward_token_id = int(reward_token_id)
+    else:
+        stake_token_id = contract_info.metadata.get('stake_token_id')
+        if stake_token_id is None:
+            stake_token_id = parse_bignum(contract_info.metadata['cache']['initial']['stakeToken'])
+        stake_token_id = int(stake_token_id)
+
+        reward_token_id = contract_info.metadata.get('reward_token_id')
+        if reward_token_id is None:
+            reward_token_id = parse_bignum(contract_info.metadata['cache']['initial']['rewardToken'])
+        reward_token_id = int(reward_token_id)
+
     reward_amount_micros = parse_bignum(contract_info.metadata['cache']['initial']['totalRewardAmount'])
     algo_reward_amount_micros = parse_bignum(contract_info.metadata['cache']['initial']['totalAlgoRewardAmount'])
 
@@ -54,8 +74,16 @@ def staking_pool_from_contract_info(contract_info: ContractInfo) -> StakingPool:
 def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
     first_token_id = int(contract_info.metadata['asset1_id'])
     second_token_id = int(contract_info.metadata['asset2_id'])
-    lp_token_id = int(contract_info.metadata['stake_token_id'])
-    reward_token_id = int(contract_info.metadata['reward_token_id'])
+    lp_token_id = contract_info.metadata.get('stake_token_id')
+    if lp_token_id is None:
+        lp_token_id = parse_bignum(contract_info.metadata['cache']['initial']['stakeToken'])
+    lp_token_id = int(lp_token_id)
+
+    reward_token_id = contract_info.metadata.get('reward_token_id')
+    if reward_token_id is None:
+        reward_token_id = parse_bignum(contract_info.metadata['cache']['initial']['rewardToken'])
+    reward_token_id = int(reward_token_id)
+
     reward_amount_micros = parse_bignum(contract_info.metadata['cache']['initial']['totalRewardAmount'])
     algo_reward_amount_micros = parse_bignum(contract_info.metadata['cache']['initial']['totalAlgoRewardAmount'])
 
@@ -117,7 +145,7 @@ async def all_contracts_to_pools() -> tuple[list[StakingPool], list[FarmingPool]
             logger.info(f'Staking pool {contract.id} already exists in DB')
             continue
 
-        staking_pool = staking_pool_from_contract_info(contract)
+        staking_pool = staking_pool_from_contract_info(contract, distribution=True)
         db.staking_pools.create(staking_pool)
         staking_pools.append(staking_pool)
 
@@ -136,7 +164,7 @@ async def all_contracts_to_pools() -> tuple[list[StakingPool], list[FarmingPool]
             db.farming_pools.create(farming_pool)
             farming_pools.append(farming_pool)
         else:
-            if db.staking_pools.exists(pool_id=contract.id):
+            if db.staking_pools.exists(id=contract.id):
                 logger.info(f'Staking pool {contract.id} already exists in DB')
                 continue
 
