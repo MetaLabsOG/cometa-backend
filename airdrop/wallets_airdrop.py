@@ -1,6 +1,6 @@
 import json
 
-from airdrop.airdrop import tinyman_client, send_tokens
+from airdrop.airdrop import tinyman_client, send_meta_tokens
 from blockchain.assets import META_ASA_ID
 
 JSON_FILENAME = 'snapshots/outage_opted_in.json'
@@ -44,7 +44,7 @@ def run():
     for address, count in to_airdrop.items():
         address_amount = count * per_part
         try:
-            amount = send_tokens(address, address_amount, 'february_outage')
+            amount = send_meta_tokens(address, address_amount, 'february_outage')
             print(f'Sent {amount} to {address}')
         except Exception as e:
             err_cnt += 1
