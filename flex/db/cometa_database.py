@@ -1,7 +1,8 @@
 from pymongo.database import Database as MongoDatabase
 
 from flex.db.classes.database import EntitiesDatabase
-from flex.db.model import UserState, PoolState, PoolTransaction, StakingPool, FarmingPool, LPToken, AirdropReward
+from flex.db.model import UserState, PoolState, PoolTransaction, StakingPool, FarmingPool, LPToken, AirdropReward, \
+    SyncState, SyncBlock
 
 
 class CometaDatabase(EntitiesDatabase):
@@ -15,3 +16,5 @@ class CometaDatabase(EntitiesDatabase):
         self.pool_transactions = self.create_collection_manager_for_type(PoolTransaction)
         self.lp_tokens = self.create_collection_manager_for_type(LPToken)
         self.airdrop_rewards = self.create_collection_manager_for_type(AirdropReward)
+        self.sync_states = self.create_collection_manager_for_type(SyncState)
+        self.sync_blocks = self.create_collection_manager_for_type(SyncBlock)
