@@ -17,6 +17,7 @@ from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
 from core.util import strip_version, parse_bignum
 from env import settings
+from flex.sync_pools import sync_pools_loop
 
 spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
@@ -174,12 +175,18 @@ async def update_pools_info_worker():
     logger.info('Pools info updated.')
 
 
+@safe_async_method
+async def sync_new_pools():
+    await sync_pools_loop()
+
+
 # TODO: graceful shutdown here (with signal handling?)
 def run_background():
     async def tasks():
         await asyncio.gather(
             update_contracts_worker(),
-            update_pools_info_worker()
+            # update_pools_info_worker()
+            # sync_new_pools()
         )
 
     logger.info('Started background tasks.')

@@ -35,17 +35,15 @@ def update_contract_start_end_dates(contract: ContractInfo) -> ContractInfo | No
         metadata['begin_block'] = begin_block
         logger.info(f'Updated begin block for {contract.id} to {begin_block}')
 
-    if metadata.get('end_date') is None:
-        end_date = date_from_block(end_block, current_block, start_time)
-        metadata['end_date'] = end_date
-        contract.end_date = end_date
-        logger.info(f'Updated end date for {contract.id} to {end_date}')
+    if contract.end_date is None:
+        contract.end_date = date_from_block(end_block, current_block, start_time)
+        metadata['end_date'] = contract.end_date
+        logger.info(f'Updated end date for {contract.id} to {contract.end_date}')
 
-    if metadata.get('begin_date') is None:
-        begin_date = date_from_block(begin_block, current_block, start_time)
-        metadata['begin_date'] = begin_date
-        contract.begin_date = begin_date
-        logger.info(f'Updated begin date for {contract.id} to {begin_date}')
+    if contract.begin_date is None:
+        contract.begin_date = date_from_block(begin_block, current_block, start_time)
+        metadata['begin_date'] = contract.begin_date
+        logger.info(f'Updated begin date for {contract.id} to {contract.begin_date}')
 
     if metadata.get('lock_length_blocks') is None and cache is not None:
         lock_length_blocks = parse_bignum(cache['initial']['lockLengthBlocks'])
@@ -60,6 +58,8 @@ def update_contract_start_end_dates(contract: ContractInfo) -> ContractInfo | No
     )
 
     logger.info(f'Pool {contract.id} updated: {contract.begin_date} - {contract.end_date}.')
+
+    return contract
 
 
 @safe_async_method

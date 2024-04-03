@@ -16,6 +16,7 @@ def duration_from_blocks(begin_block: int, end_block: int) -> timedelta:
 
 
 def date_from_block(round_num: int, current_round_num: int, current_date: datetime) -> datetime:
+    print(f'round_num: {round_num}, current_round_num: {current_round_num}, current_date: {current_date}')
     if round_num > current_round_num:
         pool_time_remains = duration_from_blocks(current_round_num, round_num)
         return current_date + pool_time_remains

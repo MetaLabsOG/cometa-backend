@@ -68,6 +68,7 @@ async def update_pools_with_transactions(
     if len(transactions) == 0:
         return pool_states
 
+    # TODO: maybe save before the method?
     db.pool_transactions.create_many(transactions)
     logger.debug(f'Saved {len(transactions)} transactions to DB')
 
@@ -100,20 +101,19 @@ async def update_pools_with_transactions(
         user_pool_state.last_tx = tx.to_info()
         user_state.last_tx = tx.to_info()
 
-    updated_pool_states = list(pool_state_by_id.values())
     for user_state in user_state_by_address.values():
         db.user_states.update(user_state)
+
+    updated_pool_states = list(pool_state_by_id.values())
     for pool_state in updated_pool_states:
         db.pool_states.update(pool_state)
-
     logger.info(f'Updated {len(updated_pool_states)} pool states')
+
     return updated_pool_states
 
 
-async def update_all_pool_states(max_count: int | None = None) -> list[PoolState]:
+async def update_all_pool_states() -> list[PoolState]:
     all_contracts = get_all_pool_contracts()
-    if max_count is not None:
-        all_contracts = all_contracts[:max_count]
     logger.info(f'Updating {len(all_contracts)} pool states')
 
     new_transactions = []
