@@ -28,8 +28,8 @@ algod_client: AlgodClient = AlgodClient(
     }
 )
 
-private_key = mnemonic.to_private_key(settings.algo_mnemonic)
-public_key = account.address_from_private_key(private_key)
+cometa_private_key = mnemonic.to_private_key(settings.algo_mnemonic)
+cometa_public_key = account.address_from_private_key(cometa_private_key)
 
 
 @dataclass_json
@@ -62,6 +62,9 @@ ALGO_ASSET_INFO = AssetInfo(
 
 @cached(cache=TTLCache(maxsize=65536, ttl=timedelta(hours=24).total_seconds()))
 def get_asset_info(asset_id: int) -> AssetInfo:
+    if asset_id == 0:
+        return ALGO_ASSET_INFO
+
     data = indexer_client.asset_info(asset_id)
     params = data['asset']['params']
     return AssetInfo(
@@ -70,6 +73,12 @@ def get_asset_info(asset_id: int) -> AssetInfo:
         name=params['name'],
         unit_name=params['unit-name']
     )
+
+
+@cached(cache=TTLCache(maxsize=1, ttl=settings.block_time))
+def get_current_round():
+    data = algod_client.status()
+    return data['last-round']
 
 
 def get_app_address(app_id: int) -> str:
@@ -88,3 +97,11 @@ def asset_amount_to_micros(asset_id: int, amount: float) -> int:
 
 def asset_micros_to_amount(asset_id: int, micros: int) -> float:
     return get_asset_info(asset_id).micros_to_amount(micros)
+
+
+def is_opted_in(address: str, asa_id: int) -> bool:
+    account_info = algod_client.account_info(address)
+    for account in account_info.get('assets', []):
+        if account['asset-id'] == asa_id:
+            return True
+    return False

@@ -7,12 +7,12 @@ from tinyman.assets import Asset
 from tinyman.v2.client import TinymanV2MainnetClient, TinymanV2TestnetClient
 
 from env import settings
-from flex.blockchain import algod_client, public_key
+from flex.blockchain import algod_client, cometa_public_key
 
 if settings.is_mainnet():
-    tinyman_client = TinymanV2MainnetClient(algod_client=algod_client, user_address=public_key)
+    tinyman_client = TinymanV2MainnetClient(algod_client=algod_client, user_address=cometa_public_key)
 else:
-    tinyman_client = TinymanV2TestnetClient(algod_client=algod_client, user_address=public_key)
+    tinyman_client = TinymanV2TestnetClient(algod_client=algod_client, user_address=cometa_public_key)
 
 logger = logging.getLogger(__name__)
 

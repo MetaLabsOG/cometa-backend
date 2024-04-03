@@ -150,7 +150,7 @@ class PoolTransaction(BaseEntity['PoolTransaction']):
     pool_id: int
     pool_address: str
     user_address: str
-    asa_id: str
+    asa_id: int
     delta_amount_micros: int
     confirmed_round: int
 
@@ -285,6 +285,20 @@ class LPToken(BaseEntity['UserState']):
     asset2_id: int
     name: str
     dex: str
+
+    id: str = field(default_factory=get_uuid)
+    created: datetime = field(default_factory=datetime.now)
+    updated: datetime = field(default_factory=datetime.now)
+
+
+@dataclass_json
+@dataclass
+class AirdropReward(BaseEntity['AirdropReward']):
+    airdrop_id: str
+    address: str
+    asa_id: int
+    amount_micros: int
+    txid: str
 
     id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
