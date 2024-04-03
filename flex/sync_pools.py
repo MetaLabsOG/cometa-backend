@@ -18,7 +18,9 @@ def find_transfer_transactions(txns: list[dict]) -> list[dict]:
             transfer_transactions.append(tx)
 
         elif APPLICATION_CALL_TX in tx:
-            inner_txns = tx['inner-txns']
+            inner_txns = tx.get('inner-txns')
+            if inner_txns is None:
+                continue
 
             is_claim = False
             for inner_tx in inner_txns:
@@ -31,6 +33,7 @@ def find_transfer_transactions(txns: list[dict]) -> list[dict]:
             for inner_tx in inner_txns:
                 if ASSET_TRANSFER_TX in inner_tx:
                     # Withdraw
+                    inner_tx['id'] = tx['id']
                     transfer_transactions.append(inner_tx)
     return transfer_transactions
 
@@ -49,7 +52,7 @@ def process_transactions(txns: list[dict]) -> list[PoolTransaction]:
         # TODO: optimize lookup locally
         withdraw_pool = db.pool_states.get_one(address=sender)
         if withdraw_pool is not None:
-            if withdraw_pool.asa_id == tx_asa_id:
+            if withdraw_pool.stake_token.id == tx_asa_id:
                 pool_tx = PoolTransaction(
                     id=txid,
                     pool_id=withdraw_pool.pool_id,
@@ -63,7 +66,7 @@ def process_transactions(txns: list[dict]) -> list[PoolTransaction]:
 
         stake_pool = db.pool_states.get_one(address=receiver)
         if stake_pool is not None:
-            if stake_pool.asa_id == tx_asa_id:
+            if stake_pool.stake_token.id == tx_asa_id:
                 pool_tx = PoolTransaction(
                     id=txid,
                     pool_id=stake_pool.pool_id,
@@ -100,20 +103,18 @@ async def sync_pools_loop():
         logger.info(f'Pools synced up to round {current_round}.')
 
     while True:
-        await asyncio.sleep(1)
-
         next_round = sync_state.last_round + 1
-        logger.debug(f'Waiting for round {next_round}...')
 
         try:
             block_dict = indexer_client.block_info(round_num=next_round)
         except Exception as e:
-            logger.error(f'{next_round} round not yet available: {e}')
+            logger.error(f'#{next_round} NOT HERE SORRY: {e}')
+            await asyncio.sleep(1)
             continue
 
         try:
             raw_transactions = block_dict['transactions']
-            logger.debug(f'Processing {len(raw_transactions)} transactions from round {next_round}')
+            logger.debug(f'Fetch #{next_round}: sync {len(raw_transactions)} txns')
 
             pool_transactions = process_transactions(raw_transactions)
             _ = await update_pools_with_transactions(pool_transactions)
@@ -127,6 +128,8 @@ async def sync_pools_loop():
                     pool_tx_ids=[tx.id for tx in pool_transactions],
                 )
             )
+
+            logger.debug(f'#{next_round} sync OK: {len(pool_transactions)} pool txns\n')
         except Exception as e:
-            logger.error(f'Error processing round {next_round}: {e}')
+            logger.error(f'Error processing round {next_round}: {e}', exc_info=True)
             continue
