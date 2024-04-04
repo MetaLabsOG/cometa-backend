@@ -130,17 +130,36 @@ async def update_all_pool_states() -> list[PoolState]:
     return await update_pools_with_transactions(new_transactions, pool_states)
 
 
-async def update_pool_state(pool_id: int) -> PoolState:
-    logger.debug(f'Updating pool state {pool_id}')
+async def update_all_pool_states_linear() -> list[PoolState]:
+    pool_states = db.pool_states.get_all()
+    logger.info(f'Updating {len(pool_states)} pool states')
+    updated_pool_states = []
+    for pool_state in pool_states:
+        try:
+            pool_state = await update_pool_state(pool_state)
+            updated_pool_states.append(pool_state)
+        except Exception as e:
+            logger.error(f'Failed to update pool state {pool_state.pool_id}: {e}', exc_info=True)
+    return updated_pool_states
 
-    pool_state = await get_or_create_pool_state(pool_id)
+
+async def update_pool_state(pool_state: PoolState) -> PoolState:
+    logger.debug(f'Updating pool state {pool_state.pool_id}')
+
     new_transactions = await pool_fetch_new_transactions(pool_state)
     if len(new_transactions) == 0:
-        logger.debug(f'No new transactions for pool {pool_id}')
+        logger.debug(f'No new transactions for pool {pool_state.pool_id}')
         return pool_state
 
     updated_pool_states = await update_pools_with_transactions(new_transactions, pool_states=[pool_state])
     return updated_pool_states[0]
+
+
+async def update_pool_state_by_id(pool_id: int) -> PoolState:
+    logger.debug(f'Updating pool state {pool_id}')
+
+    pool_state = await get_or_create_pool_state(pool_id)
+    return await update_pool_state(pool_state)
 
 
 async def update_user_state(address: str) -> UserState | None:
