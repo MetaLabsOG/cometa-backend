@@ -1,15 +1,13 @@
 from dataclasses import dataclass
 from datetime import timedelta
-from functools import cached_property
 
 from algosdk import mnemonic, account
 from algosdk.v2client.algod import AlgodClient
 from algosdk.v2client.indexer import IndexerClient
 from cachetools import cached, TTLCache
-from dataclasses_json import dataclass_json
 
 from env import settings
-
+from flex.db.model.blockchain import Asset
 
 BLOCKS_IN_A_YEAR = int(timedelta(days=365).total_seconds() / settings.block_time)
 
@@ -31,28 +29,8 @@ algod_client: AlgodClient = AlgodClient(
 cometa_private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 cometa_public_key = account.address_from_private_key(cometa_private_key)
 
-
-@dataclass_json
-@dataclass
-class AssetInfo:
-    id: int
-    decimals: int
-    name: str
-    unit_name: str
-
-    @cached_property
-    def amount_multiplier(self) -> int:
-        return 10 ** self.decimals
-
-    def amount_to_micros(self, amount: float) -> int:
-        return int(amount * self.amount_multiplier)
-
-    def micros_to_amount(self, micros: int) -> float:
-        return micros / self.amount_multiplier
-
-
 # TODO: make it better somehow I don't know I'm tired as issue bro
-ALGO_ASSET_INFO = AssetInfo(
+ALGO_ASSET_INFO = Asset(
     id=0,
     decimals=6,
     name='Algorand',
@@ -60,19 +38,34 @@ ALGO_ASSET_INFO = AssetInfo(
 )
 
 
-@cached(cache=TTLCache(maxsize=65536, ttl=timedelta(hours=24).total_seconds()))
-def get_asset_info(asset_id: int) -> AssetInfo:
+def get_asset_info_not_cached(asset_id: int) -> Asset:
     if asset_id == 0:
         return ALGO_ASSET_INFO
 
     data = indexer_client.asset_info(asset_id)
     params = data['asset']['params']
-    return AssetInfo(
+    return Asset(
         id=asset_id,
         decimals=params['decimals'],
         name=params['name'],
         unit_name=params['unit-name']
     )
+
+
+@cached(cache=TTLCache(maxsize=65536, ttl=timedelta(hours=24).total_seconds()))
+def get_asset_info(asset_id: int) -> Asset:
+    return get_asset_info_not_cached(asset_id)
+
+
+@dataclass
+class AssetBalance:
+    asa_id: int
+    amount_micros: int
+
+
+def get_address_assets(address: str) -> list[AssetBalance]:
+    data = indexer_client.lookup_account_assets(address=address)
+    return [AssetBalance(asset['asset-id'], asset['amount']) for asset in data['assets']]
 
 
 @cached(cache=TTLCache(maxsize=1, ttl=settings.block_time))

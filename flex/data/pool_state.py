@@ -2,12 +2,11 @@ import logging
 
 from core.db.contracts import get_contract, get_all_pool_contracts
 from core.db.model import ContractInfo
-from core.util import parse_bignum
 from flex import db
-from flex.blockchain import get_asset_info, get_app_address
 from flex.data.transactions import pool_fetch_new_transactions
-from flex.db.model import PoolState, UserState, UserPoolState, PoolTransaction, PoolType
-from flex.db.util import dict_get_nested_field
+from flex.db.model.blockchain import PoolTransaction
+from flex.db.model.pool_states import PoolState, UserState, UserPoolState
+from flex.db.model.pools import PoolType
 from flex.meta_error import MetaError
 
 
@@ -167,18 +166,19 @@ async def update_pool_state(pool_state: PoolState) -> PoolState:
 
 async def update_pool_state_by_id(pool_id: int) -> PoolState:
     logger.debug(f'Updating pool state {pool_id}')
-
     pool_state = await get_or_create_pool_state(pool_id)
     return await update_pool_state(pool_state)
 
 
-async def update_user_state(address: str) -> UserState:
+async def update_user_state_by_address(address: str) -> UserState:
     logger.debug(f'Updating user state {address}')
     user_state = db.user_states.get_one(address=address)
     if user_state is None:
         raise MetaError(f'User with address {address} is not found')
+    return await update_user_state(user_state)
 
+
+async def update_user_state(user_state: UserState) -> UserState:
     for addr, user_pools_state in user_state.pool_by_address.items():
         _ = await update_pool_state_by_id(user_pools_state.pool_id)
-
-    return db.user_states.get_one(address=address)
+    return db.user_states.get_one(address=user_state.address)
