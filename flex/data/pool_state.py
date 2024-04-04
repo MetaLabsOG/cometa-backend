@@ -68,13 +68,13 @@ async def update_pools_with_transactions(
     if len(transactions) == 0:
         return pool_states
 
-    # TODO: maybe save before the method?
-    db.pool_transactions.create_many(transactions)
-    logger.debug(f'Saved {len(transactions)} transactions to DB')
-
     user_state_by_address = {}
     pool_state_by_id = {} if pool_states is None else {pool.pool_id: pool for pool in pool_states}
     for tx in transactions:
+        if db.pool_transactions.exists(id=tx.id):
+            logger.debug(f'Transaction {tx.id} already recorded in DB')
+            continue
+
         pool_state = pool_state_by_id.get(tx.pool_id)
         if pool_state is None:
             pool_state = await get_or_create_pool_state(tx.pool_id)
@@ -101,15 +101,13 @@ async def update_pools_with_transactions(
         user_pool_state.last_tx = tx.to_info()
         user_state.last_tx = tx.to_info()
 
-    for user_state in user_state_by_address.values():
         db.user_states.update(user_state)
-
-    updated_pool_states = list(pool_state_by_id.values())
-    for pool_state in updated_pool_states:
         db.pool_states.update(pool_state)
-    logger.info(f'Updated {len(updated_pool_states)} pool states')
+        db.pool_transactions.create(tx)
 
-    return updated_pool_states
+    logger.info(f'Updated {len(pool_state_by_id)} pool states and {len(user_state_by_address)} user states with {len(transactions)} transactions')
+
+    return list(pool_state_by_id.values())
 
 
 async def update_all_pool_states() -> list[PoolState]:
@@ -119,10 +117,13 @@ async def update_all_pool_states() -> list[PoolState]:
     new_transactions = []
     pool_states = []
     for contract in all_contracts:
-        pool_state = await get_or_create_from_contract(contract)
-        pool_transactions = await pool_fetch_new_transactions(pool_state)
-        new_transactions.extend(pool_transactions)
-        pool_states.append(pool_state)
+        try:
+            pool_state = await get_or_create_from_contract(contract)
+            pool_transactions = await pool_fetch_new_transactions(pool_state)
+            new_transactions.extend(pool_transactions)
+            pool_states.append(pool_state)
+        except Exception as e:
+            logger.error(f'Failed to update pool state {contract.id}: {e}', exc_info=True)
 
     new_transactions = sorted(new_transactions, key=lambda tx: tx.confirmed_round)
     logger.info(f'Found {len(new_transactions)} new pool transactions')
