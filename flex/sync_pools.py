@@ -1,13 +1,17 @@
 import asyncio
 import logging
+from datetime import timedelta
 
 from cachetools import cached, LRUCache
 
+from env import settings
 from flex import db
 from flex.blockchain import get_current_round, indexer_client
-from flex.data.pool_state import update_pools_with_transactions, update_all_pool_states_linear
+from flex.data.pool_state import update_pools_with_transactions, update_all_pool_states_linear, \
+    get_or_create_pool_state, update_pool_state, update_user_state
 from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
-from flex.db.model import SyncState, PoolTransaction, SyncBlock, PoolState
+from flex.db.model.blockchain import PoolTransaction, SyncState, SyncBlock
+from flex.db.model.pool_states import PoolState, UserState
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +99,17 @@ def get_sync_state() -> SyncState:
     return sync_state
 
 
+SYNC_MAX_DELAY = timedelta(minutes=1)
+SYNC_MAX_DELAY_ROUNDS = int(SYNC_MAX_DELAY.total_seconds() / settings.block_time)
+
+
+def is_sync_delayed(current_round: int | None = None) -> bool:
+    if current_round is None:
+        current_round = get_current_round()
+    sync_state = get_sync_state()
+    return current_round - sync_state.last_round > SYNC_MAX_DELAY_ROUNDS
+
+
 async def sync_pools_loop():
     logger.info('\n\nEnter the pools sync loop.\n\n')
     sync_state = get_sync_state()
@@ -142,3 +157,17 @@ async def sync_pools_loop():
         except Exception as e:
             logger.error(f'Error processing round {next_round}: {e}', exc_info=True)
             continue
+
+
+async def get_sync_pool_state_by_id(pool_id: int) -> PoolState:
+    pool_state = await get_or_create_pool_state(pool_id)
+    if is_sync_delayed():
+        pool_state = update_pool_state(pool_state)
+    return pool_state
+
+
+async def get_sync_user_state_by_address(user_address: str) -> UserState:
+    user_state = db.user_states.get_one(address=user_address)
+    if is_sync_delayed():
+        user_state = await update_user_state(user_state)
+    return user_state

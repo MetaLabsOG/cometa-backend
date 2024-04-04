@@ -2,7 +2,8 @@ import json
 import logging
 
 from flex import db
-from flex.blockchain import AssetInfo, is_opted_in, get_current_round, cometa_public_key
+from flex.blockchain import is_opted_in, get_current_round, cometa_public_key
+from flex.db.model.blockchain import Asset
 from flex.db.model import AirdropReward
 from flex.txns import TxInfo, send_asset_micros_with_wait
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def send_airdrop(
-        asset_info: AssetInfo,
+        asset_info: Asset,
         total_amount_micros: int,
         address_shares: dict[str, float],
         note: str
