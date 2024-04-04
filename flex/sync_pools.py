@@ -1,11 +1,13 @@
 import asyncio
 import logging
 
+from cachetools import cached, LRUCache
+
 from flex import db
 from flex.blockchain import get_current_round, indexer_client
 from flex.data.pool_state import update_pools_with_transactions, update_all_pool_states_linear
 from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
-from flex.db.model import SyncState, PoolTransaction, SyncBlock
+from flex.db.model import SyncState, PoolTransaction, SyncBlock, PoolState
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,11 @@ def find_transfer_transactions(txns: list[dict]) -> list[dict]:
     return transfer_transactions
 
 
+@cached(cache=LRUCache(maxsize=1024))
+def get_pool_state_by_address(address: str) -> PoolState:
+    return db.pool_states.get_one(address=address)
+
+
 def process_transactions(txns: list[dict]) -> list[PoolTransaction]:
     transfer_transactions = find_transfer_transactions(txns)
     pool_transactions = []
@@ -50,7 +57,7 @@ def process_transactions(txns: list[dict]) -> list[PoolTransaction]:
         confirmed_round = tx['confirmed-round']
 
         # TODO: optimize lookup locally
-        withdraw_pool = db.pool_states.get_one(address=sender)
+        withdraw_pool = get_pool_state_by_address(address=sender)
         if withdraw_pool is not None:
             if withdraw_pool.stake_token.id == tx_asa_id:
                 pool_tx = PoolTransaction(
@@ -64,7 +71,7 @@ def process_transactions(txns: list[dict]) -> list[PoolTransaction]:
                 )
                 pool_transactions.append(pool_tx)
 
-        stake_pool = db.pool_states.get_one(address=receiver)
+        stake_pool = get_pool_state_by_address(address=receiver)
         if stake_pool is not None:
             if stake_pool.stake_token.id == tx_asa_id:
                 pool_tx = PoolTransaction(
@@ -89,20 +96,20 @@ def get_sync_state() -> SyncState:
 
 
 async def sync_pools_loop():
-    logger.info('Enter the pools sync loop.')
+    logger.info('\n\nEnter the pools sync loop.\n\n')
     sync_state = get_sync_state()
 
     if sync_state.last_round is None:
-        logger.info('Syncing pools for the first time.')
+        logger.info('\n\nSyncing pools for the first time.\n\n')
         await update_all_pool_states_linear()
 
         current_round = get_current_round()
 
-        logger.info(f'Another, shorter loop, starting from round {current_round}')
+        logger.info(f'\n\nAnother, shorter loop, starting from round {current_round}\n\n')
         await update_all_pool_states_linear()
 
         sync_state.last_round = current_round
-        logger.info(f'Pools synced up to round {current_round}.')
+        logger.info(f'\n\nPools synced up to round {current_round}.\n\n')
 
     while True:
         next_round = sync_state.last_round + 1
