@@ -10,7 +10,8 @@ from flex.data.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.pools import get_pool_info_by_id
 from flex.db.model import PoolStateInfo, PoolInfo, PoolType, UserStateInfo, PoolStateCost, UserCost
-from flex.data.pool_state import update_pool_state, update_all_pool_states, update_user_state
+from flex.data.pool_state import update_pool_state_by_id, update_all_pool_states, update_user_state, \
+    update_all_pool_states_linear
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -23,13 +24,13 @@ async def get_pool_by_id(pool_id: int) -> PoolInfo:
 
 @router.get('/pool/state', tags=['Pools 2.0'])
 async def get_pool_state(pool_id: int) -> PoolStateInfo:
-    updated_state = await update_pool_state(pool_id)
+    updated_state = await update_pool_state_by_id(pool_id)
     return updated_state.to_info()
 
 
 @router.get('/pool/cost', tags=['Pools 2.0'])
 async def get_pool_state_cost_by_id(pool_id: int) -> PoolStateCost:
-    pool_state = await update_pool_state(pool_id)
+    pool_state = await update_pool_state_by_id(pool_id)
     return calculate_pool_state_cost(pool_state)
 
 
@@ -45,7 +46,7 @@ async def get_pools_by(type: PoolType = PoolType.ANY) -> list[PoolInfo]:
 
 @router.post('/pools/state/', tags=['Pools 2.0'])
 async def get_pool_state() -> list[PoolStateInfo]:
-    updated_states = await update_all_pool_states()
+    updated_states = await update_all_pool_states_linear()
     return [state.to_info() for state in updated_states]
 
 
