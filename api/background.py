@@ -148,9 +148,9 @@ async def update_all_user_pools():
 async def update_contracts_worker():
     logger.info('Updating contract caches...')
 
-    if settings.migrate:
-        await update_pool_start_end_dates()
-        settings.migrate = False
+    # if settings.migrate:
+    #     await update_pool_start_end_dates()
+    #     settings.migrate = False
 
     if settings.enable_js and settings.update_contract_caches:
         await update_contracts_cache('farm')

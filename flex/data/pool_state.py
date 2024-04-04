@@ -134,12 +134,17 @@ async def update_all_pool_states_linear() -> list[PoolState]:
     pool_states = db.pool_states.get_all()
     logger.info(f'Updating {len(pool_states)} pool states')
     updated_pool_states = []
+    ind = 1
     for pool_state in pool_states:
         try:
+            logger.info(f'{ind}/{len(pool_states)} pool update = {pool_state.pool_id}')
             pool_state = await update_pool_state(pool_state)
             updated_pool_states.append(pool_state)
+            ind += 1
         except Exception as e:
             logger.error(f'Failed to update pool state {pool_state.pool_id}: {e}', exc_info=True)
+
+    logger.info(f'Fresh {len(updated_pool_states)} pool states!')
     return updated_pool_states
 
 
@@ -162,9 +167,13 @@ async def update_pool_state_by_id(pool_id: int) -> PoolState:
     return await update_pool_state(pool_state)
 
 
-async def update_user_state(address: str) -> UserState | None:
+async def update_user_state(address: str) -> UserState:
     logger.debug(f'Updating user state {address}')
-    _ = await update_all_pool_states()
-
     user_state = db.user_states.get_one(address=address)
-    return user_state
+    if user_state is None:
+        raise MetaError(f'User with address {address} is not found')
+
+    for addr, user_pools_state in user_state.pool_by_address.items():
+        _ = await update_pool_state_by_id(user_pools_state.pool_id)
+
+    return db.user_states.get_one(address=address)
