@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     sync_humble_pools: int = 0
 
     new_db_name: str = 'cometa-updated'
+    sync_new_pools: bool = True
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
