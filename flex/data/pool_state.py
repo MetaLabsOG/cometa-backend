@@ -101,13 +101,18 @@ async def update_pools_with_transactions(
         user_pool_state.last_tx = tx.to_info()
         user_state.last_tx = tx.to_info()
 
+    for user_state in user_state_by_address.values():
         db.user_states.update(user_state)
+
+    updated_pool_states = list(pool_state_by_id.values())
+    for pool_state in updated_pool_states:
         db.pool_states.update(pool_state)
-        db.pool_transactions.create(tx)
+
+    db.pool_transactions.create_many(transactions)
 
     logger.info(f'Updated {len(pool_state_by_id)} pool states and {len(user_state_by_address)} user states with {len(transactions)} transactions')
 
-    return list(pool_state_by_id.values())
+    return updated_pool_states
 
 
 async def update_all_pool_states() -> list[PoolState]:
