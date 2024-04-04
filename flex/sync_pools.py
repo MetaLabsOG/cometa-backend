@@ -3,7 +3,7 @@ import logging
 
 from flex import db
 from flex.blockchain import get_current_round, indexer_client
-from flex.data.pool_state import update_all_pool_states, update_pools_with_transactions
+from flex.data.pool_state import update_pools_with_transactions, update_all_pool_states_linear
 from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
 from flex.db.model import SyncState, PoolTransaction, SyncBlock
 
@@ -89,15 +89,17 @@ def get_sync_state() -> SyncState:
 
 
 async def sync_pools_loop():
+    logger.info('Enter the pools sync loop.')
     sync_state = get_sync_state()
 
     if sync_state.last_round is None:
         logger.info('Syncing pools for the first time.')
-        await update_all_pool_states()
+        await update_all_pool_states_linear()
 
         current_round = get_current_round()
+
         logger.info(f'Another, shorter loop, starting from round {current_round}')
-        await update_all_pool_states()
+        await update_all_pool_states_linear()
 
         sync_state.last_round = current_round
         logger.info(f'Pools synced up to round {current_round}.')
