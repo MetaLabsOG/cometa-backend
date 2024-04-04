@@ -31,9 +31,10 @@ def get_micros(amount: float, asset: Asset) -> int:
 @dataclass
 class TinymanPoolInfo:
     name: str
-    asset1_reserve: float
-    asset2_reserve: float
+    asset1_reserve: int
+    asset2_reserve: int
     lp_tokens_amount: float
+    address: str
     updated: datetime = field(default_factory=datetime.now)
 
 
@@ -47,17 +48,19 @@ def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
     asset2 = tinyman_client.fetch_asset(asset2_id)
 
     pool = tinyman_client.fetch_pool(asset1, asset2)
+
     logger.debug(f'Found pool for assets {asset1_id} and {asset2_id}: {pool}')
     if pool.asset_1_reserves is None or pool.asset_2_reserves is None or pool.issued_pool_tokens is None:
         raise ValueError(f'Tinyman pool for assets {asset1_id} and {asset2_id} is empty: {pool}')
 
     asset1_reserve = get_amount(pool.asset_1_reserves, pool.asset_1)
-    asset_2_reserve = get_amount(pool.asset_2_reserves, pool.asset_2)
+    asset2_reserve = get_amount(pool.asset_2_reserves, pool.asset_2)
     lp_tokens_amount = get_amount(pool.issued_pool_tokens, pool.pool_token_asset)
 
     return TinymanPoolInfo(
         name=pool.pool_token_asset.name,
         asset1_reserve=asset1_reserve,
-        asset2_reserve=asset_2_reserve,
-        lp_tokens_amount=lp_tokens_amount
+        asset2_reserve=asset2_reserve,
+        lp_tokens_amount=lp_tokens_amount,
+        address=pool.address
     )

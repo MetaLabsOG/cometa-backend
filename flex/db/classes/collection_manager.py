@@ -42,7 +42,7 @@ class CollectionManager(Generic[EntityT]):
             return None
         return self.item_from_dict(dict(res))
 
-    def get_by_primary_key(self, val: Any, throw_ex: bool = True) -> EntityT:
+    def get_by_primary_key(self, val: Any, throw_ex: bool = True) -> EntityT | None:
         res = self.get_one(**{self.primary_key_name: val})
         if res is None and throw_ex:
             raise DbError(code=404, message=f'No {self.name} found with {self.primary_key_name}={val}')

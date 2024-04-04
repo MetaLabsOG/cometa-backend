@@ -3,7 +3,7 @@ import logging
 from cachetools import cached, LRUCache
 
 from flex import db
-from flex.db.model import FarmingPool, StakingPool, PoolInfo
+from flex.db.model.pools import PoolInfo, StakingPool, FarmingPool
 
 logger = logging.getLogger(__name__)
 

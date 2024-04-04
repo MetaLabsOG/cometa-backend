@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     contracts_cache_ttl: int = 120
     algo_price_ttl: int = 15
     asset_prices_ttl: int = 30
+    lp_token_prices_ttl: int = 60
     total_tvl_ttl: int
 
     lottery_check_lock: bool = True

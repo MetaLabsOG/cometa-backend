@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import datetime
 
@@ -9,7 +8,7 @@ from core.db.model import ContractInfo
 from core.util import parse_bignum
 from flex import db
 from flex.blockchain import get_asset_info, get_app_address
-from flex.db.model import StakingPool, FarmingPool, LPToken
+from flex.db.model.pools import StakingPool, FarmingPool
 
 logger = logging.getLogger(__name__)
 
@@ -108,14 +107,16 @@ def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
         end_date = date_from_block(end_block, current_block, start_time)
 
     lp_token_info = get_asset_info(lp_token_id)
-    if not db.lp_tokens.exists(id=lp_token_id):
-        db.lp_tokens.create(LPToken(
-            id=lp_token_id,
-            asset1_id=first_token_id,
-            asset2_id=second_token_id,
-            name=lp_token_info.name,
-            dex=contract_info.metadata['dex']
-        ))
+
+    # TODO: check what is here, maybe remove
+    # if not db.lp_tokens.exists(id=lp_token_id):
+    #     db.lp_tokens.create(LpToken(
+    #         id=lp_token_id,
+    #         asset1_id=first_token_id,
+    #         asset2_id=second_token_id,
+    #         name=lp_token_info.name,
+    #         dex=contract_info.metadata['dex']
+    #     ))
 
     return FarmingPool(
         id=contract_info.id,

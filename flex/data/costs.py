@@ -4,9 +4,11 @@ from env import settings
 from flex import db
 from flex.blockchain import BLOCKS_IN_A_YEAR
 from flex.data.pools import get_pool_info_by_id
-from flex.db.model import PoolState, PoolStateCost, PoolType, UserState, UserCost, UserPoolCost
+from flex.db.model.pool_states import UserState, PoolState
+from flex.db.model.pools import PoolType
 from flex.data.tinyman import get_tinyman_pool_info
 from flex.data.vestige import get_asset_price_usd, get_algo_price_usd
+from flex.db.model.priced import UserCost, PoolStateCost, UserPoolCost
 
 
 @cached(cache=TTLCache(maxsize=1024, ttl=settings.asset_prices_ttl))
