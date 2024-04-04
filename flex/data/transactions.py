@@ -1,7 +1,8 @@
 import logging
 
 from flex.blockchain import indexer_client, get_app_address
-from flex.db.model import PoolTransaction, PoolState
+from flex.db.model.blockchain import PoolTransaction
+from flex.db.model.pool_states import PoolState
 
 # class TransactionTypeName:
 ASSET_TRANSFER_TX = 'asset-transfer-transaction'

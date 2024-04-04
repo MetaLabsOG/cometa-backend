@@ -5,13 +5,15 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from env import settings
-from flex import db
+from flex import db, cached_data
 from flex.data.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.pools import get_pool_info_by_id
-from flex.db.model import PoolStateInfo, PoolInfo, PoolType, UserStateInfo, PoolStateCost, UserCost
-from flex.data.pool_state import update_pool_state_by_id, update_user_state, \
-    update_all_pool_states_linear
+from flex.db.model.blockchain import LpToken, Asset
+from flex.db.model.pool_states import UserStateInfo, PoolStateInfo
+from flex.db.model.pools import PoolType, PoolInfo
+from flex.db.model.priced import UserCost, PoolStateCost
+from flex.sync_pools import get_sync_pool_state_by_id, get_sync_user_state_by_address
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -24,13 +26,13 @@ async def get_pool_by_id(pool_id: int) -> PoolInfo:
 
 @router.get('/pool/state', tags=['Pools 2.0'])
 async def get_pool_state(pool_id: int) -> PoolStateInfo:
-    updated_state = await update_pool_state_by_id(pool_id)
+    updated_state = await get_sync_pool_state_by_id(pool_id)
     return updated_state.to_info()
 
 
 @router.get('/pool/cost', tags=['Pools 2.0'])
 async def get_pool_state_cost_by_id(pool_id: int) -> PoolStateCost:
-    pool_state = await update_pool_state_by_id(pool_id)
+    pool_state = await get_sync_pool_state_by_id(pool_id)
     return calculate_pool_state_cost(pool_state)
 
 
@@ -45,29 +47,39 @@ async def get_pools_by(type: PoolType = PoolType.ANY) -> list[PoolInfo]:
 
 
 @router.post('/pools/state/', tags=['Pools 2.0'])
-async def get_pool_state() -> list[PoolStateInfo]:
-    updated_states = await update_all_pool_states_linear()
+async def get_pool_state(
+        max_count: int | None = None
+) -> list[PoolStateInfo]:
+    pool_states = db.pool_states.get_all()
+    if max_count is not None:
+        pool_states = pool_states[:max_count]
+    updated_states = []
+    for pool_state in pool_states:
+        # TODO: improve
+        updated_state = await get_sync_pool_state_by_id(pool_state.pool_id)
+        updated_states.append(updated_state)
     return [state.to_info() for state in updated_states]
 
 
 @router.post('/pools/cost', tags=['Pools 2.0'])
 async def get_pool_states_cost() -> list[PoolStateCost]:
-    updated_states = await update_all_pool_states_linear()
-    pool_costs = []
-    for state in updated_states:
-        pool_costs.append(calculate_pool_state_cost(state))
-    return pool_costs
+    previous_states = db.pool_states.get_all()
+    updated_states = []
+    for state in previous_states:
+        updated_state = await get_sync_pool_state_by_id(state.pool_id)
+        updated_states.append(updated_state)
+    return [calculate_pool_state_cost(s) for s in updated_states]
 
 
 @router.post('/pools/user/state', tags=['Pools 2.0'])
 async def get_user_pool_states_by_address(address: str) -> UserStateInfo:
-    user_state = await update_user_state(address)
+    user_state = await get_sync_user_state_by_address(address)
     return user_state.to_info()
 
 
 @router.post('/pools/user/cost', tags=['Pools 2.0'])
 async def get_user_pool_states_cost_by_address(address: str) -> UserCost:
-    user_state = await update_user_state(address)
+    user_state = await get_sync_user_state_by_address(address)
     return calculate_user_pool_state_cost(user_state)
 
 
@@ -78,6 +90,23 @@ async def migrate_pools_from_contracts() -> dict:
         'staking_pools': staking_pools,
         'farming_pools': farming_pools,
     }
+
+
+# INFO API
+
+@router.post('/info/lp_token', tags=['Info'])
+async def get_priced_lp_token_info(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
+    return cached_data.get_lp_token(lp_token_id, asset1_id, asset2_id, dex_provider)
+
+
+@router.post('/info/lp_token/tinyman', tags=['Info'])
+async def get_priced_lp_token_info(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
+    return cached_data.get_lp_token_tinyman(lp_token_id, asset1_id, asset2_id, dex_provider)
+
+
+@router.post('/info/asset', tags=['Info'])
+async def get_priced_asset_info(asset_id: int) -> Asset:
+    return cached_data.get_asset(asset_id)
 
 
 # DB API

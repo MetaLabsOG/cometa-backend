@@ -5,7 +5,8 @@ from enum import Enum
 from algosdk import transaction
 from dataclasses_json import dataclass_json
 
-from flex.blockchain import algod_client, AssetInfo, cometa_public_key, cometa_private_key
+from flex.blockchain import algod_client, cometa_public_key, cometa_private_key
+from flex.db.model.blockchain import Asset
 from flex.meta_error import MetaError
 from flex.util import decode_b64
 
@@ -65,7 +66,7 @@ def get_transfer_info_with_wait(txid: str, wait_rounds: int = TX_WAIT_ROUNDS) ->
 
 
 def send_asset_micros(
-        asset_info: AssetInfo,
+        asset_info: Asset,
         address: str,
         amount_micros: int,
         note: str | None = None
@@ -88,7 +89,7 @@ def send_asset_micros(
 
 
 def send_asset_micros_with_wait(
-        asset_info: AssetInfo,
+        asset_info: Asset,
         address: str,
         amount_micros: int,
         note: str | None = None,
@@ -101,7 +102,7 @@ def send_asset_micros_with_wait(
 
 
 def send_asset(
-        asset_info: AssetInfo,
+        asset_info: Asset,
         address: str,
         amount: float,
         note: str | None = None
