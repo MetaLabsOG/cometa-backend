@@ -125,7 +125,7 @@ class FarmingPool(BaseEntity['FarmingPool']):
             stake_token=self.stake_token,
             reward_token=self.reward_token,
             reward_amount_micros=self.reward_amount_micros,
-            reward_amount=self.stake_token.micros_to_amount(self.reward_amount_micros),
+            reward_amount=self.reward_token.micros_to_amount(self.reward_amount_micros),
             algo_reward_amount_micros=self.algo_reward_amount_micros,
             algo_reward_amount=ALGO_ASSET_INFO.micros_to_amount(self.algo_reward_amount_micros),
             begin_block=self.begin_block,

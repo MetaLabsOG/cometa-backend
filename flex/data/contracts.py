@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime
 
@@ -72,8 +73,16 @@ def staking_pool_from_contract_info(contract_info: ContractInfo, distribution: b
 
 
 def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
-    first_token_id = int(contract_info.metadata['asset1_id'])
-    second_token_id = int(contract_info.metadata['asset2_id'])
+    # TODO: migrations could be so beautiful and elegant
+    first_token_id = contract_info.metadata.get('asset1_id')
+    if first_token_id is None:
+        first_token_id = contract_info.metadata['asset_1_id']
+    second_token_id = contract_info.metadata.get('asset2_id')
+    if second_token_id is None:
+        second_token_id = contract_info.metadata['asset_2_id']
+    first_token_id = int(first_token_id)
+    second_token_id = int(second_token_id)
+
     lp_token_id = contract_info.metadata.get('stake_token_id')
     if lp_token_id is None:
         lp_token_id = parse_bignum(contract_info.metadata['cache']['initial']['stakeToken'])
@@ -138,38 +147,48 @@ async def all_contracts_to_pools() -> tuple[list[StakingPool], list[FarmingPool]
 
     distribution_contracts = get_contracts_by_type('distribution')
     logger.info(f'Migrating {len(distribution_contracts)} distribution contracts to Pools DB\n')
+    failed_contract_ids = []
     for contract in distribution_contracts:
-        logger.debug(f'Processing distr contract {contract.id}')
+        try:
+            logger.debug(f'Processing distr contract {contract.id}')
 
-        if db.staking_pools.exists(id=contract.id):
-            logger.info(f'Staking pool {contract.id} already exists in DB')
-            continue
-
-        staking_pool = staking_pool_from_contract_info(contract, distribution=True)
-        db.staking_pools.create(staking_pool)
-        staking_pools.append(staking_pool)
-
-    farm_contracts = get_contracts_by_type('farm')
-    logger.info(f'Migrating {len(farm_contracts)} farm contracts to Pools DB\n')
-    for contract in farm_contracts:
-        logger.debug(f'Processing farm contract {contract.id}')
-
-        if 'dex' in contract.metadata:
-            # ancient system: 'farm' can be staking A -> B. Do not bother refactoring if lol
-            if db.farming_pools.exists(id=contract.id):
-                logger.info(f'Farming pool {contract.id} already exists in DB')
-                continue
-
-            farming_pool = farming_pool_from_contract_info(contract)
-            db.farming_pools.create(farming_pool)
-            farming_pools.append(farming_pool)
-        else:
             if db.staking_pools.exists(id=contract.id):
                 logger.info(f'Staking pool {contract.id} already exists in DB')
                 continue
 
-            staking_pool = staking_pool_from_contract_info(contract)
+            staking_pool = staking_pool_from_contract_info(contract, distribution=True)
             db.staking_pools.create(staking_pool)
             staking_pools.append(staking_pool)
+        except Exception as e:
+            logger.error(f'Failed to process contract {contract.id}: {e}\n{contract}\n', exc_info=True)
+            failed_contract_ids.append(contract.id)
 
+    farm_contracts = get_contracts_by_type('farm')
+    logger.info(f'Migrating {len(farm_contracts)} farm contracts to Pools DB\n')
+    for contract in farm_contracts:
+        try:
+            logger.debug(f'Processing farm contract {contract.id}')
+
+            if 'dex' in contract.metadata:
+                # ancient system: 'farm' can be staking A -> B. Do not bother refactoring if lol
+                if db.farming_pools.exists(id=contract.id):
+                    logger.info(f'Farming pool {contract.id} already exists in DB')
+                    continue
+
+                farming_pool = farming_pool_from_contract_info(contract)
+                db.farming_pools.create(farming_pool)
+                farming_pools.append(farming_pool)
+            else:
+                if db.staking_pools.exists(id=contract.id):
+                    logger.info(f'Staking pool {contract.id} already exists in DB')
+                    continue
+
+                staking_pool = staking_pool_from_contract_info(contract)
+                db.staking_pools.create(staking_pool)
+                staking_pools.append(staking_pool)
+        except Exception as e:
+            logger.error(f'Failed to process contract {contract.id}: {e}\n{contract}\n', exc_info=True)
+            failed_contract_ids.append(contract.id)
+
+    logger.info(f'\n\nFailed to process contracts: {failed_contract_ids}\n\n')
     return staking_pools, farming_pools
