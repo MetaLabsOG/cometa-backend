@@ -10,7 +10,7 @@ from flex.data.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.pools import get_pool_info_by_id
 from flex.db.model import PoolStateInfo, PoolInfo, PoolType, UserStateInfo, PoolStateCost, UserCost
-from flex.data.pool_state import update_pool_state_by_id, update_all_pool_states, update_user_state, \
+from flex.data.pool_state import update_pool_state_by_id, update_user_state, \
     update_all_pool_states_linear
 
 router = APIRouter()
@@ -52,7 +52,7 @@ async def get_pool_state() -> list[PoolStateInfo]:
 
 @router.post('/pools/cost', tags=['Pools 2.0'])
 async def get_pool_states_cost() -> list[PoolStateCost]:
-    updated_states = await update_all_pool_states()
+    updated_states = await update_all_pool_states_linear()
     pool_costs = []
     for state in updated_states:
         pool_costs.append(calculate_pool_state_cost(state))
@@ -62,16 +62,12 @@ async def get_pool_states_cost() -> list[PoolStateCost]:
 @router.post('/pools/user/state', tags=['Pools 2.0'])
 async def get_user_pool_states_by_address(address: str) -> UserStateInfo:
     user_state = await update_user_state(address)
-    if user_state is None:
-        raise HTTPException(404, f'User with address {address} is not found!')
     return user_state.to_info()
 
 
 @router.post('/pools/user/cost', tags=['Pools 2.0'])
 async def get_user_pool_states_cost_by_address(address: str) -> UserCost:
     user_state = await update_user_state(address)
-    if user_state is None:
-        raise HTTPException(404, f'User with address {address} is not found!')
     return calculate_user_pool_state_cost(user_state)
 
 
