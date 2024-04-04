@@ -177,7 +177,8 @@ async def update_pools_info_worker():
 
 @safe_async_method
 async def sync_new_pools():
-    await sync_pools_loop()
+    if settings.sync_new_pools:
+        await sync_pools_loop()
 
 
 # TODO: graceful shutdown here (with signal handling?)
@@ -186,7 +187,7 @@ def run_background():
         await asyncio.gather(
             update_contracts_worker(),
             # update_pools_info_worker()
-            # sync_new_pools()
+            sync_new_pools()
         )
 
     logger.info('Started background tasks.')
