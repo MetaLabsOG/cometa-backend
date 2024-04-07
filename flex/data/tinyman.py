@@ -31,9 +31,15 @@ def get_micros(amount: float, asset: Asset) -> int:
 @dataclass
 class TinymanPoolInfo:
     name: str
-    asset1_reserve: int
-    asset2_reserve: int
-    lp_tokens_amount: float
+
+    asset1_reserve: float
+    asset2_reserve: float
+    total_lp_tokens: float
+
+    asset1_reserve_micros: int
+    asset2_reserve_micros: int
+    total_lp_tokens_micros: int
+
     address: str
     updated: datetime = field(default_factory=datetime.now)
 
@@ -61,6 +67,9 @@ def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
         name=pool.pool_token_asset.name,
         asset1_reserve=asset1_reserve,
         asset2_reserve=asset2_reserve,
-        lp_tokens_amount=lp_tokens_amount,
+        total_lp_tokens=lp_tokens_amount,
+        asset1_reserve_micros=pool.asset_1_reserves,
+        asset2_reserve_micros=pool.asset_2_reserves,
+        total_lp_tokens_micros=pool.issued_pool_tokens,
         address=pool.address
     )

@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 
 import requests
 from cachetools import cached, TTLCache
@@ -12,7 +13,7 @@ BASE_URL = 'https://free-api.vestige.fi'
 logger = logging.getLogger(__name__)
 
 
-class DexProvider:
+class DexProvider(str, Enum):
     HUMBLE = 'H2'
     PACT = 'PT'
     TINYMAN = 'T2'
