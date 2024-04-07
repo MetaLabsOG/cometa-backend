@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 
+from cachetools import cached, TTLCache
 from dataclasses_json import dataclass_json
 
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_asset_total_supply
 from flex.data.assets import get_asset
+from flex.data.lp_tokens import get_lp_token_info_by_id
 from flex.data.tinyman import get_tinyman_pool_info
 from flex.data.vestige import DexProvider, get_asset_price
 from flex.db.model.blockchain import LpToken
@@ -110,3 +112,9 @@ def fetch_lp_state_by_token(lp_token: LpToken) -> LpState:
         )
 
     return lp_state_from_lp_balances(lp_token)
+
+
+@cached(cache=TTLCache(maxsize=1024, ttl=30))
+def get_lp_state_by_id(lp_token_id: int) -> LpState:
+    lp_token = get_lp_token_info_by_id(lp_token_id)
+    return fetch_lp_state_by_token(lp_token)
