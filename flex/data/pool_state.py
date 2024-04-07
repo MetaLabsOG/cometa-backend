@@ -141,7 +141,7 @@ async def update_all_pool_states_linear() -> list[PoolState]:
     ind = 1
     for pool_state in pool_states:
         try:
-            logger.info(f'{ind}/{len(pool_states)} pool update = {pool_state.pool_id}')
+            logger.info(f'{ind}/{len(pool_states)} pool id = {pool_state.pool_id}')
             pool_state = await update_pool_state(pool_state)
             updated_pool_states.append(pool_state)
             ind += 1

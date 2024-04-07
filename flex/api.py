@@ -5,8 +5,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from env import settings
-from flex import db, cached_data
-from flex.data.cached import get_asset_info
+from flex import db
+from flex.data.cached import get_asset_info, get_lp_token_info_by_id
 from flex.data.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.pools import get_pool_info_by_id
@@ -95,14 +95,9 @@ async def migrate_pools_from_contracts() -> dict:
 
 # INFO API
 
-@router.post('/info/lp_token', tags=['Info'])
-async def get_priced_lp_token_info(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
-    return cached_data.get_lp_token(lp_token_id, asset1_id, asset2_id, dex_provider)
-
-
-@router.post('/info/lp_token/tinyman', tags=['Info'])
-async def get_priced_lp_token_info(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
-    return cached_data.get_lp_token_tinyman(lp_token_id, asset1_id, asset2_id, dex_provider)
+@router.post('/info/lp/token', tags=['Info'])
+async def get_priced_lp_token_info(lp_token_id: int) -> LpToken:
+    return get_lp_token_info_by_id(lp_token_id)
 
 
 @router.post('/info/asset', tags=['Info'])
