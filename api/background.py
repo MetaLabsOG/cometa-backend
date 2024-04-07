@@ -146,17 +146,14 @@ async def update_all_user_pools():
 
 @repeat_every(settings.contracts_cache_ttl)
 async def update_contracts_worker():
-    logger.info('Updating contract caches...')
 
-    # if settings.migrate:
-    #     await update_pool_start_end_dates()
-    #     settings.migrate = False
-
+    # TODO: not call the top-level method at all
     if settings.enable_js and settings.update_contract_caches:
+        logger.info('Updating contract caches...')
         await update_contracts_cache('farm')
         await update_contracts_cache('distribution')
+        logger.info('Contract caches updated.')
 
-    logger.info('Contract caches updated.')
 
 
 @repeat_every(settings.contracts_cache_ttl)

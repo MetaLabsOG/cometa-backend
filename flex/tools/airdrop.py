@@ -2,9 +2,10 @@ import json
 import logging
 
 from flex import db
-from flex.blockchain import is_opted_in, get_current_round, cometa_public_key
+from flex.blockchain.base import cometa_public_key
+from flex.blockchain.info import get_current_round, is_opted_in
 from flex.db.model.blockchain import Asset
-from flex.db.model import AirdropReward
+from flex.db.model.priced import AirdropReward
 from flex.txns import TxInfo, send_asset_micros_with_wait
 
 

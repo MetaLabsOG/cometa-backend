@@ -5,7 +5,7 @@ from enum import Enum
 from algosdk import transaction
 from dataclasses_json import dataclass_json
 
-from flex.blockchain import algod_client, cometa_public_key, cometa_private_key
+from flex.blockchain.base import algod_client, cometa_public_key, cometa_private_key
 from flex.db.model.blockchain import Asset
 from flex.meta_error import MetaError
 from flex.util import decode_b64
