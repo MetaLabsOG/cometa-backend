@@ -7,7 +7,8 @@ from core.db.contracts import get_contracts_by_type
 from core.db.model import ContractInfo
 from core.util import parse_bignum
 from flex import db
-from flex.blockchain import get_asset_info, get_app_address
+from flex.data.cached import get_asset_info
+from flex.blockchain.info import get_app_address
 from flex.db.model.pools import StakingPool, FarmingPool
 
 logger = logging.getLogger(__name__)

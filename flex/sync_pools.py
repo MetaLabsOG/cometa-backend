@@ -6,7 +6,8 @@ from cachetools import cached, LRUCache
 
 from env import settings
 from flex import db
-from flex.blockchain import get_current_round, indexer_client
+from flex.blockchain.base import indexer_client
+from flex.blockchain.info import get_current_round
 from flex.data.pool_state import update_pools_with_transactions, update_all_pool_states_linear, \
     get_or_create_pool_state, update_pool_state, update_user_state
 from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
