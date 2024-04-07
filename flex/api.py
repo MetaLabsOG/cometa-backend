@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from env import settings
 from flex import db
-from flex.data.assets import get_asset_info
+from flex.data.assets import get_asset
 from flex.data.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.lp_states import LpState, fetch_lp_state_by_token
@@ -88,11 +88,7 @@ async def get_user_pool_states_cost_by_address(address: str) -> UserCost:
 
 @router.post('/pools/migrate', tags=['Pools 2.0'])
 async def migrate_pools_from_contracts() -> dict:
-    staking_pools, farming_pools = await all_contracts_to_pools()
-    return {
-        'staking_pools': staking_pools,
-        'farming_pools': farming_pools,
-    }
+    return await all_contracts_to_pools()
 
 
 # INFO API
@@ -110,7 +106,7 @@ async def get_lp_state_by_token_id(lp_token_id: int) -> LpState:
 
 @router.post('/info/asset', tags=['Info'])
 async def get_asset_info_by_id(asset_id: int) -> Asset:
-    return get_asset_info(asset_id)
+    return get_asset(asset_id)
 
 
 # DB API
