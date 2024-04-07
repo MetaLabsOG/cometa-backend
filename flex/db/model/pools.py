@@ -4,8 +4,8 @@ from enum import Enum
 
 from dataclasses_json import dataclass_json
 
-from flex.blockchain.info import ALGO_ASSET_INFO
-from flex.db.model.blockchain import Asset
+from flex.blockchain.info import ALGO_ASSET
+from flex.db.model.blockchain import AssetInfo
 from flex.db.classes.base_entity import BaseEntity
 
 
@@ -23,8 +23,8 @@ class PoolInfo:
     description: str
     address: str
 
-    stake_token: Asset
-    reward_token: Asset
+    stake_token: AssetInfo
+    reward_token: AssetInfo
 
     reward_amount_micros: int
     reward_amount: float
@@ -50,8 +50,8 @@ class StakingPool(BaseEntity['StakingPool']):
     description: str
     address: str
 
-    stake_token: Asset
-    reward_token: Asset
+    stake_token: AssetInfo
+    reward_token: AssetInfo
     reward_amount_micros: int
     algo_reward_amount_micros: int
 
@@ -78,7 +78,7 @@ class StakingPool(BaseEntity['StakingPool']):
             reward_amount_micros=self.reward_amount_micros,
             reward_amount=self.stake_token.micros_to_amount(self.reward_amount_micros),
             algo_reward_amount_micros=self.algo_reward_amount_micros,
-            algo_reward_amount=ALGO_ASSET_INFO.micros_to_amount(self.algo_reward_amount_micros),
+            algo_reward_amount=ALGO_ASSET.micros_to_amount(self.algo_reward_amount_micros),
             begin_block=self.begin_block,
             end_block=self.end_block,
             lock_length_blocks=self.lock_length_blocks,
@@ -94,11 +94,11 @@ class FarmingPool(BaseEntity['FarmingPool']):
     description: str
     address: str
 
-    stake_token: Asset
-    reward_token: Asset
+    stake_token: AssetInfo
+    reward_token: AssetInfo
 
-    first_token: Asset
-    second_token: Asset
+    first_token: AssetInfo
+    second_token: AssetInfo
     dex_name: str
 
     reward_amount_micros: int
@@ -127,7 +127,7 @@ class FarmingPool(BaseEntity['FarmingPool']):
             reward_amount_micros=self.reward_amount_micros,
             reward_amount=self.reward_token.micros_to_amount(self.reward_amount_micros),
             algo_reward_amount_micros=self.algo_reward_amount_micros,
-            algo_reward_amount=ALGO_ASSET_INFO.micros_to_amount(self.algo_reward_amount_micros),
+            algo_reward_amount=ALGO_ASSET.micros_to_amount(self.algo_reward_amount_micros),
             begin_block=self.begin_block,
             end_block=self.end_block,
             lock_length_blocks=self.lock_length_blocks,
@@ -135,3 +135,6 @@ class FarmingPool(BaseEntity['FarmingPool']):
             begin_date=self.begin_date,
             end_date=self.end_date
         )
+
+
+type CometaPool = StakingPool | FarmingPool

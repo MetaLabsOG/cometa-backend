@@ -11,7 +11,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
-import core
 import dexes.humble as humble
 import flex.api
 from airdrop_all_active_stakers import snapshot_all
@@ -39,6 +38,7 @@ from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
+from flex.data.contracts import create_pool_from_contract
 
 VERSION = '1.9.3'
 app = FastAPI(
@@ -123,18 +123,6 @@ class ModifyContract(BaseModel):
     metadata: Optional[dict] = None
 
 
-@app.post('/contract/add', tags=['Contracts'])
-async def add_new_contract(contract: AddContract, password: str) -> dict:
-    logger.info(f'Adding a new contract {contract}')
-
-    check_password(password)
-    if get_contract(contract.id) is not None:
-        raise HTTPException(status_code=409, detail="Contract already exists")
-
-    added = add_contract(contract.type, contract.id, contract.version, contract.description, contract.metadata)
-    return {'internal_id': added}
-
-
 def parse_cache(cache: Optional[dict]) -> dict:
     if cache is None:
         return {}
@@ -153,22 +141,50 @@ def parse_cache(cache: Optional[dict]) -> dict:
 
 
 def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractInfo:
-    cache = new_metadata.get('cache')
-    metadata_fields = parse_cache(cache)
-    current_date = datetime.now()
-    contract = ContractInfo(
+    return create_contract_with(
         type=contract_info.type,
         id=contract_info.id,
         version=contract_info.version,
         description=contract_info.description,
+        metadata=new_metadata
+    )
+
+
+def create_contract_with(type: str, id: int, version: str, description: str, metadata: dict) -> ContractInfo:
+    cache = metadata.get('cache')
+    metadata_fields = parse_cache(cache)
+    current_date = datetime.now()
+    contract = ContractInfo(
+        type=type,
+        id=id,
+        version=version,
+        description=description,
         deployed_timestamp=current_date.timestamp(),
         deployed_date=current_date,
         begin_date=metadata_fields.get('begin_date'),
         end_date=metadata_fields.get('end_date'),
-        metadata=new_metadata
+        metadata=metadata
     )
     insert_contract(contract)
+
+    try:
+        _ = create_pool_from_contract(contract)
+    except Exception as e:
+        logger.error(f'Error creating pool from contract: {e}', exc_info=True)
+
     return contract
+
+
+@app.post('/contract/add', tags=['Contracts'])
+async def add_new_contract(contract: AddContract, password: str) -> ContractInfo:
+    logger.info(f'Adding a new contract {contract}')
+
+    check_password(password)
+    if get_contract(contract.id) is not None:
+        raise HTTPException(status_code=409, detail="Contract already exists")
+
+    created_contract = create_contract(contract, contract.metadata)
+    return created_contract
 
 
 # This method is NOT password-protected: it is intended to be used by users who add contracts themselves.
@@ -238,13 +254,13 @@ class DeployContract(BaseModel):
 
 
 @app.post('/contract/deploy', tags=['Contracts'])
-async def deploy_contract(password: str, parameters: DeployContract) -> dict:
+async def deploy_contract(password: str, parameters: DeployContract) -> ContractInfo:
     logger.info(f'Deploying a new contract {parameters}')
 
     check_password(password)
     version = await calljs("contractVersion", contractType=parameters.type)
     contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
-    internal_id = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
+    created_contract = create_contract_with(parameters.type, contract_id, version, parameters.description, parameters.metadata)
 
     await notify_new_pool(
         begin_block=parameters.settings['beginBlock'],
@@ -254,7 +270,7 @@ async def deploy_contract(password: str, parameters: DeployContract) -> dict:
         metadata=parameters.metadata,
     )
 
-    return {'internal_id': internal_id}
+    return created_contract
 
 
 @app.patch('/contract/update', tags=['Contracts'])
