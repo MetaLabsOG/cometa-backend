@@ -1,4 +1,4 @@
-from cachetools import cached, TTLCache
+from cachetools import cached, TTLCache, LRUCache
 
 from env import settings
 from flex.blockchain.base import indexer_client, algod_client
@@ -9,9 +9,7 @@ ALGO_ASSET_INFO = Asset(
     id=0,
     decimals=6,
     name='Algorand',
-    unit_name='ALGO',
-    # total_supply_micros=10000000000 * 1000000,  # 10B,
-    # creator_address=None
+    unit_name='ALGO'
 )
 
 
@@ -25,15 +23,14 @@ def fetch_asset_info(asset_id: int) -> Asset:
         id=asset_id,
         decimals=params['decimals'],
         name=params['name'],
-        unit_name=params['unit-name'],
-        # total_supply_micros=params['total'],
-        # creator_address=params['creator']
+        unit_name=params['unit-name']
     )
 
 
+@cached(cache=LRUCache(maxsize=4096))
 def get_asset_total_supply(asset_id: int) -> int:
     if asset_id == 0:
-        return 10000000000 * 1000000
+        return 10000000000 * 1000000  # 10B
     data = indexer_client.asset_info(asset_id)
     return data['asset']['params']['total']
 
