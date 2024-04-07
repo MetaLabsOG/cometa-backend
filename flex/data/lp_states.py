@@ -26,7 +26,6 @@ class LpState:
 
 
 def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
-    lp_token_asset = get_asset_info(lp_token.id)
     if lp_token.asset1_id == 0 or lp_token.asset2_id == 0:
         balances = get_address_assets_with_algo(lp_token.address)
     else:
@@ -35,11 +34,13 @@ def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
     asset1_reserve_micros = balances[lp_token.asset1_id]
     asset2_reserve_micros = balances[lp_token.asset2_id]
     lp_token_reserve_micros = balances[lp_token.id]
-    lp_token_total_supply = get_asset_total_supply(lp_token.id)
-    issued_lp_tokens = lp_token_total_supply - lp_token_reserve_micros
 
-    asset1 = get_asset_info(lp_token.asset1_id)
-    asset2 = get_asset_info(lp_token.asset2_id)
+    asset2_info = get_asset_info(lp_token.asset2_id)
+    asset1_info = get_asset_info(lp_token.asset1_id)
+    lp_token_asset_info = get_asset_info(lp_token.id)
+
+    lp_token_total_supply_micros = get_asset_total_supply(lp_token.id)
+    issued_lp_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
     return LpState(
         id=lp_token.pool_id,
@@ -48,9 +49,9 @@ def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
         asset2_id=lp_token.asset2_id,
         dex_provider=lp_token.dex_provider,
         address=lp_token.address,
-        asset1_reserve=asset1.micros_to_amount(asset1_reserve_micros),
-        asset2_reserve=asset2.micros_to_amount(asset2_reserve_micros),
-        issued_tokens=lp_token_asset.micros_to_amount(issued_lp_tokens)
+        asset1_reserve=asset1_info.micros_to_amount(asset1_reserve_micros),
+        asset2_reserve=asset2_info.micros_to_amount(asset2_reserve_micros),
+        issued_tokens=lp_token_asset_info.micros_to_amount(issued_lp_tokens_micros)
     )
 
 
