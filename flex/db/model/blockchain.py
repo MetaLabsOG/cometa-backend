@@ -41,15 +41,26 @@ class LpToken(BaseEntity['LpToken']):
     asset2_id: int
     dex_provider: str
     address: str
-
-    price_usd: float
-    asset1_reserve: float | None
-    asset2_reserve: float | None
-    last_updated_round: int
+    pool_id: int
 
     id: int
+    created: datetime = field(default_factory=datetime.now)
+    updated: datetime = field(default_factory=datetime.now)
 
-    app_id: int | None = None
+
+@dataclass_json
+@dataclass
+class LpState(BaseEntity['LpToken']):
+    app_id: int
+    token_id: int
+
+    price_usd: float
+    asset1_reserve: float
+    asset2_reserve: float
+    total_liquidity: float
+    last_updated_round: int
+
+    id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
 
