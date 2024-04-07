@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     migrate: bool = False
 
     update_contract_caches: bool = True
-    update_contracts_chunk_size: int = 5
+    update_contracts_chunk_size: int = 10
 
     telegram_bot_api_token: str
     telegram_channel_id: int
