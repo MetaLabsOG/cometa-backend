@@ -21,9 +21,9 @@ class LpState:
     dex_provider: str
     address: str
 
-    asset1_reserve: float
-    asset2_reserve: float
-    issued_tokens: float
+    asset1_reserve: int
+    asset2_reserve: int
+    issued_tokens: int
 
     token_price: float
     token_price_usd: float
@@ -37,9 +37,9 @@ def create_lp_state_with_price(
         asset2_id: int,
         dex_provider: str,
         address: str,
-        asset1_reserve: float,
-        asset2_reserve: float,
-        issued_tokens: float,
+        asset1_reserve: int,
+        asset2_reserve: int,
+        issued_tokens: int,
         swap_fee_apr: float | None = None
 ) -> LpState:
     if issued_tokens == 0:
@@ -47,8 +47,11 @@ def create_lp_state_with_price(
         token_price_usd = 0
     else:
         asset1_price = get_asset_price(asset1_id)
-        token_price = asset1_price.algo * asset1_reserve * 2 / issued_tokens  # both reserves cost the same
-        token_price_usd = asset1_price.usd * asset1_reserve * 2 / issued_tokens
+        asset1 = get_asset(asset1_id)
+        token_asset = get_asset(token_id)
+
+        token_price = asset1_price.algo * asset1.micros_to_amount(asset1_reserve) * 2 / token_asset.micros_to_amount(issued_tokens)  # both reserves cost the same
+        token_price_usd = asset1_price.usd * asset1.micros_to_amount(asset1_reserve) * 2 / token_asset.micros_to_amount(issued_tokens)  # optimize not fetching algo price
 
     return LpState(
         id=id,
@@ -76,10 +79,6 @@ def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
     asset2_reserve_micros = balances[lp_token.asset2_id]
     lp_token_reserve_micros = balances[lp_token.id]
 
-    asset2_info = get_asset(lp_token.asset2_id)
-    asset1_info = get_asset(lp_token.asset1_id)
-    lp_token_asset_info = get_asset(lp_token.id)
-
     lp_token_total_supply_micros = get_asset_total_supply(lp_token.id)
     issued_lp_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
@@ -90,9 +89,9 @@ def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
         asset2_id=lp_token.asset2_id,
         dex_provider=lp_token.dex_provider,
         address=lp_token.address,
-        asset1_reserve=asset1_info.micros_to_amount(asset1_reserve_micros),
-        asset2_reserve=asset2_info.micros_to_amount(asset2_reserve_micros),
-        issued_tokens=lp_token_asset_info.micros_to_amount(issued_lp_tokens_micros)
+        asset1_reserve=asset1_reserve_micros,
+        asset2_reserve=asset2_reserve_micros,
+        issued_tokens=issued_lp_tokens_micros
     )
 
 
@@ -106,9 +105,9 @@ def fetch_lp_state_by_token(lp_token: LpToken) -> LpState:
             asset2_id=lp_token.asset2_id,
             dex_provider=lp_token.dex_provider,
             address=lp_token.address,
-            asset1_reserve=pool_info.asset1_reserve,
-            asset2_reserve=pool_info.asset2_reserve,
-            issued_tokens=pool_info.total_lp_tokens
+            asset1_reserve=pool_info.asset1_reserve_micros,
+            asset2_reserve=pool_info.asset2_reserve_micros,
+            issued_tokens=pool_info.total_lp_tokens_micros
         )
 
     return lp_state_from_lp_balances(lp_token)
