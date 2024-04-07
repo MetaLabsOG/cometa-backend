@@ -4,7 +4,7 @@ from enum import Enum
 
 from dataclasses_json import dataclass_json
 
-from flex.blockchain import ALGO_ASSET_INFO
+from flex.blockchain.info import ALGO_ASSET_INFO
 from flex.db.model.blockchain import Asset
 from flex.db.classes.base_entity import BaseEntity
 

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from env import settings
 from flex import db, cached_data
+from flex.data.cached import get_asset_info
 from flex.data.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.pools import get_pool_info_by_id
@@ -105,8 +106,8 @@ async def get_priced_lp_token_info(lp_token_id: int, asset1_id: int, asset2_id: 
 
 
 @router.post('/info/asset', tags=['Info'])
-async def get_priced_asset_info(asset_id: int) -> Asset:
-    return cached_data.get_asset(asset_id)
+async def get_asset_info_by_id(asset_id: int) -> Asset:
+    return get_asset_info(asset_id)
 
 
 # DB API

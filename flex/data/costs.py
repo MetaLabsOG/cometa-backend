@@ -2,7 +2,7 @@ from cachetools import cached, TTLCache
 
 from env import settings
 from flex import db
-from flex.blockchain import BLOCKS_IN_A_YEAR
+from flex.blockchain.base import BLOCKS_IN_A_YEAR
 from flex.data.pools import get_pool_info_by_id
 from flex.db.model.pool_states import UserState, PoolState
 from flex.db.model.pools import PoolType
