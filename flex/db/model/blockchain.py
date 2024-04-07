@@ -54,8 +54,6 @@ class Asset(BaseEntity['Asset']):
     name: str
     decimals: int
     unit_name: str
-    # total_supply_micros: int
-    # creator_address: str | None
     id: int
 
     created: datetime = field(default_factory=datetime.now)
