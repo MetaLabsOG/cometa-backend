@@ -50,27 +50,12 @@ class LpToken(BaseEntity['LpToken']):
 
 @dataclass_json
 @dataclass
-class LpState(BaseEntity['LpToken']):
-    app_id: int
-    token_id: int
-
-    price_usd: float
-    asset1_reserve: float
-    asset2_reserve: float
-    total_liquidity: float
-    last_updated_round: int
-
-    id: str = field(default_factory=get_uuid)
-    created: datetime = field(default_factory=datetime.now)
-    updated: datetime = field(default_factory=datetime.now)
-
-
-@dataclass_json
-@dataclass
 class Asset(BaseEntity['Asset']):
     name: str
     decimals: int
     unit_name: str
+    # total_supply_micros: int
+    # creator_address: str | None
     id: int
 
     created: datetime = field(default_factory=datetime.now)
