@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from cachetools import cached, TTLCache
 
 from env import settings
@@ -11,7 +9,9 @@ ALGO_ASSET_INFO = Asset(
     id=0,
     decimals=6,
     name='Algorand',
-    unit_name='ALGO'
+    unit_name='ALGO',
+    # total_supply_micros=10000000000 * 1000000,  # 10B,
+    # creator_address=None
 )
 
 
@@ -25,19 +25,29 @@ def fetch_asset_info(asset_id: int) -> Asset:
         id=asset_id,
         decimals=params['decimals'],
         name=params['name'],
-        unit_name=params['unit-name']
+        unit_name=params['unit-name'],
+        # total_supply_micros=params['total'],
+        # creator_address=params['creator']
     )
 
 
-@dataclass
-class AssetBalance:
-    asa_id: int
-    amount_micros: int
+def get_asset_total_supply(asset_id: int) -> int:
+    if asset_id == 0:
+        return 10000000000 * 1000000
+    data = indexer_client.asset_info(asset_id)
+    return data['asset']['params']['total']
 
 
-def get_address_assets(address: str) -> list[AssetBalance]:
+def get_address_assets(address: str) -> dict:
     data = indexer_client.lookup_account_assets(address=address)
-    return [AssetBalance(asset['asset-id'], asset['amount']) for asset in data['assets']]
+    return {asset['asset-id']: asset['amount'] for asset in data['assets']}
+
+
+def get_address_assets_with_algo(address: str) -> dict:
+    data = indexer_client.account_info(address)
+    asset_balances = {asset['asset-id']: asset['amount'] for asset in data['account']['assets']}
+    asset_balances[0] = data['account']['amount']
+    return asset_balances
 
 
 @cached(cache=TTLCache(maxsize=1, ttl=settings.block_time))

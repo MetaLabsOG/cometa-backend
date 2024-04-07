@@ -14,13 +14,13 @@ from flex.db.model.priced import UserCost, PoolStateCost, UserPoolCost
 @cached(cache=TTLCache(maxsize=1024, ttl=settings.asset_prices_ttl))
 def get_lp_price_usd(asset1_id: int, asset2_id: int) -> float | None:
     tinyman_pool = get_tinyman_pool_info(asset1_id, asset2_id)
-    if tinyman_pool.lp_tokens_amount == 0:
+    if tinyman_pool.total_lp_tokens == 0:
         return None
 
     asset1_price = get_asset_price_usd(asset1_id)
     asset2_price = get_asset_price_usd(asset2_id)
     total_cost = asset1_price * tinyman_pool.asset1_reserve + asset2_price * tinyman_pool.asset2_reserve
-    lp_token_price = total_cost / tinyman_pool.lp_tokens_amount
+    lp_token_price = total_cost / tinyman_pool.total_lp_tokens
     return lp_token_price
 
 
