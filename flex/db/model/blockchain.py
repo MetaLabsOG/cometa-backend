@@ -56,23 +56,11 @@ class LpToken(BaseEntity['LpToken']):
 
 @dataclass_json
 @dataclass
-class AssetInfo:
-    id: int
-    name: str
-    decimals: int
-    unit_name: str
-    price_usd: float
-
-
-@dataclass_json
-@dataclass
 class Asset(BaseEntity['Asset']):
     name: str
     decimals: int
     unit_name: str
     id: int
-
-    price_usd: float | None = None
 
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)

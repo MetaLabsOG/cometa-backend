@@ -1,6 +1,7 @@
 import logging
 
-from flex.blockchain import indexer_client, get_app_address
+from flex.blockchain.base import indexer_client
+from flex.blockchain.info import get_app_address
 from flex.db.model.blockchain import PoolTransaction
 from flex.db.model.pool_states import PoolState
 

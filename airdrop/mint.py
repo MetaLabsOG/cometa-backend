@@ -1,7 +1,6 @@
 import json
 
-from algosdk import mnemonic, account
-from algosdk.future import transaction
+from algosdk import mnemonic, account, transaction
 
 from blockchain.assets import META_TOTAL_SUPPLY, META_DECIMALS, META_ASA_ID
 from blockchain.node import print_created_asset, init_algod_client
