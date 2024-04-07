@@ -50,6 +50,25 @@ class LpToken(BaseEntity['LpToken']):
 
 @dataclass_json
 @dataclass
+class AssetInfo:
+    name: str
+    decimals: int
+    unit_name: str
+    id: int
+
+    @cached_property
+    def amount_multiplier(self) -> int:
+        return 10 ** self.decimals
+
+    def amount_to_micros(self, amount: float) -> int:
+        return int(amount * self.amount_multiplier)
+
+    def micros_to_amount(self, micros: int) -> float:
+        return micros / self.amount_multiplier
+
+
+@dataclass_json
+@dataclass
 class Asset(BaseEntity['Asset']):
     name: str
     decimals: int
@@ -68,6 +87,14 @@ class Asset(BaseEntity['Asset']):
 
     def micros_to_amount(self, micros: int) -> float:
         return micros / self.amount_multiplier
+
+    def to_info(self) -> AssetInfo:
+        return AssetInfo(
+            name=self.name,
+            decimals=self.decimals,
+            unit_name=self.unit_name,
+            id=self.id
+        )
 
 
 @dataclass_json

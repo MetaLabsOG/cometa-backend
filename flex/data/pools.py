@@ -3,12 +3,9 @@ import logging
 from cachetools import cached, LRUCache
 
 from flex import db
-from flex.db.model.pools import PoolInfo, StakingPool, FarmingPool
+from flex.db.model.pools import PoolInfo
 
 logger = logging.getLogger(__name__)
-
-
-CometaPool = StakingPool | FarmingPool
 
 
 # TODO: refactor not to suck dicks between two collections

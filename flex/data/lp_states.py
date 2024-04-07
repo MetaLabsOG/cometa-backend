@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_asset_total_supply
-from flex.data.assets import get_asset_info
+from flex.data.assets import get_asset
 from flex.data.tinyman import get_tinyman_pool_info
 from flex.data.vestige import DexProvider
 from flex.db.model.blockchain import LpToken
@@ -35,9 +35,9 @@ def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
     asset2_reserve_micros = balances[lp_token.asset2_id]
     lp_token_reserve_micros = balances[lp_token.id]
 
-    asset2_info = get_asset_info(lp_token.asset2_id)
-    asset1_info = get_asset_info(lp_token.asset1_id)
-    lp_token_asset_info = get_asset_info(lp_token.id)
+    asset2_info = get_asset(lp_token.asset2_id)
+    asset1_info = get_asset(lp_token.asset1_id)
+    lp_token_asset_info = get_asset(lp_token.id)
 
     lp_token_total_supply_micros = get_asset_total_supply(lp_token.id)
     issued_lp_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros

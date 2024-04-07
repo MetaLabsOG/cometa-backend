@@ -4,7 +4,7 @@ from datetime import datetime
 from dataclasses_json import dataclass_json
 
 from flex.db.classes.base_entity import BaseEntity
-from flex.db.model.blockchain import TxInfo, Asset
+from flex.db.model.blockchain import TxInfo, AssetInfo
 from flex.db.model.pools import PoolType
 from flex.db.util import get_uuid
 
@@ -14,7 +14,7 @@ from flex.db.util import get_uuid
 class PoolStateInfo:
     pool_id: int
     type: PoolType
-    stake_token: Asset
+    stake_token: AssetInfo
     address: str
 
     total_staked_micros: int
@@ -28,7 +28,7 @@ class PoolStateInfo:
 class PoolState(BaseEntity['PoolState']):
     pool_id: int
     type: PoolType
-    stake_token: Asset
+    stake_token: AssetInfo
     address: str
 
     staked_micros_by_address: dict[str, int] = field(default_factory=dict)
@@ -84,7 +84,7 @@ class UserStateInfo:
 @dataclass
 class UserPoolState:
     pool_id: int
-    stake_token: Asset
+    stake_token: AssetInfo
     staked_amount_micros: int = 0
     last_tx: TxInfo | None = None
 
