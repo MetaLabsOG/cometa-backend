@@ -5,7 +5,7 @@ from flex.blockchain.base import indexer_client, algod_client
 from flex.db.model.blockchain import Asset
 
 # TODO: make it better somehow I don't know I'm tired as issue bro
-ALGO_ASSET_INFO = Asset(
+ALGO_ASSET = Asset(
     id=0,
     decimals=6,
     name='Algorand',
@@ -13,9 +13,9 @@ ALGO_ASSET_INFO = Asset(
 )
 
 
-def fetch_asset_info(asset_id: int) -> Asset:
+def fetch_asset(asset_id: int) -> Asset:
     if asset_id == 0:
-        return ALGO_ASSET_INFO
+        return ALGO_ASSET
 
     data = indexer_client.asset_info(asset_id)
     params = data['asset']['params']
