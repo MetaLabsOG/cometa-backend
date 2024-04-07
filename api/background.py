@@ -67,6 +67,7 @@ async def update_contracts_cache(type: str) -> None:
             update_contract(id, metadata=new_metadata)
 
         start_index += chunk_size
+        await asyncio.sleep(1)
 
     time_delta = datetime.now() - start_time
     logger.info(f'Updated state cache for {len(all_contracts)} contracts: {type} ({skipped} skipped) in {time_delta.total_seconds()}s')
