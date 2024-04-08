@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from cachetools import cached, TTLCache
 from dataclasses_json import dataclass_json
 
+from env import settings
 from flex import db
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_current_round
 from flex.data.assets import get_asset
@@ -196,6 +197,8 @@ def create_lp_states() -> list[LpState]:
 
 
 async def update_lp_states_loop() -> None:
+    if not settings.sync_liquidity_pools:
+        return
     logger.info('LOOP Updating LP states...')
 
     while True:

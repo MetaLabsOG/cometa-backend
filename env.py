@@ -57,6 +57,7 @@ class Settings(BaseSettings):
 
     new_db_name: str = 'cometa-updated'
     sync_new_pools: bool = True
+    sync_liquidity_pools: bool = False
 
     return_all_user_pools: bool = False
 
