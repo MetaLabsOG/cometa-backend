@@ -2,7 +2,7 @@ from cachetools import cached, TTLCache, LRUCache
 
 from env import settings
 from flex.blockchain.base import indexer_client, algod_client
-from flex.db.model.blockchain import Asset
+from flex.db.model.blockchain import Asset, AssetInfo
 
 # TODO: make it better somehow I don't know I'm tired as fuck bro
 ALGO_ASSET = Asset(
@@ -11,7 +11,7 @@ ALGO_ASSET = Asset(
     name='Algorand',
     unit_name='ALGO',
     creator_address='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
-    total_supply_micros=10_000_000_000 * 1_000_000
+    total_supply=10_000_000_000
 )
 
 
@@ -21,13 +21,19 @@ def fetch_asset(asset_id: int) -> Asset:
 
     data = indexer_client.asset_info(asset_id)
     params = data['asset']['params']
+    asset_info = AssetInfo(
+        id=asset_id,
+        decimals=params['decimals'],
+        name=params['name'],
+        unit_name=params['unit-name']
+    )
     return Asset(
         id=asset_id,
         decimals=params['decimals'],
         name=params['name'],
         unit_name=params['unit-name'],
         creator_address=params['creator'],
-        total_supply_micros=params['total']
+        total_supply=asset_info.micros_to_amount(params['total'])
     )
 
 
