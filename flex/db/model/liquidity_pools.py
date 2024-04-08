@@ -16,12 +16,12 @@ class LpStateInfo:
     dex_provider: str
     address: str
 
+    # TODO: could not fit into MongoDB ???
     asset1_reserve_micros: int
     asset2_reserve_micros: int
     issued_tokens_micros: int
 
     last_updated_round: int
-
     swap_fee_apr: float | None = None
 
 
