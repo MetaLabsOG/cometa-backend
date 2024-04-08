@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import List
 
 from blockchain.indexer import get_asset_ids_by_creator, get_asset_owner
-from old import nft_market
 
 META_ADDRESSES = [
     'METAGTX4BELE3WVMF5GUOYZMCDYFMDEKBWBP6VLDF6AKTNFWJSGKUFDAYU',
