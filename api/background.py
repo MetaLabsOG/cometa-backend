@@ -17,6 +17,7 @@ from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
 from core.util import strip_version, parse_bignum
 from env import settings
+from flex.data.lp_states import update_lp_states_loop
 from flex.sync_pools import sync_pools_loop
 
 spawn = multiprocessing.get_context('spawn')
@@ -147,7 +148,6 @@ async def update_all_user_pools():
 
 @repeat_every(settings.contracts_cache_ttl)
 async def update_contracts_worker():
-
     # TODO: not call the top-level method at all
     if settings.enable_js and settings.update_contract_caches:
         logger.info('Updating contract caches...')
@@ -156,16 +156,9 @@ async def update_contracts_worker():
         logger.info('Contract caches updated.')
 
 
-
 @repeat_every(settings.contracts_cache_ttl)
 async def update_pools_info_worker():
     logger.info('Updating pools...')
-
-    if settings.background_pools_update:
-        await update_pools_info()
-
-    if settings.background_user_pools_update:
-        await update_all_user_pools()
 
     if settings.is_mainnet():
         await record_contracts_stats()
@@ -185,7 +178,8 @@ def run_background():
         await asyncio.gather(
             update_contracts_worker(),
             # update_pools_info_worker()
-            sync_new_pools()
+            update_lp_states_loop(),
+            # sync_new_pools()
         )
 
     logger.info('Started background tasks.')
