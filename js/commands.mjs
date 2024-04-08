@@ -4,12 +4,12 @@ import {fileURLToPath} from "url";
 import {readFileSync} from "fs";
 import {loadStdlib} from "@reach-sh/stdlib";
 import algosdk from 'algosdk';
+
 import * as RHC from '@reach-sh/stdlib/dist/cjs/ALGO_ReachHTTPClient.js';
 import * as UTBC from '@reach-sh/stdlib/dist/cjs/ALGO_UTBC.js';
 
 import {deployStandardContract} from "@metalabsog/common";
 
-import * as crowdsale from "@metalabsog/crowdsale";
 import * as farm_17_2_4 from "metalabsog-farm-17_2_4";
 import * as farm_17_2_5 from "metalabsog-farm-17_2_5";
 import * as distribution_17_0_4 from "metalabsog-distribution-17_0_4";
@@ -117,14 +117,11 @@ export function makeProviderByEnv(env) {
 
 
 // Setting up (and remembering!) the reach stuff
-const reach = loadStdlib(process.env);
+const reach = loadStdlib(REACH_ALGO_ENV);
 const account = await reach.newAccountFromMnemonic(MNEMONIC);
 reach.setProvider(makeProviderByEnv(REACH_ALGO_ENV));
 
 const CONTRACT_PKGS = {
-  crowdsale: {
-    "17.0.0": crowdsale,
-  },
   farm: {
     "17.2.4": farm_17_2_4,
     "17.2.5": farm_17_2_5,
@@ -146,14 +143,6 @@ const mapConcurrent = async (ls, fn) => {
 };
 
 // Export functions here and call them from Python by their name and arguments using `calljs`!
-
-export const crowdsaleWhitelist = async ({ contractId, addr }) => {
-  const { backend } = crowdsale;
-
-  const ctc = account.contract(backend, contractId);
-  await ctc.a.whitelist(addr);
-  return true;
-};
 
 export const contractVersion = async ({ contractType }) => {
   if (!contractType in CONTRACT_PKGS) {

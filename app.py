@@ -261,7 +261,8 @@ async def deploy_contract(password: str, parameters: DeployContract) -> Contract
     check_password(password)
     version = await calljs("contractVersion", contractType=parameters.type)
     contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
-    created_contract = create_contract_with(parameters.type, contract_id, version, parameters.description, parameters.metadata)
+    created_contract = create_contract_with(parameters.type, contract_id, version, parameters.description,
+                                            parameters.metadata)
 
     await notify_new_pool(
         begin_block=parameters.settings['beginBlock'],
@@ -305,6 +306,18 @@ async def remove_contract_by_id(contract_id: int, password: str) -> dict:
 async def get_contract_version(type: str) -> dict:
     version = await calljs("contractVersion", contractType=type)
     return {'version': version}
+
+
+@app.get('/contracts/global_state', tags=['Contracts'])
+async def get_contract_global_state(contract_id: int) -> dict:
+    contract = get_contract(contract_id)
+    global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
+                                idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
+    if str(contract.id) not in global_views:
+        raise HTTPException(status_code=409,
+                            detail="Contract with given ID is not present in the network or does not match the given type")
+
+    return global_views[str(contract.id)]
 
 
 @app.get('/contracts/local_state', tags=['Contracts'])
@@ -377,7 +390,10 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
 # POOLS API
 
 @app.get('/pools', tags=['Pools'])
-async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: Optional[PoolStatus] = None) -> List[PoolInfo]:
+async def get_pools_by_type_or_status(
+        type: Optional[PoolType] = None,
+        status: Optional[PoolStatus] = None
+) -> List[PoolInfo]:
     args = {}
     if type:
         args['type'] = type
@@ -548,7 +564,6 @@ def setup_logging():
 
 
 setup_logging()
-
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
