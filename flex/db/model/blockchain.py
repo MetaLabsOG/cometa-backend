@@ -81,6 +81,10 @@ class Asset(BaseEntity['Asset']):
     updated: datetime = field(default_factory=datetime.now)
 
     @cached_property
+    def total_supply_micros(self) -> int:
+        return self.amount_to_micros(self.total_supply)
+
+    @cached_property
     def amount_multiplier(self) -> int:
         return 10 ** self.decimals
 
