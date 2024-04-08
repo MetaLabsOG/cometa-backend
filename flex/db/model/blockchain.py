@@ -74,7 +74,7 @@ class Asset(BaseEntity['Asset']):
     decimals: int
     unit_name: str
     creator_address: str
-    total_supply_micros: int
+    total_supply: float
     id: int
 
     created: datetime = field(default_factory=datetime.now)
@@ -89,7 +89,7 @@ class Asset(BaseEntity['Asset']):
 
     def micros_to_amount(self, micros: int) -> float:
         return micros / self.amount_multiplier
-    
+
     def to_info(self) -> AssetInfo:
         return AssetInfo(
             name=self.name,

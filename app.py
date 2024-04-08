@@ -38,6 +38,7 @@ from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
+from flex import db
 from flex.data.contracts import create_pool_from_contract
 
 VERSION = '1.9.3'
@@ -551,6 +552,11 @@ setup_logging()
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
+
+    if settings.migrate:
+        logger.info('Migrate: removing old assets.')
+        res = db.assets.remove_by()
+        logger.info(f'Removed {res} assets.')
 
     if settings.enable_js:
         with start_js_interop_server():
