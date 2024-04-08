@@ -9,39 +9,43 @@ from env import settings
 BASE_URL = settings.algo_indexer_address
 logger = logging.getLogger(__name__)
 
-indexer_client = indexer.IndexerClient(indexer_token=settings.algod_token, indexer_address=settings.algo_indexer_address)
-
+indexer_client = indexer.IndexerClient(
+    indexer_token=settings.algod_token,
+    indexer_address=settings.algo_indexer_address,
+    headers={
+        'User-Agent': 'py-algorand-sdk',
+        'x-algo-api-token': settings.algod_token
+    }
+)
 
 # TODO: INFO NOT FULL, handle get_asset(0) better
 ALGO_ASSET_INFO = {
-            'created-at-round': 3317341,
-            'deleted': False,
-            'index': 0,
-            'params': {
-                'creator': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
-                'total': 1000000000000000000000000000,
-                'decimals': 6,
-                'default-frozen': False,
-                'unit-name': 'ALGO',
-                'name': 'Algorand',
-                'url': 'https://algorand.foundation/'
-            }
-        }
+    'created-at-round': 3317341,
+    'deleted': False,
+    'index': 0,
+    'params': {
+        'creator': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
+        'total': 1000000000000000000000000000,
+        'decimals': 6,
+        'default-frozen': False,
+        'unit-name': 'ALGO',
+        'name': 'Algorand',
+        'url': 'https://algorand.foundation/'
+    }
+}
 
 
-# TODO: use SDK
 @cached(cache=LRUCache(maxsize=2048))
 def get_asset(asset_id: int):
     if asset_id == 0:
         return ALGO_ASSET_INFO
-    url = f'{BASE_URL}/v2/assets/{asset_id}'
-    logger.debug(f'Fetching asset {asset_id} from {url}')
-    return requests.get(url).json()['asset']
+    logger.debug(f'Fetching asset {asset_id} info')
+    data = indexer_client.asset_info(asset_id)
+    return data['asset']
 
 
 def get_account_assets(address: str) -> dict:
-    url = f'{BASE_URL}/v2/accounts/{address}'
-    data = requests.get(url).json()
+    data = indexer_client.account_info(address)
     assets = data['account']['assets']
     assets.append({
         'asset-id': 0,
@@ -57,9 +61,8 @@ CONST_APP_STATE_BYTES = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 
 def get_address_app_ids(address: str, only_active: bool = False) -> list[int]:
-    url = f'{BASE_URL}/v2/accounts/{address}'
-    data = requests.get(url).json()
-    logger.debug(f'Fetching app ids for {address} from {url}')
+    logger.debug(f'Fetching app ids for {address}')
+    data = indexer_client.account_info(address)
     account = data.get('account')
     if account is None:
         raise Exception(f'Account {address} not found: {data}')
@@ -86,8 +89,7 @@ def get_asset_creator(asset_id: int) -> str:
 
 
 def get_asset_owner(asset_id: int) -> str:
-    url = f'{BASE_URL}/v2/assets/{asset_id}/balances'
-    data = requests.get(url).json()
+    data = indexer_client.asset_balances(asset_id=asset_id)
     balances = data['balances']
     for balance in balances:
         if balance['amount'] == 1:
@@ -96,20 +98,18 @@ def get_asset_owner(asset_id: int) -> str:
 
 
 def get_asset_ids_by_creator(address):
-    URL = f'{BASE_URL}/v2/assets?creator={address}'
     asset_ids = []
     data = {}
-    PARAMS = {}
+    params = {}
 
+    indexer_client.search_assets(creator=address)
     for i in range(100):
         if data and data['next-token']:
-            PARAMS = {'next': data['next-token']}
-        r = requests.get(url=URL, params=PARAMS)
-        data = r.json()
+            params = {'next': data['next-token']}
+        data = indexer_client.search_assets(creator=address, **params)
         for asset in data['assets']:
             asset_ids.append(asset['index'])
         if not data.get('next-token', None):
             break
 
     return asset_ids
-

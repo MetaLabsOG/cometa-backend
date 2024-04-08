@@ -9,7 +9,7 @@ from flex import db
 from flex.data.assets import get_asset
 from flex.data.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
-from flex.data.lp_states import LpState, fetch_lp_state_by_token
+from flex.data.lp_states import fetch_priced_lp_state_by_token, PricedLpState
 from flex.data.lp_tokens import get_lp_token_info_by_id
 from flex.data.pools import get_pool_info_by_id
 from flex.db.model.blockchain import LpToken, Asset
@@ -94,14 +94,14 @@ async def migrate_pools_from_contracts() -> dict:
 # INFO API
 
 @router.post('/info/lp/token', tags=['Info'])
-async def get_priced_lp_token_info(lp_token_id: int) -> LpToken:
+async def get_lp_token_info(lp_token_id: int) -> LpToken:
     return get_lp_token_info_by_id(lp_token_id)
 
 
 @router.post('/info/lp/state', tags=['Info'])
-async def get_lp_state_by_token_id(lp_token_id: int) -> LpState:
+async def get_lp_state_by_token_id(lp_token_id: int) -> PricedLpState:
     lp_token = get_lp_token_info_by_id(lp_token_id)
-    return fetch_lp_state_by_token(lp_token)
+    return fetch_priced_lp_state_by_token(lp_token)
 
 
 @router.post('/info/asset', tags=['Info'])

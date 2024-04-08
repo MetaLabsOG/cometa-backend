@@ -163,7 +163,7 @@ async def sync_pools_loop():
 async def get_sync_pool_state_by_id(pool_id: int) -> PoolState:
     pool_state = await get_or_create_pool_state(pool_id)
     if is_sync_delayed():
-        pool_state = update_pool_state(pool_state)
+        pool_state = await update_pool_state(pool_state)
     return pool_state
 
 
