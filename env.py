@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     new_db_name: str = 'cometa-updated'
     sync_new_pools: bool = True
 
+    return_all_user_pools: bool = False
+
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
     def is_mainnet(self):

@@ -2,6 +2,7 @@ from pymongo.database import Database as MongoDatabase
 
 from flex.db.classes.database import EntitiesDatabase
 from flex.db.model.blockchain import LpToken, Asset, PoolTransaction, SyncState, SyncBlock
+from flex.db.model.liquidity_pools import LpState, LpTransaction
 from flex.db.model.pool_states import UserState, PoolState
 from flex.db.model.pools import StakingPool, FarmingPool
 from flex.db.model.priced import AirdropReward
@@ -24,3 +25,6 @@ class CometaDatabase(EntitiesDatabase):
 
         self.sync_states = self.create_collection_manager_for_type(SyncState)
         self.sync_blocks = self.create_collection_manager_for_type(SyncBlock)
+
+        self.lp_states = self.create_collection_manager_for_type(LpState)
+        self.lp_transactions = self.create_collection_manager_for_type(LpTransaction)

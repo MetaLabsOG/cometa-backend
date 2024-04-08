@@ -10,25 +10,7 @@ from flex.data.lp_tokens import get_lp_token_info_by_id
 from flex.data.tinyman import get_tinyman_pool_info
 from flex.data.vestige import DexProvider, get_asset_price
 from flex.db.model.blockchain import LpToken
-
-
-@dataclass_json
-@dataclass
-class LpStateInfo:
-    id: int
-    token_id: int
-    asset1_id: int
-    asset2_id: int
-    dex_provider: str
-    address: str
-
-    asset1_reserve_micros: int
-    asset2_reserve_micros: int
-    issued_tokens_micros: int
-
-    last_updated_round: int
-
-    swap_fee_apr: float | None = None
+from flex.db.model.liquidity_pools import LpStateInfo
 
 
 @dataclass_json
