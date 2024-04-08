@@ -104,14 +104,15 @@ def lp_state_from_lp_balances(lp_token: LpToken) -> LpStateInfo:
     issued_lp_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
     return LpStateInfo(
-        id=lp_token.id,
+        id=lp_token.pool_id,
+        token_id=lp_token.id,
         asset1_id=lp_token.asset1_id,
         asset2_id=lp_token.asset2_id,
         dex_provider=lp_token.dex_provider,
         address=lp_token.address,
-        asset1_reserve=asset1_reserve_micros,
-        asset2_reserve=asset2_reserve_micros,
-        issued_tokens=issued_lp_tokens_micros,
+        asset1_reserve_micros=asset1_reserve_micros,
+        asset2_reserve_micros=asset2_reserve_micros,
+        issued_tokens_micros=issued_lp_tokens_micros,
         last_updated_round=get_current_round(),
     )
 
