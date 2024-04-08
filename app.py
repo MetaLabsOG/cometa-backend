@@ -336,8 +336,11 @@ async def get_contracts(
         max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
 
     address_app_ids = []
-    # if include_address_pools is not None:
-    #     address_app_ids = get_address_app_ids(include_address_pools, only_active=True)
+    if include_address_pools is not None:
+        try:
+            address_app_ids = get_address_app_ids(include_address_pools, only_active=True)
+        except Exception as e:
+            logger.error(f'Error fetching app ids for {include_address_pools}: {e}', exc_info=True)
 
     # TODO: move as arg to DB query
     matching_pools = []

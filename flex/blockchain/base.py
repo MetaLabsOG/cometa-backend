@@ -11,14 +11,18 @@ BLOCKS_IN_A_YEAR = int(timedelta(days=365).total_seconds() / settings.block_time
 
 indexer_client: IndexerClient = IndexerClient(
     indexer_token=settings.algod_token,
-    indexer_address=settings.algo_indexer_address
-)
-algod_client: AlgodClient = AlgodClient(
-    settings.algod_token,
-    settings.algod_address,
+    indexer_address=settings.algo_indexer_address,
     headers={
         'User-Agent': 'py-algorand-sdk',
-        'X-API-Key': settings.algod_token
+        'x-algo-api-token': settings.algod_token
+    }
+)
+algod_client: AlgodClient = AlgodClient(
+    algod_token=settings.algod_token,
+    algod_address=settings.algod_address,
+    headers={
+        'User-Agent': 'py-algorand-sdk',
+        'x-algo-api-token': settings.algod_token
     }
 )
 
