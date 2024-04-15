@@ -60,15 +60,18 @@ class CollectionManager(Generic[EntityT]):
             res = self.create_with(**kwargs)
         return res
 
-    def get_many(self, **kwargs) -> list[EntityT]:
+    def get_many_by(self, **kwargs) -> list[EntityT]:
         items = self.mongodb_collection.find(kwargs)
         return [self.item_from_dict(i) for i in items]
 
+    def get_many(self, query_dict: dict) -> list[EntityT]:
+        return self.get_many_by(**query_dict)
+
     def get_by_array(self, field_name: str, values: list[Any]) -> list[EntityT]:
-        return self.get_many(**{field_name: {'$in': values}})
+        return self.get_many_by(**{field_name: {'$in': values}})
 
     def get_all(self) -> list[EntityT]:
-        return self.get_many()
+        return self.get_many_by()
 
     def update(self, item: EntityT) -> EntityT:
         item.updated = datetime.now()
