@@ -3,10 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import List
 
-from dataclasses_json import dataclass_json
-
 from blockchain.indexer import get_asset_ids_by_creator, get_asset_owner
-from . import nft_market
 
 META_ADDRESSES = [
     'METAGTX4BELE3WVMF5GUOYZMCDYFMDEKBWBP6VLDF6AKTNFWJSGKUFDAYU',
@@ -40,7 +37,6 @@ def get_unlisted_ids() -> List[int]:
     return list(set(all_ids) - set(listed_ids))
 
 
-@dataclass_json
 @dataclass
 class HolderInfo:
     address: str
