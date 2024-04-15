@@ -8,10 +8,12 @@ from env import settings
 from flex import db
 from flex.blockchain.base import indexer_client
 from flex.blockchain.info import get_current_round
-from flex.data.pool_state import update_pools_with_transactions, update_all_pool_states_linear, \
+from flex.data.lp_states import update_all_lp_states_linear, update_lp_states_with_transactions, create_lp_states
+from flex.data.pool_state import update_pool_states_with_transactions, update_all_pool_states_linear, \
     get_or_create_pool_state, update_pool_state, update_user_state
 from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
 from flex.db.model.blockchain import PoolTransaction, SyncState, SyncBlock
+from flex.db.model.liquidity_pools import LpState, LpTransaction
 from flex.db.model.pool_states import PoolState, UserState
 
 logger = logging.getLogger(__name__)
@@ -50,10 +52,47 @@ def get_pool_state_by_address(address: str) -> PoolState:
     return db.pool_states.get_one(address=address)
 
 
-def process_transactions(txns: list[dict]) -> list[PoolTransaction]:
-    transfer_transactions = find_transfer_transactions(txns)
+def process_lp_transactions(transactions: list[dict]) -> list[LpTransaction]:
+    lp_transactions = []
+    for tx in transactions:
+        txid = tx['id']
+        sender = tx['sender']
+        asa_id = tx[ASSET_TRANSFER_TX]['asset-id']
+        receiver = tx[ASSET_TRANSFER_TX]['receiver']
+        amount = tx[ASSET_TRANSFER_TX]['amount']
+        confirmed_round = tx['confirmed-round']
+
+        lp_state_send = db.lp_states.get_one(address=sender)
+        if lp_state_send is not None:
+            lp_tx = LpTransaction(
+                id=txid,
+                pool_address=sender,
+                user_address=receiver,
+                asa_id=asa_id,
+                delta_amount_micros=-amount,
+                confirmed_round=confirmed_round,
+            )
+            lp_transactions.append(lp_tx)
+
+        # TODO: optimize, maybe return with txns
+        lp_state_receive = db.lp_states.get_one(address=receiver)
+        if lp_state_receive is not None:
+            lp_tx = LpTransaction(
+                id=txid,
+                pool_address=receiver,
+                user_address=sender,
+                asa_id=asa_id,
+                delta_amount_micros=amount,
+                confirmed_round=confirmed_round,
+            )
+            lp_transactions.append(lp_tx)
+
+    return lp_transactions
+
+
+def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
     pool_transactions = []
-    for tx in transfer_transactions:
+    for tx in txns:
         txid = tx['id']
         sender = tx['sender']
         tx_asa_id = tx[ASSET_TRANSFER_TX]['asset-id']
@@ -111,6 +150,16 @@ def is_sync_delayed(current_round: int | None = None) -> bool:
     return current_round - sync_state.last_round > SYNC_MAX_DELAY_ROUNDS
 
 
+async def update_pools(txns: list[dict]) -> [PoolState]:
+    pool_transactions = process_pool_transactions(txns)
+    return await update_pool_states_with_transactions(pool_transactions)
+
+
+async def update_lps(txns: list[dict]) -> list[LpState]:
+    lp_transactions = process_lp_transactions(txns)
+    return await update_lp_states_with_transactions(lp_transactions)
+
+
 async def sync_pools_loop():
     current_round = get_current_round()
 
@@ -120,7 +169,7 @@ async def sync_pools_loop():
     sync_lag = current_round - sync_state.last_round if sync_state.last_round is not None else None
 
     if sync_state.last_round is None or sync_lag > settings.sync_lag_max_rounds:
-        logger.info('\n\nSyncing ALL pools in order first.')
+        logger.info('\n\nSyncing ALL pool states in order first.')
         logger.info(f'Last sync round = {sync_state.last_round}, sync lag = {sync_lag} rounds.\n\n')
 
         await update_all_pool_states_linear()
@@ -129,39 +178,52 @@ async def sync_pools_loop():
         logger.info(f'\n\nAnother, shorter loop, starting from round {current_round}\n\n')
         await update_all_pool_states_linear()
 
+        # TODO: async
+        logger.info('\n\nSyncing ALL LP states linearly.\n\n')
+        create_lp_states()
+        update_all_lp_states_linear()
+
         sync_state.last_round = current_round
         db.sync_states.update(sync_state)
         logger.info(f'\n\nPools synced up to round {current_round}.\n\n')
 
     logger.info('\n\nStarting the main BLOCKCHAIN sync loop.\n\n')
+
+    no_block_seconds = 0
+    MAX_BLOCK_DELAY_SECONDS = 10
     while True:
         next_round = sync_state.last_round + 1
 
         try:
             block_dict = indexer_client.block_info(round_num=next_round)
         except Exception as e:
-            logger.debug(f'#{next_round} NOT HERE SORRY: {e}')
+            no_block_seconds += 1
+            if no_block_seconds > MAX_BLOCK_DELAY_SECONDS:
+                logger.debug(f'No #{next_round} for {no_block_seconds} seconds: {e}')
+
             await asyncio.sleep(1)
             continue
 
+        no_block_seconds = 0
+
         try:
             raw_transactions = block_dict['transactions']
+            transfer_transactions = find_transfer_transactions(raw_transactions)
             logger.debug(f'Fetch #{next_round}: sync {len(raw_transactions)} txns')
 
-            pool_transactions = process_transactions(raw_transactions)
-            _ = await update_pools_with_transactions(pool_transactions)
+            updated_pool_states = await update_pools(transfer_transactions)
+            updated_lp_states = await update_lps(transfer_transactions)
 
             sync_state.last_round = next_round
             db.sync_states.update(sync_state)
             db.sync_blocks.create(
                 SyncBlock(
                     round=next_round,
-                    timestamp=block_dict['timestamp'],
-                    pool_tx_ids=[tx.id for tx in pool_transactions],
+                    timestamp=block_dict['timestamp']
                 )
             )
 
-            logger.debug(f'#{next_round} sync OK: {len(pool_transactions)} pool txns\n')
+            logger.debug(f'#{next_round} sync OK! Saved {len(updated_pool_states) + len(updated_lp_states)} txns\n')
         except Exception as e:
             logger.error(f'Error processing round {next_round}: {e}', exc_info=True)
             continue
