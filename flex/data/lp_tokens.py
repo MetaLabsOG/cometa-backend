@@ -27,7 +27,7 @@ def fetch_lp_token_strong(lp_token_id: int, asset1_id: int, asset2_id: int, dex_
             )
         logger.error(f'Pact pool for assets {asset1_id} and {asset2_id} not found')
 
-    if dex_provider == DexProvider.TINYMAN_V2:
+    if dex_provider == DexProvider.TINYMAN_V2 or dex_provider == DexProvider.TINYMAN:
         try:
             tinyman_pool = get_tinyman_pool_info(asset1_id, asset2_id)
             app_ids = get_address_app_ids(tinyman_pool.address)
