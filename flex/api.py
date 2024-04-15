@@ -152,3 +152,23 @@ async def get_entities_by_dict_query(
     if params.show_last_cnt is not None and len(entity_dicts) > params.show_last_cnt:
         entity_dicts = entity_dicts[-params.show_last_cnt:]
     return entity_dicts
+
+
+class DbCountParams(BaseModel):
+    collection_name: str
+    query: dict = {}
+
+
+@router.post('/db/count', tags=['DB'])
+async def get_entity_count(
+        password: str,
+        params: DbCountParams
+) -> dict:
+    check_password(password)
+    collection = db.get_collection_by_name(params.collection_name)
+    if collection is None:
+        raise HTTPException(status_code=404, detail=f'No such collection: {params.collection_name}!')
+
+    return {
+        'count': collection.count(**params.query)
+    }
