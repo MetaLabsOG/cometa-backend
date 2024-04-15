@@ -570,7 +570,7 @@ if __name__ == "__main__":
 
     if settings.migrate:
         logger.info('Migrate: removing old assets.')
-        res = db.assets.remove_by()
+        res = db.assets.clear()
         logger.info(f'Removed {res} assets.')
 
     if settings.enable_js:
