@@ -1,18 +1,17 @@
 import logging
 import secrets
-from dataclasses import dataclass
 
-from dataclasses_json import dataclass_json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from env import settings
 from flex import db
-from flex.data.assets import get_asset, micros_to_amount
-from flex.db.model.liquidity_pools import LpState, LpStateInfo
+from flex.data.assets import get_asset
+from flex.db.model.liquidity_pools import LpStateInfo, PricedLpStateInfo
 from flex.migrations.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
-from flex.data.lp_states import fetch_priced_lp_state_by_token, PricedLpState, get_lp_state_by_lp_token_id
+from flex.data.lp_states import get_lp_state_by_lp_token_id, \
+    get_priced_lp_state_by_lp_token_id, get_all_priced_lp_states, get_priced_lp_states_by_lp_token_ids
 from flex.data.lp_tokens import get_lp_token_by_id
 from flex.data.pools import get_pool_info_by_id
 from flex.db.model.blockchain import LpToken, Asset
@@ -108,31 +107,20 @@ async def migrate_pools_from_contracts(password: str) -> dict:
 
 # LP API
 
-def lp_state_to_rich_info(lp_state: LpState) -> LpStateInfo:
-    info = lp_state.to_info()
-    info.asset1_reserve = micros_to_amount(lp_state.asset1_id, lp_state.asset1_reserve_micros)
-    info.asset2_reserve = micros_to_amount(lp_state.asset2_id, lp_state.asset2_reserve_micros)
-    info.issued_tokens = micros_to_amount(lp_state.token_id, lp_state.total_tokens_micros)
-    return info
-
-
 @router.post('/lp/token', tags=['LP'])
 async def get_lp_token_info(lp_token_id: int) -> LpToken:
     return get_lp_token_by_id(lp_token_id)
 
 
-@router.post('/lp/state/priced', tags=['LP'])
-async def get_priced_lp_state_by_token_id(lp_token_id: int) -> PricedLpState:
-    lp_token = get_lp_token_by_id(lp_token_id)
-    return fetch_priced_lp_state_by_token(lp_token)
-
-
 @router.post('/lp/state/', tags=['LP'])
-async def handle_get_lp_state_by_lp_token_id(lp_token_id: int, full_info: bool = False) -> LpStateInfo:
+async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
     lp_state = get_lp_state_by_lp_token_id(lp_token_id)
-    if full_info:
-        return lp_state_to_rich_info(lp_state)
     return lp_state.to_info()
+
+
+@router.post('/lp/state/priced', tags=['LP'])
+async def handle_get_priced_lp_state_by_lp_token_id(lp_token_id: int) -> PricedLpStateInfo:
+    return get_priced_lp_state_by_lp_token_id(lp_token_id)
 
 
 @router.post('/lp/states', tags=['LP'])
@@ -140,8 +128,7 @@ async def get_lp_states_by(
         max_count: int | None = None,
         lp_token_id: int | None = None,
         dex_provider: DexProvider = DexProvider.ANY,
-        asset_id: int | None = None,
-        full_info: bool = False
+        asset_id: int | None = None
 ) -> list[LpStateInfo]:
     query_dict = {}
     if lp_token_id is not None:
@@ -155,10 +142,21 @@ async def get_lp_states_by(
     if max_count is not None:
         lp_states = lp_states[:max_count]
 
-    if full_info:
-        return [lp_state_to_rich_info(state) for state in lp_states]
-
     return [state.to_info() for state in lp_states]
+
+
+class PricedLpStatesParams(BaseModel):
+    lp_token_ids: list[int] | None = None
+
+
+@router.post('/lp/states/priced', tags=['LP'])
+async def handle_get_priced_lp_states(
+        params: PricedLpStatesParams
+) -> list[PricedLpStateInfo]:
+    if params.lp_token_ids is None:
+        return get_all_priced_lp_states()
+    else:
+        return get_priced_lp_states_by_lp_token_ids(params.lp_token_ids)
 
 
 @router.post('/info/lp/state/', tags=['LP'])

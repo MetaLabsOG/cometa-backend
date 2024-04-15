@@ -73,11 +73,11 @@ def get_asset_price_usd_not_cached(asset_id: int) -> float:
 
 
 @cached(cache=TTLCache(maxsize=1024, ttl=settings.asset_prices_ttl))
-def get_asset_price(asset_id: int) -> Price:
-    return get_asset_price_not_cached(asset_id)
+def get_full_asset_price(asset_id: int) -> Price:
+    return get_full_asset_price_not_cached(asset_id)
 
 
-def get_asset_price_not_cached(asset_id: int) -> Price:
+def get_full_asset_price_not_cached(asset_id: int) -> Price:
     if asset_id == 0:
         return Price(algo=1, usd=get_algo_price_usd())
 
