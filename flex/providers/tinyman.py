@@ -31,6 +31,7 @@ def get_micros(amount: float, asset: Asset) -> int:
 @dataclass
 class TinymanPoolInfo:
     name: str
+    lp_token_id: int | None
 
     asset1_reserve: float
     asset2_reserve: float
@@ -65,6 +66,7 @@ def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
 
     return TinymanPoolInfo(
         name=pool.pool_token_asset.name,
+        lp_token_id=pool.pool_token_asset.id if pool.pool_token_asset is not None else None,
         asset1_reserve=asset1_reserve,
         asset2_reserve=asset2_reserve,
         total_lp_tokens=lp_tokens_amount,

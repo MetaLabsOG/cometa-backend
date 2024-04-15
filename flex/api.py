@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from env import settings
 from flex import db
 from flex.data.assets import get_asset
-from flex.data.contracts import all_contracts_to_pools
+from flex.migrations.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.lp_states import fetch_priced_lp_state_by_token, PricedLpState, get_lp_state_by_lp_token_id
 from flex.data.lp_tokens import get_lp_token_by_id
