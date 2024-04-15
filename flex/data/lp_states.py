@@ -195,11 +195,14 @@ def create_lp_states() -> list[LpState]:
     farming_pools = db.farming_pools.get_all()
     new_lp_states = []
     for farming_pool in farming_pools:
-        if db.lp_states.exists(token_id=farming_pool.stake_token.id):
-            continue
+        try:
+            if db.lp_states.exists(token_id=farming_pool.stake_token.id):
+                continue
 
-        lp_state = create_lp_state_by_lp_token_id(farming_pool.stake_token.id)
-        new_lp_states.append(lp_state)
+            lp_state = create_lp_state_by_lp_token_id(farming_pool.stake_token.id)
+            new_lp_states.append(lp_state)
+        except Exception as e:
+            logger.error(f'Failed to create LP state: {e}\n{farming_pool.pretty_str()}', exc_info=True)
 
     return new_lp_states
 
