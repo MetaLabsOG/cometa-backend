@@ -238,6 +238,7 @@ async def get_sync_pool_state_by_id(pool_id: int) -> PoolState:
 
 async def get_sync_user_state_by_address(user_address: str) -> UserState:
     user_state = db.user_states.get_one(address=user_address)
-    if is_sync_delayed():
-        user_state = await update_user_state(user_state)
+    # TODO: uncomment
+    # if is_sync_delayed():
+    #     user_state = await update_user_state(user_state)
     return user_state
