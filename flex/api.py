@@ -48,13 +48,16 @@ async def get_pool_state_cost_by_id(pool_id: int) -> PoolStateCost:
 
 
 @router.get('/pools/', tags=['Pools 2.0'])
-async def get_pools_by(type: PoolType = PoolType.ANY) -> list[PoolInfo]:
+async def get_pools_by(type: PoolType = PoolType.ANY, stake_token_id: int | None = None) -> list[PoolInfo]:
+    query_dict = {}
+    if stake_token_id is not None:
+        query_dict['stake_token.id'] = stake_token_id
     if type == PoolType.FARMING:
-        return [pool.to_info() for pool in db.farming_pools.get_all()]
+        return [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
     elif type == PoolType.STAKING:
-        return [pool.to_info() for pool in db.staking_pools.get_all()]
+        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)]
     else:
-        return [pool.to_info() for pool in db.staking_pools.get_all()] + [pool.to_info() for pool in db.farming_pools.get_all()]
+        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)] + [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
 
 
 @router.post('/pools/state/', tags=['Pools 2.0'])
