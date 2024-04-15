@@ -1,5 +1,4 @@
-from algosdk import mnemonic, account
-from algosdk.future import transaction
+from algosdk import mnemonic, account, transaction
 
 from blockchain.node import init_algod_client
 from env import settings

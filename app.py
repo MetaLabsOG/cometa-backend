@@ -10,9 +10,9 @@ from algosdk import encoding
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
-from uvicorn.logging import ColourizedFormatter
 
 import dexes.humble as humble
+import flex.api
 from airdrop_all_active_stakers import snapshot_all
 from api import stats
 from api.background import start_bg_tasks
@@ -38,8 +38,10 @@ from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
+from flex import db
+from flex.data.contracts import create_pool_from_contract
 
-VERSION = '1.5.0'
+VERSION = '1.9.3'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
@@ -52,6 +54,7 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+app.include_router(flex.api.router)
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +65,7 @@ def check_password(password: str) -> None:
 
 # COMMON API
 
-@app.get('/status')
+@app.get('/status', tags=['Common'])
 async def status() -> dict:
     return {
         'version': VERSION,
@@ -72,23 +75,23 @@ async def status() -> dict:
 
 # WALLET API
 
-@app.get('/wallet/{address}/assets')
+@app.get('/wallet/{address}/assets', tags=['Wallet'])
 async def wallet_assets(address: str) -> list[AssetInfo]:
     assets = get_wallet_assets(address)
     return assets
 
 
-@app.get('/wallet/{address}/total_cost/')
+@app.get('/wallet/{address}/total_cost/', tags=['Wallet'])
 async def total_cost(address: str, weeks_count: Optional[int] = 1) -> list[TimedCost]:
     return get_wallet_total_cost(address, weeks_count)
 
 
-@app.get('/wallet/{address}/nfts')
+@app.get('/wallet/{address}/nfts', tags=['Wallet'])
 async def wallet_nfts(address: str) -> list[NftInfo]:
     return get_wallet_nfts(address)
 
 
-@app.get('/wallet/{address}/pools')
+@app.get('/wallet/{address}/pools', tags=['Wallet'])
 async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
     if cached:
         return await get_address_pools(address)
@@ -96,7 +99,7 @@ async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
         return await fetch_user_pools(address)
 
 
-@app.get('/wallet/{address}/lottery-draws')
+@app.get('/wallet/{address}/lottery-draws', tags=['Wallet'])
 async def wallet_pools(address: str, win: Optional[bool] = None) -> list[LotteryDraw]:
     args = {'wallet': address}
     if win is not None:
@@ -121,18 +124,6 @@ class ModifyContract(BaseModel):
     metadata: Optional[dict] = None
 
 
-@app.post('/contract/add')
-async def add_new_contract(contract: AddContract, password: str) -> dict:
-    logger.info(f'Adding a new contract {contract}')
-
-    check_password(password)
-    if get_contract(contract.id) is not None:
-        raise HTTPException(status_code=409, detail="Contract already exists")
-
-    added = add_contract(contract.type, contract.id, contract.version, contract.description, contract.metadata)
-    return {'internal_id': added}
-
-
 def parse_cache(cache: Optional[dict]) -> dict:
     if cache is None:
         return {}
@@ -151,28 +142,56 @@ def parse_cache(cache: Optional[dict]) -> dict:
 
 
 def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractInfo:
-    cache = new_metadata.get('cache')
-    metadata_fields = parse_cache(cache)
-    current_date = datetime.now()
-    contract = ContractInfo(
+    return create_contract_with(
         type=contract_info.type,
         id=contract_info.id,
         version=contract_info.version,
         description=contract_info.description,
+        metadata=new_metadata
+    )
+
+
+def create_contract_with(type: str, id: int, version: str, description: str, metadata: dict) -> ContractInfo:
+    cache = metadata.get('cache')
+    metadata_fields = parse_cache(cache)
+    current_date = datetime.now()
+    contract = ContractInfo(
+        type=type,
+        id=id,
+        version=version,
+        description=description,
         deployed_timestamp=current_date.timestamp(),
         deployed_date=current_date,
         begin_date=metadata_fields.get('begin_date'),
         end_date=metadata_fields.get('end_date'),
-        metadata=new_metadata
+        metadata=metadata
     )
     insert_contract(contract)
+
+    try:
+        _ = create_pool_from_contract(contract)
+    except Exception as e:
+        logger.error(f'Error creating pool from contract: {e}', exc_info=True)
+
     return contract
+
+
+@app.post('/contract/add', tags=['Contracts'])
+async def add_new_contract(contract: AddContract, password: str) -> ContractInfo:
+    logger.info(f'Adding a new contract {contract}')
+
+    check_password(password)
+    if get_contract(contract.id) is not None:
+        raise HTTPException(status_code=409, detail="Contract already exists")
+
+    created_contract = create_contract(contract, contract.metadata)
+    return created_contract
 
 
 # This method is NOT password-protected: it is intended to be used by users who add contracts themselves.
 # The only thing we do here to ensure that our database isn't spammed with bullshit is checking that the contract
 # really exists in the network, has a correct type and is fully deployed
-@app.post('/contract/register')
+@app.post('/contract/register', tags=['Contracts'])
 async def register_contract(contract: AddContract) -> ContractInfo:
     logger.info(f'Registering a new contract {contract}')
 
@@ -235,14 +254,15 @@ class DeployContract(BaseModel):
     description: Optional[str] = None
 
 
-@app.post('/contract/deploy')
-async def deploy_contract(password: str, parameters: DeployContract) -> dict:
+@app.post('/contract/deploy', tags=['Contracts'])
+async def deploy_contract(password: str, parameters: DeployContract) -> ContractInfo:
     logger.info(f'Deploying a new contract {parameters}')
 
     check_password(password)
     version = await calljs("contractVersion", contractType=parameters.type)
     contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
-    internal_id = add_contract(parameters.type, contract_id, version, parameters.description, parameters.metadata)
+    created_contract = create_contract_with(parameters.type, contract_id, version, parameters.description,
+                                            parameters.metadata)
 
     await notify_new_pool(
         begin_block=parameters.settings['beginBlock'],
@@ -252,10 +272,10 @@ async def deploy_contract(password: str, parameters: DeployContract) -> dict:
         metadata=parameters.metadata,
     )
 
-    return {'internal_id': internal_id}
+    return created_contract
 
 
-@app.patch('/contract/update')
+@app.patch('/contract/update', tags=['Contracts'])
 async def update(contract: ModifyContract, password: str) -> dict:
     logger.info(f'Updating contract {contract}')
 
@@ -267,7 +287,7 @@ async def update(contract: ModifyContract, password: str) -> dict:
     return {'updated': res}
 
 
-@app.get('/contract/{contract_id}')
+@app.get('/contract/{contract_id}', tags=['Contracts'])
 async def get_contract_by_id(contract_id: int) -> ContractInfo:
     contract = get_contract(contract_id)
     if contract is None:
@@ -275,20 +295,32 @@ async def get_contract_by_id(contract_id: int) -> ContractInfo:
     return contract
 
 
-@app.delete('/contract/{contract_id}')
+@app.delete('/contract/{contract_id}', tags=['Contracts'])
 async def remove_contract_by_id(contract_id: int, password: str) -> dict:
     check_password(password)
     cnt = remove_contract(contract_id=contract_id)
     return {'deleted_count': cnt}
 
 
-@app.get('/contracts/version')
+@app.get('/contracts/version', tags=['Contracts'])
 async def get_contract_version(type: str) -> dict:
     version = await calljs("contractVersion", contractType=type)
     return {'version': version}
 
 
-@app.get('/contracts/local_state')
+@app.get('/contracts/global_state', tags=['Contracts'])
+async def get_contract_global_state(contract_id: int) -> dict:
+    contract = get_contract(contract_id)
+    global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
+                                idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
+    if str(contract.id) not in global_views:
+        raise HTTPException(status_code=409,
+                            detail="Contract with given ID is not present in the network or does not match the given type")
+
+    return global_views[str(contract.id)]
+
+
+@app.get('/contracts/local_state', tags=['Contracts'])
 async def get_local_states(type: str, address: str) -> dict:
     contracts = get_contracts_by_type(type)
     if len(contracts) > 0:
@@ -301,7 +333,7 @@ async def get_local_states(type: str, address: str) -> dict:
     return {}
 
 
-@app.get('/contracts')
+@app.get('/contracts', tags=['Contracts'])
 async def get_contracts(
         type: Optional[ContractType] = None,
         max_count: Optional[int] = None,
@@ -318,8 +350,11 @@ async def get_contracts(
         max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
 
     address_app_ids = []
-    if include_address_pools is not None:
-        address_app_ids = get_address_app_ids(include_address_pools, only_active=True)
+    if settings.return_all_user_pools and include_address_pools is not None:
+        try:
+            address_app_ids = get_address_app_ids(include_address_pools, only_active=True)
+        except Exception as e:
+            logger.error(f'Error fetching app ids for {include_address_pools}: {e}', exc_info=True)
 
     # TODO: move as arg to DB query
     matching_pools = []
@@ -345,7 +380,7 @@ async def get_contracts(
     return matching_pools
 
 
-@app.delete('/contracts')
+@app.delete('/contracts', tags=['Contracts'])
 async def remove_contracts_by_type(type: str, password: str) -> dict:
     check_password(password)
     cnt = remove_contracts(type=type)
@@ -354,8 +389,11 @@ async def remove_contracts_by_type(type: str, password: str) -> dict:
 
 # POOLS API
 
-@app.get('/pools')
-async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: Optional[PoolStatus] = None) -> List[PoolInfo]:
+@app.get('/pools', tags=['Pools'])
+async def get_pools_by_type_or_status(
+        type: Optional[PoolType] = None,
+        status: Optional[PoolStatus] = None
+) -> List[PoolInfo]:
     args = {}
     if type:
         args['type'] = type
@@ -364,7 +402,7 @@ async def get_pools_by_type_or_status(type: Optional[PoolType] = None, status: O
     return pools_db.get_many(args)
 
 
-@app.patch('/pools/verify')
+@app.patch('/pools/verify', tags=['Pools'])
 async def verify_pool(pool_id: int, password: str) -> str:
     check_password(password)
     contract = get_contract(pool_id)
@@ -375,7 +413,7 @@ async def verify_pool(pool_id: int, password: str) -> str:
     return 'Success!'
 
 
-@app.get('/pools/snapshot')
+@app.get('/pools/snapshot', tags=['Pools'])
 async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[int] = None) -> dict:
     if password != 'YouShallNotPass':
         raise HTTPException(status_code=403, detail="Wrong password bro.")
@@ -383,7 +421,7 @@ async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[in
     return dict(sorted(wallets.items()))
 
 
-@app.get('/pools/snapshot_all')
+@app.get('/pools/snapshot_all', tags=['Pools'])
 async def make_pool_snapshot(password: str, max_round: Optional[int] = None) -> dict:
     if password != 'YouShallNotPass':
         raise HTTPException(status_code=403, detail="Wrong password bro.")
@@ -391,7 +429,7 @@ async def make_pool_snapshot(password: str, max_round: Optional[int] = None) -> 
     return wallets
 
 
-@app.post('/pools/notify')
+@app.post('/pools/notify', tags=['Pools'])
 async def handle_pools_notify_social_channels(password: str, pool_id: int) -> None:
     check_password(password)
 
@@ -411,12 +449,12 @@ async def handle_pools_notify_social_channels(password: str, pool_id: int) -> No
 
 # HUMBLE POOLS
 
-@app.get('/humble/pool/{pool_id}')
+@app.get('/humble/pool/{pool_id}', tags=['Humble'])
 async def humble_pool_by_id(pool_id: int) -> Optional[humble.HumblePool]:
     return humble.get_pool_by_id(pool_id)
 
 
-@app.get('/humble/pools')
+@app.get('/humble/pools', tags=['Humble'])
 async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.HumblePool]:
     # FIXME: just don't ask me please ever
     if assetA == 796425061 and assetB == 1138500612:
@@ -424,38 +462,14 @@ async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.Humble
     return humble.get_pools_by_assets(assetA, assetB)
 
 
-@app.get('/humble/pools/all')
+@app.get('/humble/pools/all', tags=['Humble'])
 async def humble_pools_all() -> List[humble.HumblePool]:
     return humble.get_pools({})
 
 
-# CROWDSALE
-
-# def check_crowdsale_whitelist(contract_id: int, address: str) -> None:
-#     contract = get_contract(contract_id)
-#     if contract is None or contract.type != 'crowdsale':
-#         raise HTTPException(status_code=404, detail="Contract not found")
-#
-#     whitelist = contract.metadata["whitelist"]
-#     if address not in whitelist:
-#         raise HTTPException(status_code=403, detail="Address not whitelisted")
-#
-#
-# @app.put('/whitelist_confirm')
-# async def whitelist_confirm(contract_id: int, address: str) -> bool:
-#     check_crowdsale_whitelist(contract_id, address)
-#     return await calljs("crowdsaleWhitelist", contractId=contract_id, addr=address)
-#
-#
-# @app.get('/whitelist_check')
-# async def whitelist_check(contract_id: int, address: str) -> bool:
-#     check_crowdsale_whitelist(contract_id, address)
-#     return True
-
-
 # LOTTERY
 
-@app.post('/lottery/swap')
+@app.post('/lottery/swap', tags=['Lottery'])
 async def nft_lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
     # TODO: check swap already recorded
 
@@ -463,12 +477,12 @@ async def nft_lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
     return lottery_for_swap(swap)
 
 
-@app.post('/lottery/staking')
+@app.post('/lottery/staking', tags=['Lottery'])
 async def nft_lottery_for_staking(address: str, pool_id: int) -> Optional[NftPrize]:
     return await lottery_for_staking(pool_id, address, settings.is_mainnet())
 
 
-@app.post('/lottery/new')
+@app.post('/lottery/new', tags=['Lottery'])
 async def create_a_new_nft_lottery(lottery: NftLottery, password: str) -> None:
     check_password(password)
     if nft_lotteries.get_by_primary_key(lottery.name) is not None:
@@ -476,7 +490,7 @@ async def create_a_new_nft_lottery(lottery: NftLottery, password: str) -> None:
     nft_lotteries.create(lottery)
 
 
-@app.post('/lottery/update')
+@app.post('/lottery/update', tags=['Lottery'])
 async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
     check_password(password)
     if nft_lotteries.get_by_primary_key(lottery.name) is None:
@@ -484,7 +498,7 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
     nft_lotteries.update(lottery)
 
 
-@app.patch('/lottery/claim')
+@app.patch('/lottery/claim', tags=['Lottery'])
 async def claim_prize_nft_for_swap(wallet: str) -> None:
     wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
 
@@ -510,26 +524,26 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
     lottery_draws.update(lottery_draw)
 
 
-@app.get('/lotteries/')
+@app.get('/lotteries/', tags=['Lottery'])
 async def get_lotteries(password: str) -> List[NftLottery]:
     check_password(password)
     return nft_lotteries.get_all()
 
 
-@app.get('/lotteries/resend')
+@app.get('/lotteries/resend', tags=['Lottery'])
 async def resend_prizes(password: str) -> dict:
     check_password(password)
     return send_all_prizes()
 
 
-# Statistics
+# Overall Statistics
 
-@app.get('/stats/tvl')
+@app.get('/stats/tvl', tags=['Stats'])
 async def tvl() -> dict:
     return stats.get_tvl()
 
 
-@app.get('/stats/app-ids')
+@app.get('/stats/app-ids', tags=['Stats'])
 async def address_app_ids(password: str, address: str, only_active: bool = False) -> dict:
     check_password(password)
     app_ids = get_address_app_ids(address, only_active)
@@ -539,19 +553,6 @@ async def address_app_ids(password: str, address: str, only_active: bool = False
         if contract.id in app_ids:
             user_pools.append({'id': contract.id, 'description': contract.description})
     return {'app_ids': app_ids, 'user_pools': user_pools}
-
-
-# Events
-
-@app.on_event("startup")
-async def startup_event():
-    logger = logging.getLogger("uvicorn.access")
-    console_formatter = ColourizedFormatter(
-        fmt=LOG_FORMAT,
-        datefmt=LOG_DATE_FORMAT,
-        use_colors=True
-    )
-    logger.handlers[0].setFormatter(console_formatter)
 
 
 def setup_logging():
@@ -564,10 +565,18 @@ def setup_logging():
 
 setup_logging()
 
-
 if __name__ == "__main__":
     argv = sys.argv[1:]
 
-    with start_js_interop_server():
+    if settings.migrate:
+        logger.info('Migrate: removing old assets.')
+        res = db.assets.remove_by()
+        logger.info(f'Removed {res} assets.')
+
+    if settings.enable_js:
+        with start_js_interop_server():
+            with start_bg_tasks():
+                uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
+    else:
         with start_bg_tasks():
             uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
