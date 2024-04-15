@@ -14,17 +14,18 @@ class CometaDatabase(EntitiesDatabase):
 
         self.staking_pools = self.create_collection_manager_for_type(StakingPool)
         self.farming_pools = self.create_collection_manager_for_type(FarmingPool)
-        self.user_states = self.create_collection_manager_for_type(UserState)
-        self.pool_states = self.create_collection_manager_for_type(PoolState)
-        self.pool_transactions = self.create_collection_manager_for_type(PoolTransaction)
 
         self.assets = self.create_collection_manager_for_type(Asset)
         self.lp_tokens = self.create_collection_manager_for_type(LpToken)
 
-        self.airdrop_rewards = self.create_collection_manager_for_type(AirdropReward)
+        self.user_states = self.create_collection_manager_for_type(UserState)
+        self.pool_states = self.create_collection_manager_for_type(PoolState)
+        self.lp_states = self.create_collection_manager_for_type(LpState)
+
+        self.pool_transactions = self.create_collection_manager_for_type(PoolTransaction)
+        self.lp_transactions = self.create_collection_manager_for_type(LpTransaction)
 
         self.sync_states = self.create_collection_manager_for_type(SyncState)
         self.sync_blocks = self.create_collection_manager_for_type(SyncBlock)
 
-        self.lp_states = self.create_collection_manager_for_type(LpState)
-        self.lp_transactions = self.create_collection_manager_for_type(LpTransaction)
+        self.airdrop_rewards = self.create_collection_manager_for_type(AirdropReward)

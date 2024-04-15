@@ -179,7 +179,7 @@ def run_background():
             update_contracts_worker(),
             # update_pools_info_worker()
             update_lp_states_loop(),
-            # sync_new_pools()
+            sync_new_pools()
         )
 
     logger.info('Started background tasks.')

@@ -102,6 +102,9 @@ class CollectionManager(Generic[EntityT]):
         res = self.mongodb_collection.delete_many(kwargs)
         return res.deleted_count
 
+    def clear(self) -> int:
+        return self.remove_by()
+
     def count(self, **kwargs) -> int:
         return self.mongodb_collection.count_documents(kwargs)
 
