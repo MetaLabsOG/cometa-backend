@@ -215,6 +215,10 @@ async def update_lp_states_with_transactions(
 
     updated_lp_states = {}
     for tx in transactions:
+        if db.lp_transactions.exists(id=tx.id):
+            logger.debug(f'Transaction {tx.id} already recorded in DB')
+            continue
+
         lp_state = updated_lp_states.get(tx.pool_address)
         if lp_state is None:
             # TODO: cache

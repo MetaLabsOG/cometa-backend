@@ -73,6 +73,11 @@ def get_app_address(app_id: int) -> str:
     return data['transaction']['inner-txns'][0]['sender']
 
 
+def get_address_app_ids(address: str) -> list[int]:
+    data = indexer_client.account_info(address=address)
+    return [app_state['id'] for app_state in data['account']['apps-local-state']]
+
+
 def is_opted_in(address: str, asa_id: int) -> bool:
     account_info = algod_client.account_info(address)
     for account in account_info.get('assets', []):
