@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from dataclasses import dataclass
 
@@ -10,11 +9,10 @@ from flex import db
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_current_round
 from flex.data.assets import get_asset
 from flex.data.lp_tokens import get_lp_token_by_id
-from flex.data.tinyman import get_tinyman_pool_info
-from flex.data.vestige import DexProvider, get_asset_price
+from flex.providers.tinyman import get_tinyman_pool_info
+from flex.providers.vestige import DexProvider, get_asset_price
 from flex.db.model.blockchain import LpToken
-from flex.db.model.liquidity_pools import LpState
-
+from flex.db.model.liquidity_pools import LpState, LpTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -189,24 +187,8 @@ def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     if lp_state is None:
         lp_state = create_lp_state_by_lp_token_id(lp_token_id)
     elif get_current_round() - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
-        lp_state = update_lp_state_by_lp_token_id(lp_token_id)
+        lp_state = update_lp_state_from_lp_balances(lp_state)
     return lp_state
-
-
-def update_all_lp_states() -> list[LpState]:
-    lp_states = db.lp_states.get_all()
-    logger.debug(f'Updating {len(lp_states)} LP states...')
-
-    updated_lp_states = []
-    for lp_state in lp_states:
-        try:
-            updated_lp_state = update_lp_state_from_lp_balances(lp_state)
-            updated_lp_states.append(updated_lp_state)
-        except Exception as e:
-            logger.error(f'Error updating LP state {lp_state.id}: {e}', exc_info=True)
-
-    logger.debug(f'Updated {len(updated_lp_states)} LP states')
-    return updated_lp_states
 
 
 def create_lp_states() -> list[LpState]:
@@ -222,16 +204,55 @@ def create_lp_states() -> list[LpState]:
     return new_lp_states
 
 
-async def update_lp_states_loop() -> None:
-    if not settings.sync_liquidity_pools:
-        return
-    logger.info('LOOP Updating LP states...')
+async def update_lp_states_with_transactions(
+        transactions: list[LpTransaction]
+) -> list[LpState]:
+    if len(transactions) == 0:
+        return []
 
-    while True:
+    updated_lp_states = {}
+    for tx in transactions:
+        lp_state = updated_lp_states.get(tx.pool_address)
+        if lp_state is None:
+            # TODO: cache
+            lp_state = db.lp_states.get_one(address=tx.pool_address)
+            if lp_state is None:
+                logger.error(f'LP state not found for address {tx.pool_address}')
+                continue
+            updated_lp_states[tx.pool_address] = lp_state
+
+        if tx.asa_id == lp_state.token_id:
+            lp_state.total_tokens_micros += -tx.delta_amount_micros
+        elif tx.asa_id == lp_state.asset1_id:
+            lp_state.asset1_reserve_micros += tx.delta_amount_micros
+        elif tx.asa_id == lp_state.asset2_id:
+            lp_state.asset2_reserve_micros += tx.delta_amount_micros
+        else:
+            logger.error(f'Invalid tx {tx.id} ASA ID {tx.asa_id} for LP state {lp_state.id}')
+            continue
+
+        lp_state.last_updated_round = tx.confirmed_round
+
+    lp_states = list(updated_lp_states.values())
+    for lp_state in lp_states:
+        db.lp_states.update(lp_state)
+    db.lp_transactions.create_many(transactions)
+
+    logger.info(f'Updated {len(updated_lp_states)} LP states with {len(transactions)} transactions')
+    return lp_states
+
+
+def update_all_lp_states_linear() -> list[LpState]:
+    lp_states = db.lp_states.get_all()
+    logger.debug(f'Updating {len(lp_states)} LP states...')
+
+    updated_lp_states = []
+    for lp_state in lp_states:
         try:
-            updated_lp_states = update_all_lp_states()
-            logger.info(f'LOOP Updated {len(updated_lp_states)} LP states')
+            updated_lp_state = update_lp_state_from_lp_balances(lp_state)
+            updated_lp_states.append(updated_lp_state)
         except Exception as e:
-            logger.error(f'Error updating LP states: {e}', exc_info=True)
+            logger.error(f'Error updating LP state {lp_state.id}: {e}', exc_info=True)
 
-        await asyncio.sleep(30)
+    logger.debug(f'Updated {len(updated_lp_states)} LP states')
+    return updated_lp_states

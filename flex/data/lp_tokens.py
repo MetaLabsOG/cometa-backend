@@ -1,7 +1,7 @@
 import requests
 
 from flex import db
-from flex.data.vestige import BASE_URL
+from flex.providers.vestige import BASE_URL
 from flex.db.model.blockchain import LpToken
 from flex.meta_error import MetaError
 

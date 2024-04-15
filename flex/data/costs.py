@@ -6,8 +6,8 @@ from flex.blockchain.base import BLOCKS_IN_A_YEAR
 from flex.data.pools import get_pool_info_by_id
 from flex.db.model.pool_states import UserState, PoolState
 from flex.db.model.pools import PoolType
-from flex.data.tinyman import get_tinyman_pool_info
-from flex.data.vestige import get_asset_price_usd, get_algo_price_usd
+from flex.providers.tinyman import get_tinyman_pool_info
+from flex.providers.vestige import get_asset_price_usd, get_algo_price_usd
 from flex.db.model.priced import UserCost, PoolStateCost, UserPoolCost
 
 
