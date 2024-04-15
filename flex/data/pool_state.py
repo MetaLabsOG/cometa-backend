@@ -60,12 +60,12 @@ async def get_or_create_pool_state(pool_id: int) -> PoolState:
     return pool_state
 
 
-async def update_pools_with_transactions(
+async def update_pool_states_with_transactions(
         transactions: list[PoolTransaction],
         pool_states: list[PoolState] | None = None
 ) -> list[PoolState]:
     if len(transactions) == 0:
-        return pool_states
+        return pool_states or []
 
     user_state_by_address = {}
     pool_state_by_id = {} if pool_states is None else {pool.pool_id: pool for pool in pool_states}
@@ -131,7 +131,7 @@ async def update_all_pool_states() -> list[PoolState]:
 
     new_transactions = sorted(new_transactions, key=lambda tx: tx.confirmed_round)
     logger.info(f'Found {len(new_transactions)} new pool transactions')
-    return await update_pools_with_transactions(new_transactions, pool_states)
+    return await update_pool_states_with_transactions(new_transactions, pool_states)
 
 
 async def update_all_pool_states_linear() -> list[PoolState]:
@@ -160,7 +160,7 @@ async def update_pool_state(pool_state: PoolState) -> PoolState:
         logger.debug(f'No new transactions for pool {pool_state.pool_id}')
         return pool_state
 
-    updated_pool_states = await update_pools_with_transactions(new_transactions, pool_states=[pool_state])
+    updated_pool_states = await update_pool_states_with_transactions(new_transactions, pool_states=[pool_state])
     return updated_pool_states[0]
 
 

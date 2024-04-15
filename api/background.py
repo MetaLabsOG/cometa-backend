@@ -5,19 +5,17 @@ from contextlib import contextmanager
 from datetime import datetime
 from time import sleep
 
-from api.migrations import update_pool_start_end_dates
 from api.stats import save_snapshot
 from blockchain.node import get_current_round
 from core.cometa import calculate_tvl_for_type, get_pool_state
 from core.db.cometa_users import cometa_users, update_user_pools
-from core.db.contracts import get_contracts_by_type, update_contract, get_contracts, get_all_pool_contracts
+from core.db.contracts import get_contracts_by_type, update_contract, get_all_pool_contracts
 from core.db.model import PoolStatus, PoolInfo, PoolType
 from core.db.pools import pools_db
 from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
 from core.util import strip_version, parse_bignum
 from env import settings
-from flex.data.lp_states import update_lp_states_loop
 from flex.sync_pools import sync_pools_loop
 
 spawn = multiprocessing.get_context('spawn')
@@ -178,7 +176,6 @@ def run_background():
         await asyncio.gather(
             update_contracts_worker(),
             # update_pools_info_worker()
-            update_lp_states_loop(),
             sync_new_pools()
         )
 
