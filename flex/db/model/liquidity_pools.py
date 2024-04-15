@@ -16,16 +16,36 @@ class LpStateInfo:
     dex_provider: str
     address: str
 
-    # TODO: could not fit into MongoDB ???
+    asset1_reserve_micros: int
+    asset2_reserve_micros: int
+    issued_tokens_micros: int
+
+    last_updated_round: int
+    swap_fee_apr: float | None = None
+
+
+@dataclass_json
+@dataclass
+class PricedLpStateInfo:
+    id: int
+    token_id: int
+    asset1_id: int
+    asset2_id: int
+    dex_provider: str
+    address: str
+
     asset1_reserve_micros: int
     asset2_reserve_micros: int
     issued_tokens_micros: int
 
     last_updated_round: int
 
-    asset1_reserve: float | None = None
-    asset2_reserve: float | None = None
-    issued_tokens: float | None = None
+    asset1_reserve: float
+    asset2_reserve: float
+    issued_tokens: float
+
+    token_price_algo: float
+    token_price_usd: float
 
     swap_fee_apr: float | None = None
 
@@ -39,6 +59,7 @@ class LpState(BaseEntity['LpState']):
     dex_provider: str
     address: str
 
+    # TODO: could not fit into MongoDB ???
     asset1_reserve_micros: int
     asset2_reserve_micros: int
     total_tokens_micros: int

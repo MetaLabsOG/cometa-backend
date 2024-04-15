@@ -43,11 +43,11 @@ class Settings(BaseSettings):
     old_pool_end_date_days_ago: int = 30
     sync_lag_max_rounds: int = 1000  # 1 hour
 
-    contracts_cache_ttl: int = 120
-    algo_price_ttl: int = 15
-    asset_prices_ttl: int = 30
+    contracts_cache_ttl: int = 30
+    algo_price_ttl: int = 5
+    asset_prices_ttl: int = 60
     lp_token_prices_ttl: int = 60
-    total_tvl_ttl: int
+    total_tvl_ttl: int = 30
 
     lp_state_ttl_rounds: int = 40  # 2 minutes
 
