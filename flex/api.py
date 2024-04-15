@@ -1,19 +1,21 @@
 import logging
 import secrets
+from dataclasses import dataclass
 
+from dataclasses_json import dataclass_json
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from env import settings
 from flex import db
-from flex.data.assets import get_asset
+from flex.data.assets import get_asset, micros_to_amount
+from flex.db.model.liquidity_pools import LpState
 from flex.migrations.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.lp_states import fetch_priced_lp_state_by_token, PricedLpState, get_lp_state_by_lp_token_id
 from flex.data.lp_tokens import get_lp_token_by_id
 from flex.data.pools import get_pool_info_by_id
 from flex.db.model.blockchain import LpToken, Asset
-from flex.db.model.liquidity_pools import LpStateInfo
 from flex.db.model.pool_states import UserStateInfo, PoolStateInfo
 from flex.db.model.pools import PoolType, PoolInfo
 from flex.db.model.priced import UserCost, PoolStateCost
@@ -106,6 +108,48 @@ async def migrate_pools_from_contracts(password: str) -> dict:
 
 # LP API
 
+@dataclass_json
+@dataclass
+class LpStateInfo:
+    id: int
+    token_id: int
+    asset1_id: int
+    asset2_id: int
+    dex_provider: str
+    address: str
+
+    # TODO: could not fit into MongoDB ???
+    asset1_reserve_micros: int
+    asset2_reserve_micros: int
+    issued_tokens_micros: int
+
+    asset1_reserve: float
+    asset2_reserve: float
+    issued_tokens: float
+
+    last_updated_round: int
+    swap_fee_apr: float | None = None
+
+
+def lp_state_to_info(lp_state: LpState) -> LpStateInfo:
+    return LpStateInfo(
+        id=lp_state.id,
+        token_id=lp_state.token_id,
+        asset1_id=lp_state.asset1_id,
+        asset2_id=lp_state.asset2_id,
+        dex_provider=lp_state.dex_provider,
+        address=lp_state.address,
+        asset1_reserve_micros=lp_state.asset1_reserve_micros,
+        asset2_reserve_micros=lp_state.asset2_reserve_micros,
+        issued_tokens_micros=lp_state.total_tokens_micros,
+        asset1_reserve=micros_to_amount(lp_state.asset1_id, lp_state.asset1_reserve_micros),
+        asset2_reserve=micros_to_amount(lp_state.asset2_id, lp_state.asset2_reserve_micros),
+        issued_tokens=micros_to_amount(lp_state.token_id, lp_state.total_tokens_micros),
+        last_updated_round=lp_state.last_updated_round,
+        swap_fee_apr=lp_state.swap_fee_apr
+    )
+
+
 @router.post('/lp/token', tags=['LP'])
 async def get_lp_token_info(lp_token_id: int) -> LpToken:
     return get_lp_token_by_id(lp_token_id)
@@ -120,30 +164,35 @@ async def get_priced_lp_state_by_token_id(lp_token_id: int) -> PricedLpState:
 @router.post('/lp/state/', tags=['LP'])
 async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
     lp_state = get_lp_state_by_lp_token_id(lp_token_id)
-    return lp_state.to_info()
+    return lp_state_to_info(lp_state)
 
 
 @router.post('/lp/states', tags=['LP'])
 async def get_lp_states_by(
         max_count: int | None = None,
         lp_token_id: int | None = None,
-        dex_provider: DexProvider = DexProvider.ANY
+        dex_provider: DexProvider = DexProvider.ANY,
+        asset_id: int | None = None
 ) -> list[LpStateInfo]:
     query_dict = {}
     if lp_token_id is not None:
         query_dict['token_id'] = lp_token_id
-    if dex_provider is not None:
+    if dex_provider != DexProvider.ANY:
         query_dict['dex_provider'] = dex_provider
+    if asset_id is not None:
+        query_dict['$or'] = [{'asset1_id': asset_id}, {'asset2_id': asset_id}]
     lp_states = db.lp_states.get_many(query_dict)
+
     if max_count is not None:
         lp_states = lp_states[:max_count]
-    return [state.to_info() for state in lp_states]
+
+    return [lp_state_to_info(state) for state in lp_states]
 
 
 @router.post('/info/lp/state/', tags=['LP'])
 async def handle_get_lp_state_by_lp_token_id_OLD(lp_token_id: int) -> LpStateInfo:
     lp_state = get_lp_state_by_lp_token_id(lp_token_id)
-    return lp_state.to_info()
+    return lp_state_to_info(lp_state)
 
 
 # ASSETS API

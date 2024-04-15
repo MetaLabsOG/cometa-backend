@@ -18,3 +18,11 @@ def get_asset(asset_id: int) -> Asset:
 
 def get_asset_info(asset_id: int) -> AssetInfo:
     return get_asset(asset_id).to_info()
+
+
+def micros_to_amount(asset_id: int, amount_micros: int) -> float:
+    return get_asset(asset_id).micros_to_amount(amount_micros)
+
+
+def amount_to_micros(asset_id: int, amount: float) -> int:
+    return get_asset(asset_id).amount_to_micros(amount)
