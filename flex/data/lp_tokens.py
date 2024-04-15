@@ -1,7 +1,9 @@
 import logging
 
 from flex import db
+from flex.blockchain.info import get_address_app_ids
 from flex.providers.pact import get_pact_pool_info
+from flex.providers.tinyman import get_tinyman_pool_info
 from flex.providers.vestige import DexProvider, fetch_lp_token
 from flex.db.model.blockchain import LpToken
 from flex.meta_error import MetaError
@@ -14,31 +16,33 @@ def fetch_lp_token_strong(lp_token_id: int, asset1_id: int, asset2_id: int, dex_
     # TODO: refactor
     if dex_provider == DexProvider.PACT:
         pact_pool = get_pact_pool_info(asset1_id, asset2_id, lp_token_id)
-        if pact_pool is None:
-            logger.error(f'Pact pool for assets {asset1_id} and {asset2_id} not found')
-            return fetch_lp_token(lp_token_id, asset1_id, asset2_id, dex_provider)
+        if pact_pool is not None:
+            return LpToken(
+                id=lp_token_id,
+                pool_id=pact_pool.app_id,
+                asset1_id=asset1_id,
+                asset2_id=asset2_id,
+                address=pact_pool.address,
+                dex_provider=dex_provider
+            )
+        logger.error(f'Pact pool for assets {asset1_id} and {asset2_id} not found')
 
-        return LpToken(
-            id=lp_token_id,
-            pool_id=pact_pool.app_id,
-            asset1_id=asset1_id,
-            asset2_id=asset2_id,
-            address=pact_pool.address,
-            dex_provider=dex_provider
-        )
-    else:
-        return fetch_lp_token(lp_token_id, asset1_id, asset2_id, dex_provider)
+    if dex_provider == DexProvider.TINYMAN_V2:
+        try:
+            tinyman_pool = get_tinyman_pool_info(asset1_id, asset2_id)
+            app_ids = get_address_app_ids(tinyman_pool.address)
+            return LpToken(
+                id=lp_token_id,
+                pool_id=app_ids[0],
+                asset1_id=asset1_id,
+                asset2_id=asset2_id,
+                address=tinyman_pool.address,
+                dex_provider=dex_provider
+            )
+        except Exception as e:
+            logger.error(f'Tinyman pool for assets {asset1_id} and {asset2_id} not found: {e}')
 
-    # elif dex_provider == DexProvider.TINYMAN_V2:
-    #     tinyman_pool = get_tinyman_pool_info(asset1_id, asset2_id)
-    #     return LpToken(
-    #         id=lp_token_id,
-    #         pool_id=None,
-    #         asset1_id=asset1_id,
-    #         asset2_id=asset2_id,
-    #         address=tinyman_pool.address,
-    #         dex_provider=dex_provider
-    #     )
+    return fetch_lp_token(lp_token_id, asset1_id, asset2_id, dex_provider)
 
 
 def fetch_lp_token_by_id(lp_token_id: int) -> LpToken:
