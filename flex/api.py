@@ -23,6 +23,13 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def check_password(password: str) -> None:
+    if not secrets.compare_digest(settings.api_password, password):
+        raise HTTPException(status_code=401, detail='Invalid password')
+
+
+# POOLS API
+
 @router.get('/pool/', tags=['Pools 2.0'])
 async def get_pool_by_id(pool_id: int) -> PoolInfo:
     return get_pool_info_by_id(pool_id)
@@ -88,46 +95,50 @@ async def get_user_pool_states_cost_by_address(address: str) -> UserCost:
 
 
 @router.post('/pools/migrate', tags=['Pools 2.0'])
-async def migrate_pools_from_contracts() -> dict:
+async def migrate_pools_from_contracts(password: str) -> dict:
+    check_password(password)
     return await all_contracts_to_pools()
 
 
-# INFO API
+# LP API
 
-@router.post('/info/lp/token', tags=['Info'])
+@router.post('/lp/token', tags=['LP'])
 async def get_lp_token_info(lp_token_id: int) -> LpToken:
     return get_lp_token_by_id(lp_token_id)
 
 
-@router.post('/info/lp/priced', tags=['Info'])
+@router.post('/lp/state/priced', tags=['LP'])
 async def get_priced_lp_state_by_token_id(lp_token_id: int) -> PricedLpState:
     lp_token = get_lp_token_by_id(lp_token_id)
     return fetch_priced_lp_state_by_token(lp_token)
 
 
-@router.post('/info/lp/state/', tags=['Info'])
+@router.post('/lp/state/', tags=['LP'])
 async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
     lp_state = get_lp_state_by_lp_token_id(lp_token_id)
     return lp_state.to_info()
 
 
-@router.post('/info/lp/state/all', tags=['Info'])
+@router.post('/lp/states', tags=['LP'])
 async def get_all_lp_states() -> list[LpStateInfo]:
     lp_states = db.lp_states.get_all()
     return [state.to_info() for state in lp_states]
 
 
-@router.post('/info/asset', tags=['Info'])
+@router.post('/info/lp/state/', tags=['LP'])
+async def handle_get_lp_state_by_lp_token_id_OLD(lp_token_id: int) -> LpStateInfo:
+    lp_state = get_lp_state_by_lp_token_id(lp_token_id)
+    return lp_state.to_info()
+
+
+# ASSETS API
+
+@router.post('/asset', tags=['Assets'])
 async def get_asset_info_by_id(asset_id: int) -> Asset:
     return get_asset(asset_id)
 
 
 # DB API
-
-def check_password(password: str) -> None:
-    if not secrets.compare_digest(settings.api_password, password):
-        raise HTTPException(status_code=401, detail='Invalid password')
-
 
 class DbGetParams(BaseModel):
     collection_name: str
