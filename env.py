@@ -41,12 +41,15 @@ class Settings(BaseSettings):
 
     block_time: float = 2.7
     old_pool_end_date_days_ago: int = 30
+    sync_lag_max_rounds: int = 15000  # 12 hours
 
     contracts_cache_ttl: int = 120
     algo_price_ttl: int = 15
     asset_prices_ttl: int = 30
     lp_token_prices_ttl: int = 60
     total_tvl_ttl: int
+
+    lp_state_ttl_rounds: int = 40  # 2 minutes
 
     farm_creation_fee: int
     farm_flat_algo_creation_fee: int

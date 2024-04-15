@@ -9,7 +9,7 @@ from env import settings
 from flex import db
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_current_round
 from flex.data.assets import get_asset
-from flex.data.lp_tokens import get_lp_token_info_by_id
+from flex.data.lp_tokens import get_lp_token_by_id
 from flex.data.tinyman import get_tinyman_pool_info
 from flex.data.vestige import DexProvider, get_asset_price
 from flex.db.model.blockchain import LpToken
@@ -79,7 +79,7 @@ def create_lp_state_with_price(
 
 
 def priced_lp_state_from_lp_balances(lp_token: LpToken) -> PricedLpState:
-    lp_state = lp_state_from_lp_balances(lp_token)
+    lp_state = create_lp_state_from_lp_balances(lp_token)
     return create_lp_state_with_price(
         id=lp_token.pool_id,
         token_id=lp_token.id,
@@ -113,13 +113,13 @@ def fetch_priced_lp_state_by_token(lp_token: LpToken) -> PricedLpState:
 
 @cached(cache=TTLCache(maxsize=1024, ttl=30))
 def get_priced_lp_state_by_id(lp_token_id: int) -> PricedLpState:
-    lp_token = get_lp_token_info_by_id(lp_token_id)
+    lp_token = get_lp_token_by_id(lp_token_id)
     return fetch_priced_lp_state_by_token(lp_token)
 
 
 # NO PRICE
 
-def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
+def create_lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
     if lp_token.asset1_id == 0 or lp_token.asset2_id == 0:
         balances = get_address_assets_with_algo(lp_token.address)
     else:
@@ -132,7 +132,7 @@ def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
     lp_token_total_supply_micros = get_asset(lp_token.id).total_supply_micros
     issued_lp_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
-    return LpState(
+    lp_state = LpState(
         id=lp_token.pool_id,
         token_id=lp_token.id,
         asset1_id=lp_token.asset1_id,
@@ -144,9 +144,16 @@ def lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
         total_tokens_micros=issued_lp_tokens_micros,
         last_updated_round=get_current_round(),
     )
+    db.lp_states.create(lp_state)
+    return lp_state
 
 
-def update_from_lp_balances(lp_state: LpState) -> LpState:
+def create_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
+    lp_token = get_lp_token_by_id(lp_token_id)
+    return create_lp_state_from_lp_balances(lp_token)
+
+
+def update_lp_state_from_lp_balances(lp_state: LpState) -> LpState:
     if lp_state.asset1_id == 0 or lp_state.asset2_id == 0:
         balances = get_address_assets_with_algo(lp_state.address)
     else:
@@ -154,14 +161,35 @@ def update_from_lp_balances(lp_state: LpState) -> LpState:
 
     lp_state.asset1_reserve_micros = balances[lp_state.asset1_id]
     lp_state.asset2_reserve_micros = balances[lp_state.asset2_id]
-    lp_state.lp_token_reserve_micros = balances[lp_state.token_id]
 
+    lp_token_reserve_micros = balances[lp_state.token_id]
     lp_token_total_supply_micros = get_asset(lp_state.token_id).total_supply_micros
-    lp_state.total_tokens_micros = lp_token_total_supply_micros - lp_state.lp_token_reserve_micros
+    lp_state.total_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
     lp_state.last_updated_round = get_current_round()
 
-    lp_state = db.lp_states.update(lp_state)
+    db.lp_states.update(lp_state)
+    return lp_state
+
+
+def update_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
+    lp_token = get_lp_token_by_id(lp_token_id)
+    # TODO: optimize/cache lp_state fetch (probably store locally)
+    lp_state = db.lp_states.get_one(token_id=lp_token_id)
+    if lp_state is None:
+        lp_state = create_lp_state_from_lp_balances(lp_token)
+    else:
+        lp_state = update_lp_state_from_lp_balances(lp_state)
+    return lp_state
+
+
+def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
+    # TODO: optimize/cache lp_state fetch (probably store locally)
+    lp_state = db.lp_states.get_one(token_id=lp_token_id)
+    if lp_state is None:
+        lp_state = create_lp_state_by_lp_token_id(lp_token_id)
+    elif get_current_round() - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
+        lp_state = update_lp_state_by_lp_token_id(lp_token_id)
     return lp_state
 
 
@@ -172,7 +200,7 @@ def update_all_lp_states() -> list[LpState]:
     updated_lp_states = []
     for lp_state in lp_states:
         try:
-            updated_lp_state = update_from_lp_balances(lp_state)
+            updated_lp_state = update_lp_state_from_lp_balances(lp_state)
             updated_lp_states.append(updated_lp_state)
         except Exception as e:
             logger.error(f'Error updating LP state {lp_state.id}: {e}', exc_info=True)
@@ -188,9 +216,7 @@ def create_lp_states() -> list[LpState]:
         if db.lp_states.exists(token_id=farming_pool.stake_token.id):
             continue
 
-        lp_token = get_lp_token_info_by_id(farming_pool.stake_token.id)
-        lp_state = lp_state_from_lp_balances(lp_token)
-        db.lp_states.create(lp_state)
+        lp_state = create_lp_state_by_lp_token_id(farming_pool.stake_token.id)
         new_lp_states.append(lp_state)
 
     return new_lp_states

@@ -112,28 +112,35 @@ def is_sync_delayed(current_round: int | None = None) -> bool:
 
 
 async def sync_pools_loop():
-    logger.info('\n\nEnter the pools sync loop.\n\n')
-    sync_state = get_sync_state()
+    current_round = get_current_round()
 
-    if sync_state.last_round is None:
-        logger.info('\n\nSyncing pools for the first time.\n\n')
+    logger.info(f'\n\nStart pools sync loop. Current round = {current_round}\n\n')
+
+    sync_state = get_sync_state()
+    sync_lag = current_round - sync_state.last_round if sync_state.last_round is not None else None
+
+    if sync_state.last_round is None or sync_lag > settings.sync_lag_max_rounds:
+        logger.info('\n\nSyncing ALL pools in order first.')
+        logger.info(f'Last sync round = {sync_state.last_round}, sync lag = {sync_lag} rounds.\n\n')
+
         await update_all_pool_states_linear()
 
         current_round = get_current_round()
-
         logger.info(f'\n\nAnother, shorter loop, starting from round {current_round}\n\n')
         await update_all_pool_states_linear()
 
         sync_state.last_round = current_round
+        db.sync_states.update(sync_state)
         logger.info(f'\n\nPools synced up to round {current_round}.\n\n')
 
+    logger.info('\n\nStarting the main BLOCKCHAIN sync loop.\n\n')
     while True:
         next_round = sync_state.last_round + 1
 
         try:
             block_dict = indexer_client.block_info(round_num=next_round)
         except Exception as e:
-            logger.error(f'#{next_round} NOT HERE SORRY: {e}')
+            logger.debug(f'#{next_round} NOT HERE SORRY: {e}')
             await asyncio.sleep(1)
             continue
 
