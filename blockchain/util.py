@@ -22,4 +22,4 @@ def date_from_block(round_num: int, current_round_num: int, current_date: dateti
 
     round_info = indexer_client.block_info(round_num=round_num, header_only=True)
     timestamp = round_info['timestamp']
-    return datetime.utcfromtimestamp(timestamp)
+    return datetime.fromtimestamp(timestamp)

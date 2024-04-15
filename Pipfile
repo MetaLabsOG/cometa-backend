@@ -10,6 +10,7 @@ dataclasses-json = "*"
 discord-webhook = "*"
 fastapi = "*"
 tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git"}
+pactsdk = "*"
 py-algorand-sdk = "*"
 pyairtable = "*"
 pydantic = "*"
