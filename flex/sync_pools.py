@@ -172,7 +172,8 @@ async def sync_pools_loop():
         logger.info('\n\nSyncing ALL pool states in order first.')
         logger.info(f'Last sync round = {sync_state.last_round}, sync lag = {sync_lag} rounds.\n\n')
 
-        await update_all_pool_states_linear()
+        # TODO: uncomment
+        # await update_all_pool_states_linear()
 
         current_round = get_current_round()
         logger.info(f'\n\nAnother, shorter loop, starting from round {current_round}\n\n')
