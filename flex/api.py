@@ -17,6 +17,7 @@ from flex.db.model.liquidity_pools import LpStateInfo
 from flex.db.model.pool_states import UserStateInfo, PoolStateInfo
 from flex.db.model.pools import PoolType, PoolInfo
 from flex.db.model.priced import UserCost, PoolStateCost
+from flex.providers.vestige import DexProvider
 from flex.sync_pools import get_sync_pool_state_by_id, get_sync_user_state_by_address
 
 router = APIRouter()
@@ -53,11 +54,11 @@ async def get_pools_by(type: PoolType = PoolType.ANY, stake_token_id: int | None
     if stake_token_id is not None:
         query_dict['stake_token.id'] = stake_token_id
     if type == PoolType.FARMING:
-        return [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
+        return [pool.to_info() for pool in db.farming_pools.get_many_by(**query_dict)]
     elif type == PoolType.STAKING:
-        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)]
+        return [pool.to_info() for pool in db.staking_pools.get_many_by(**query_dict)]
     else:
-        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)] + [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
+        return [pool.to_info() for pool in db.staking_pools.get_many_by(**query_dict)] + [pool.to_info() for pool in db.farming_pools.get_many_by(**query_dict)]
 
 
 @router.post('/pools/state/', tags=['Pools 2.0'])
@@ -123,8 +124,19 @@ async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
 
 
 @router.post('/lp/states', tags=['LP'])
-async def get_all_lp_states() -> list[LpStateInfo]:
-    lp_states = db.lp_states.get_all()
+async def get_lp_states_by(
+        max_count: int | None = None,
+        lp_token_id: int | None = None,
+        dex_provider: DexProvider = DexProvider.ANY
+) -> list[LpStateInfo]:
+    query_dict = {}
+    if lp_token_id is not None:
+        query_dict['token_id'] = lp_token_id
+    if dex_provider is not None:
+        query_dict['dex_provider'] = dex_provider
+    lp_states = db.lp_states.get_many(query_dict)
+    if max_count is not None:
+        lp_states = lp_states[:max_count]
     return [state.to_info() for state in lp_states]
 
 
@@ -159,7 +171,7 @@ async def get_entities_by_dict_query(
     collection = db.get_collection_by_name(params.collection_name)
     if collection is None:
         raise HTTPException(status_code=404, detail=f'No such collection: {params.collection_name}!')
-    entities = collection.get_many(**params.query)
+    entities = collection.get_many(params.query)
     entity_dicts = [e.to_dict() for e in entities]
     if params.reverse:
         entity_dicts.reverse()
