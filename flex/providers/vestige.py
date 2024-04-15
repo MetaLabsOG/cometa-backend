@@ -20,6 +20,7 @@ class DexProvider(str, Enum):
     PACT = 'PT'
     TINYMAN = 'T2'
     TINYMAN_V2 = 'T3'
+    ANY = 'ANY'
 
 
 DEX_PROVIDER_BY_NAME = {

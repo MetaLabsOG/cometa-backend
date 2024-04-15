@@ -509,7 +509,7 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 
 @app.patch('/lottery/claim', tags=['Lottery'])
 async def claim_prize_nft_for_swap(wallet: str) -> None:
-    wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
+    wins = lottery_draws.get_many_by(**{'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
 
     logger.info(f'Lottery wins for {wallet}: {wins}')
 
