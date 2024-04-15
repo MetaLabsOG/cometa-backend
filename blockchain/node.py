@@ -13,7 +13,7 @@ def init_algod_client() -> AlgodClient:
     return AlgodClient(settings.algod_token, settings.algod_address,
                        headers={
                            'User-Agent': 'py-algorand-sdk',
-                           'X-API-Key': settings.algod_token
+                           'x-algo-api-token': settings.algod_token
                        })
 
 

@@ -65,6 +65,7 @@ async def calljs(cmd: str, **params):
     response = json.loads(outp.decode('utf-8'))
 
     if "error" in response:
+        logger.error(f'js error: {response["error"]}')
         logger.error(f'js stack trace: {response["stack"]}')
         raise Exception(response["error"])
     
