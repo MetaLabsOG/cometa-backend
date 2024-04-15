@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     block_time: float = 2.7
     old_pool_end_date_days_ago: int = 30
-    sync_lag_max_rounds: int = 15000  # 12 hours
+    sync_lag_max_rounds: int = 1000  # 1 hour
 
     contracts_cache_ttl: int = 120
     algo_price_ttl: int = 15

@@ -1,8 +1,6 @@
 import requests
 
 from flex import db
-from flex.providers.pact import get_pact_pool_info
-from flex.providers.tinyman import get_tinyman_pool_info
 from flex.providers.vestige import BASE_URL, DexProvider, fetch_lp_token
 from flex.db.model.blockchain import LpToken
 from flex.meta_error import MetaError
