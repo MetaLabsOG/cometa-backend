@@ -357,9 +357,11 @@ async def get_contracts(
     address_app_ids = []
     if settings.return_all_user_pools and include_address_pools is not None:
         try:
-            # address_app_ids = get_address_app_ids(include_address_pools, only_active=True)
             user_state = await get_sync_user_state_by_address(include_address_pools)
-            address_app_ids = [pool_state.pool_id for pool_state in user_state.pool_by_address.values()]
+            if user_state is not None:
+                address_app_ids = [pool_state.pool_id for pool_state in user_state.pool_by_address.values()]
+            else:
+                address_app_ids = get_address_app_ids(include_address_pools, only_active=True)
         except Exception as e:
             logger.error(f'Error fetching app ids for {include_address_pools}: {e}', exc_info=True)
 
