@@ -31,15 +31,16 @@ from blockchain.util import date_from_block
 from core.cometa import fetch_user_pools
 from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
-from core.db.contracts import ContractInfo, get_contract, add_contract, get_contracts_by_type, remove_contract, \
+from core.db.contracts import ContractInfo, get_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract, get_all_pool_contracts, insert_contract
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
-from flex import db
-from flex.data.contracts import create_pool_from_contract
+from flex.migrations.contracts import create_pool_from_contract
+from flex.migrations.fix_dex_providers import fix_dex_names
+from flex.providers.vestige import get_dex_tag_by_name
 from flex.sync_pools import get_sync_user_state_by_address
 
 VERSION = '1.9.3'
@@ -156,6 +157,9 @@ def create_contract_with(type: str, id: int, version: str, description: str, met
     cache = metadata.get('cache')
     metadata_fields = parse_cache(cache)
     current_date = datetime.now()
+    if 'dex' in metadata:
+        metadata['dex'] = get_dex_tag_by_name(metadata['dex'])
+
     contract = ContractInfo(
         type=type,
         id=id,
@@ -572,9 +576,7 @@ if __name__ == "__main__":
     argv = sys.argv[1:]
 
     if settings.migrate:
-        logger.info('Migrate: removing old assets.')
-        res = db.assets.clear()
-        logger.info(f'Removed {res} assets.')
+        fix_dex_names()
 
     if settings.enable_js:
         with start_js_interop_server():
