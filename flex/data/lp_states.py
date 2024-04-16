@@ -5,7 +5,7 @@ from cachetools import cached, TTLCache
 from env import settings
 from flex import db
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_current_round
-from flex.data.assets import get_asset
+from flex.data.assets import get_full_asset
 from flex.data.lp_tokens import get_lp_token_by_id
 from flex.meta_error import MetaError
 from flex.providers.vestige import get_full_asset_price, get_algo_price_usd
@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 def lp_state_to_priced_info(lp_state: LpState) -> PricedLpStateInfo:
-    asset1 = get_asset(lp_state.asset1_id)
-    asset2 = get_asset(lp_state.asset2_id)
-    token_asset = get_asset(lp_state.token_id)
+    asset1 = get_full_asset(lp_state.asset1_id)
+    asset2 = get_full_asset(lp_state.asset2_id)
+    token_asset = get_full_asset(lp_state.token_id)
 
     asset1_reserve = asset1.micros_to_amount(lp_state.asset1_reserve_micros)
     asset2_reserve = asset2.micros_to_amount(lp_state.asset2_reserve_micros)
@@ -84,7 +84,7 @@ def create_lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
     asset2_reserve_micros = balances[lp_token.asset2_id]
     lp_token_reserve_micros = balances[lp_token.id]
 
-    lp_token_total_supply_micros = get_asset(lp_token.id).total_supply_micros
+    lp_token_total_supply_micros = get_full_asset(lp_token.id).total_supply_micros
     issued_lp_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
     lp_state = LpState(
@@ -118,7 +118,7 @@ def update_lp_state_from_lp_balances(lp_state: LpState) -> LpState:
     lp_state.asset2_reserve_micros = balances[lp_state.asset2_id]
 
     lp_token_reserve_micros = balances[lp_state.token_id]
-    lp_token_total_supply_micros = get_asset(lp_state.token_id).total_supply_micros
+    lp_token_total_supply_micros = get_full_asset(lp_state.token_id).total_supply_micros
     lp_state.total_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
     lp_state.last_updated_round = get_current_round()

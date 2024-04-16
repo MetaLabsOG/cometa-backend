@@ -1,3 +1,4 @@
+from abc import ABC
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cached_property
@@ -48,13 +49,11 @@ class LpToken(BaseEntity['LpToken']):
     updated: datetime = field(default_factory=datetime.now)
 
 
-@dataclass_json
-@dataclass
-class AssetInfo:
+class AssetBase(ABC):
+    id: int
     name: str
     decimals: int
     unit_name: str
-    id: int
 
     @cached_property
     def amount_multiplier(self) -> int:
@@ -69,11 +68,32 @@ class AssetInfo:
 
 @dataclass_json
 @dataclass
-class Asset(BaseEntity['Asset']):
+class AssetInfo(AssetBase):
     name: str
     decimals: int
     unit_name: str
-    creator_address: str
+    id: int
+
+
+@dataclass_json
+@dataclass
+class AssetDetails(AssetBase):
+    id: int
+    name: str
+    unit_name: str
+    decimals: int
+    creator: str
+    reserve: str
+
+
+@dataclass_json
+@dataclass
+class Asset(BaseEntity['Asset'], AssetBase):
+    name: str
+    decimals: int
+    unit_name: str
+    creator: str
+    reserve: str
     total_supply: float
     id: int
 
@@ -84,22 +104,22 @@ class Asset(BaseEntity['Asset']):
     def total_supply_micros(self) -> int:
         return self.amount_to_micros(self.total_supply)
 
-    @cached_property
-    def amount_multiplier(self) -> int:
-        return 10 ** self.decimals
-
-    def amount_to_micros(self, amount: float) -> int:
-        return int(amount * self.amount_multiplier)
-
-    def micros_to_amount(self, micros: int) -> float:
-        return micros / self.amount_multiplier
-
     def to_info(self) -> AssetInfo:
         return AssetInfo(
             name=self.name,
             decimals=self.decimals,
             unit_name=self.unit_name,
             id=self.id
+        )
+
+    def to_details(self) -> AssetDetails:
+        return AssetDetails(
+            id=self.id,
+            name=self.name,
+            unit_name=self.unit_name,
+            decimals=self.decimals,
+            creator=self.creator,
+            reserve=self.reserve
         )
 
 
