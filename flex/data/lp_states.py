@@ -6,8 +6,9 @@ from env import settings
 from flex import db
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_current_round
 from flex.data.assets import get_full_asset
-from flex.data.lp_tokens import get_lp_token_by_id
+from flex.data.lp_tokens import get_lp_token_by_id, lp_token_from_tinyman_pool
 from flex.meta_error import MetaError
+from flex.providers.tinyman import get_algo_tinyman_pool_by_asset_id
 from flex.providers.vestige import get_full_asset_price, get_algo_price_usd
 from flex.db.model.blockchain import LpToken
 from flex.db.model.liquidity_pools import LpState, LpTransaction, PricedLpStateInfo
@@ -103,9 +104,13 @@ def create_lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
     return lp_state
 
 
+def create_lp_state_by_lp_token(lp_token: LpToken) -> LpState:
+    return create_lp_state_from_lp_balances(lp_token)
+
+
 def create_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     lp_token = get_lp_token_by_id(lp_token_id)
-    return create_lp_state_from_lp_balances(lp_token)
+    return create_lp_state_by_lp_token(lp_token)
 
 
 def update_lp_state_from_lp_balances(lp_state: LpState) -> LpState:
@@ -127,22 +132,19 @@ def update_lp_state_from_lp_balances(lp_state: LpState) -> LpState:
     return lp_state
 
 
-def update_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
-    lp_token = get_lp_token_by_id(lp_token_id)
-    # TODO: optimize/cache lp_state fetch (probably store locally)
+def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     lp_state = db.lp_states.get_one(token_id=lp_token_id)
     if lp_state is None:
-        lp_state = create_lp_state_from_lp_balances(lp_token)
-    else:
+        lp_state = create_lp_state_by_lp_token_id(lp_token_id)
+    elif get_current_round() - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
         lp_state = update_lp_state_from_lp_balances(lp_state)
     return lp_state
 
 
-def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
-    # TODO: optimize/cache lp_state fetch (probably store locally)
-    lp_state = db.lp_states.get_one(token_id=lp_token_id)
+def get_lp_state_by_lp_token(lp_token: LpToken) -> LpState:
+    lp_state = db.lp_states.get_one(token_id=lp_token.id)
     if lp_state is None:
-        lp_state = create_lp_state_by_lp_token_id(lp_token_id)
+        lp_state = create_lp_state_by_lp_token(lp_token)
     elif get_current_round() - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
         lp_state = update_lp_state_from_lp_balances(lp_state)
     return lp_state
@@ -216,7 +218,22 @@ def update_all_lp_states_linear() -> list[LpState]:
             updated_lp_state = update_lp_state_from_lp_balances(lp_state)
             updated_lp_states.append(updated_lp_state)
         except Exception as e:
-            logger.error(f'Error updating LP state {lp_state.id}: {e}', exc_info=True)
+            logger.error(f'Error updating LP state {lp_state.asset_id}: {e}', exc_info=True)
 
     logger.debug(f'Updated {len(updated_lp_states)} LP states')
     return updated_lp_states
+
+
+@cached(cache=TTLCache(maxsize=256, ttl=120))
+def get_tinyman_pool_lp_state_by_asset_id(asset_id: int) -> LpState | None:
+    tinyman_pool = get_algo_tinyman_pool_by_asset_id(asset_id)
+    if tinyman_pool is None or tinyman_pool.lp_token_id is None:
+        logger.debug(f'Tinyman pool for asset {asset_id} not found')
+        return None
+
+    lp_token = db.lp_tokens.get_by_primary_key(tinyman_pool.lp_token_id, throw_ex=False)
+    if lp_token is None:
+        lp_token = lp_token_from_tinyman_pool(tinyman_pool)
+        db.lp_tokens.create(lp_token)
+
+    return get_lp_state_by_lp_token(lp_token)

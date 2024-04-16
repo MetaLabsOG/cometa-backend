@@ -85,9 +85,10 @@ def get_full_asset_price_not_cached(asset_id: int) -> Price:
     response = requests.get(url)
     data = response.json()
 
-    if 'USD' not in data:
+    price_usd = data.get('USD')
+    if price_usd is None:
         raise MetaError(f'Failed request {url}: code = {response.status_code}')
-    return Price(algo=data['price'], usd=data['USD'])
+    return Price(algo=data['price'], usd=price_usd)
 
 
 def fetch_lp_token(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:

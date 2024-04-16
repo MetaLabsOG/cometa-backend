@@ -3,7 +3,7 @@ import logging
 from cachetools import cached, LRUCache, TTLCache
 
 from flex import db
-from flex.blockchain.info import fetch_asset
+from flex.blockchain.info import fetch_asset, ALGO_ASSET
 from flex.db.model.blockchain import Asset, AssetInfo, AssetDetails
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ def amount_to_micros(asset_id: int, amount: float) -> int:
 def load_all_assets_data() -> list[Asset]:
     logger.info('Loading all assets data.')
 
-    asset_ids = {0}  # ALGO
+    asset_ids = {ALGO_ASSET.id}
 
     for pool in db.farming_pools.get_all():
         asset_ids.add(pool.stake_token.id)
