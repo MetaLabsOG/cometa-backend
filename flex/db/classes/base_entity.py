@@ -40,10 +40,13 @@ class BaseEntity(Generic[EntityT]):
     def to_dict(self) -> dict:
         return self.to_dict()
 
-    def field(self, name: str, default_factory: callable = None) -> Any:
+    def field(self, name: str, default_value: Any = None, default_factory: callable = None) -> Any:
         res = getattr(self, name)
-        if res is None and default_factory is not None:
-            res = default_factory()
+        if res is None:
+            if default_value is not None:
+                res = default_value
+            elif default_factory is not None:
+                res = default_factory()
             setattr(self, name, res)
         return res
 
