@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -42,6 +43,7 @@ class Settings(BaseSettings):
     block_time: float = 2.7
     old_pool_end_date_days_ago: int = 30
     sync_lag_max_rounds: int = 1000  # 1 hour
+    sync_behind_seconds_threshold: int = 60
 
     contracts_cache_ttl: int = 30
     algo_price_ttl: int = 5
@@ -69,6 +71,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 print(f'Algo Network = {settings.algo_network}')
 print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')

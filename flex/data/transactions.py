@@ -24,7 +24,7 @@ async def pool_fetch_new_transactions_by_id(
     logger.debug(f'Fetching new transactions for pool {pool_id}: after {last_tx_id}, pool_address {pool_address}, new_first {new_first}')
 
     if pool_address is None:
-        pool_address = get_app_address(pool_id)
+        pool_address = await get_app_address(pool_id)
         if pool_address is None:
             pass  # TODO: think
 

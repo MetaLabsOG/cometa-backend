@@ -1,7 +1,6 @@
 import logging
 
 from flex import db
-from flex.data.assets import load_all_assets_data
 
 
 logger = logging.getLogger(__name__)

@@ -3,11 +3,12 @@ from dataclasses import dataclass
 from enum import Enum
 
 import requests
-from cachetools import cached, TTLCache
+from aiocache import cached
 
 from env import settings
 from flex.db.model.blockchain import LpToken
 from flex.meta_error import MetaError
+from flex.util import build_key_str
 
 BASE_URL = 'https://free-api.vestige.fi'
 
@@ -47,21 +48,21 @@ class Price:
     usd: float
 
 
-@cached(cache=TTLCache(ttl=settings.algo_price_ttl, maxsize=1))
-def get_algo_price_usd() -> float:
+@cached(ttl=10, namespace='algo_price', key='algo_price')
+async def get_algo_price_usd() -> float:
     url = f'{BASE_URL}/currency/USD/price'
     data = requests.get(url).json()
     return data['price']
 
 
-@cached(cache=TTLCache(maxsize=1024, ttl=settings.asset_prices_ttl))
-def get_asset_price_usd(asset_id: int) -> float:
-    return get_asset_price_usd_not_cached(asset_id)
+@cached(ttl=settings.asset_prices_ttl, namespace='asset_price', key_builder=build_key_str)
+async def get_asset_price_usd(asset_id: int) -> float:
+    return await get_asset_price_usd_not_cached(asset_id)
 
 
-def get_asset_price_usd_not_cached(asset_id: int) -> float:
+async def get_asset_price_usd_not_cached(asset_id: int) -> float:
     if asset_id == 0:
-        return get_algo_price_usd()
+        return await get_algo_price_usd()
 
     url = f'{BASE_URL}/asset/{asset_id}/price'
     response = requests.get(url)
@@ -72,14 +73,10 @@ def get_asset_price_usd_not_cached(asset_id: int) -> float:
     return data['USD']
 
 
-@cached(cache=TTLCache(maxsize=1024, ttl=settings.asset_prices_ttl))
-def get_full_asset_price(asset_id: int) -> Price:
-    return get_full_asset_price_not_cached(asset_id)
-
-
-def get_full_asset_price_not_cached(asset_id: int) -> Price:
+async def get_full_asset_price_not_cached(asset_id: int) -> Price:
     if asset_id == 0:
-        return Price(algo=1, usd=get_algo_price_usd())
+        algo_price_usd = await get_algo_price_usd()
+        return Price(algo=1, usd=algo_price_usd)
 
     url = f'{BASE_URL}/asset/{asset_id}/price'
     response = requests.get(url)
@@ -91,7 +88,12 @@ def get_full_asset_price_not_cached(asset_id: int) -> Price:
     return Price(algo=data['price'], usd=price_usd)
 
 
-def fetch_lp_token(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
+@cached(ttl=settings.asset_prices_ttl, namespace='full_asset', key_builder=build_key_str)
+async def get_full_asset_price(asset_id: int) -> Price:
+    return await get_full_asset_price_not_cached(asset_id)
+
+
+async def fetch_lp_token(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
     ref_id = asset2_id if asset1_id == 0 else asset1_id
     url = f'{BASE_URL}/pools/{dex_provider}?assets=%5B{ref_id}%5D'
     response = requests.get(url)

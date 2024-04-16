@@ -1,5 +1,6 @@
 import logging
 import secrets
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -47,7 +48,7 @@ async def get_pool_state(pool_id: int) -> PoolStateInfo:
 @router.get('/pool/cost', tags=['Pools 2.0'])
 async def get_pool_state_cost_by_id(pool_id: int) -> PoolStateCost:
     pool_state = await get_sync_pool_state_by_id(pool_id)
-    return calculate_pool_state_cost(pool_state)
+    return await calculate_pool_state_cost(pool_state)
 
 
 @router.get('/pools/', tags=['Pools 2.0'])
@@ -85,7 +86,7 @@ async def get_pool_states_cost() -> list[PoolStateCost]:
     for state in previous_states:
         updated_state = await get_sync_pool_state_by_id(state.pool_id)
         updated_states.append(updated_state)
-    return [calculate_pool_state_cost(s) for s in updated_states]
+    return [(await calculate_pool_state_cost(s)) for s in updated_states]
 
 
 @router.post('/pools/user/state', tags=['Pools 2.0'])
@@ -97,7 +98,7 @@ async def get_user_pool_states_by_address(address: str) -> UserStateInfo:
 @router.post('/pools/user/cost', tags=['Pools 2.0'])
 async def get_user_pool_states_cost_by_address(address: str) -> UserCost:
     user_state = await get_sync_user_state_by_address(address)
-    return calculate_user_pool_state_cost(user_state)
+    return await calculate_user_pool_state_cost(user_state)
 
 
 @router.post('/pools/migrate', tags=['Pools 2.0'])
@@ -110,18 +111,18 @@ async def migrate_pools_from_contracts(password: str) -> dict:
 
 @router.post('/lp/token', tags=['LP'])
 async def get_lp_token_info(lp_token_id: int) -> LpTokenInfo:
-    return get_lp_token_by_id(lp_token_id).to_info()
+    return (await get_lp_token_by_id(lp_token_id)).to_info()
 
 
 @router.post('/lp/state/', tags=['LP'])
 async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
-    lp_state = get_lp_state_by_lp_token_id(lp_token_id)
+    lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
     return lp_state.to_info()
 
 
 @router.post('/lp/state/priced', tags=['LP'])
 async def handle_get_priced_lp_state_by_lp_token_id(lp_token_id: int) -> PricedLpStateInfo:
-    return get_priced_lp_state_by_lp_token_id(lp_token_id)
+    return await get_priced_lp_state_by_lp_token_id(lp_token_id)
 
 
 @router.post('/lp/states', tags=['LP'])
@@ -155,14 +156,14 @@ async def handle_get_priced_lp_states(
         params: PricedLpStatesParams
 ) -> list[PricedLpStateInfo]:
     if params.lp_token_ids is None:
-        return get_all_priced_lp_states()
+        return await get_all_priced_lp_states()
     else:
-        return get_priced_lp_states_by_lp_token_ids(params.lp_token_ids)
+        return await get_priced_lp_states_by_lp_token_ids(params.lp_token_ids)
 
 
 @router.post('/info/lp/state/', tags=['LP'])
 async def handle_get_lp_state_by_lp_token_id_OLD(lp_token_id: int) -> LpStateInfo:
-    lp_state = get_lp_state_by_lp_token_id(lp_token_id)
+    lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
     return lp_state.to_info()
 
 
@@ -170,12 +171,12 @@ async def handle_get_lp_state_by_lp_token_id_OLD(lp_token_id: int) -> LpStateInf
 
 @router.post('/asset', tags=['Assets'])
 async def handle_get_asset_by_id(asset_id: int) -> AssetDetails:
-    return get_asset_details(asset_id)
+    return await get_asset_details(asset_id)
 
 
 @router.post('/asset/price', tags=['Assets'])
 async def handle_get_asset_price_by_id(asset_id: int) -> AssetPriceInfo:
-    return get_asset_price(asset_id).to_info()
+    return (await get_asset_price(asset_id)).to_info(datetime.now())
 
 
 class AssetsParams(BaseModel):
@@ -185,15 +186,18 @@ class AssetsParams(BaseModel):
 @router.post('/assets', tags=['Assets'])
 async def handle_get_assets_by(params: AssetsParams) -> list[AssetDetails]:
     if params.ids is None:
-        return get_all_asset_details()
-    return [get_asset_details(asset_id) for asset_id in params.ids]
+        return await get_all_asset_details()
+    return [(await get_asset_details(asset_id)) for asset_id in params.ids]
 
 
 @router.post('/assets/price', tags=['Assets'])
 async def handle_get_assets_prices_by(params: AssetsParams) -> list[AssetPriceInfo]:
+    current_time = datetime.now()
     if params.ids is None:
-        return get_all_asset_prices()
-    return [get_asset_price(asset_id).to_info() for asset_id in params.ids]
+        price_infos = await get_all_asset_prices()
+    else:
+        price_infos = [(await get_asset_price(asset_id)) for asset_id in params.ids]
+    return [price_info.to_info(current_time) for price_info in price_infos]
 
 
 # DB API

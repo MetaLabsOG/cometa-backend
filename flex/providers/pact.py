@@ -17,7 +17,7 @@ class PactPoolInfo:
     address: str
 
 
-def get_pact_pool_info(asset1_id: int, asset2_id: int, lp_token_id: int) -> PactPoolInfo | None:
+async def get_pact_pool_info(asset1_id: int, asset2_id: int, lp_token_id: int) -> PactPoolInfo | None:
     asset1 = pact.fetch_asset(asset1_id)
     asset2 = pact.fetch_asset(asset2_id)
 
