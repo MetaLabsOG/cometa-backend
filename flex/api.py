@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from env import settings
 from flex import db
-from flex.data.assets import get_asset
+from flex.data.assets import get_full_asset, get_all_asset_details, get_asset_details
 from flex.db.model.liquidity_pools import LpStateInfo, PricedLpStateInfo
 from flex.migrations.contracts import all_contracts_to_pools
 from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
@@ -14,7 +14,7 @@ from flex.data.lp_states import get_lp_state_by_lp_token_id, \
     get_priced_lp_state_by_lp_token_id, get_all_priced_lp_states, get_priced_lp_states_by_lp_token_ids
 from flex.data.lp_tokens import get_lp_token_by_id
 from flex.data.pools import get_pool_info_by_id
-from flex.db.model.blockchain import LpToken, Asset
+from flex.db.model.blockchain import LpToken, Asset, AssetDetails
 from flex.db.model.pool_states import UserStateInfo, PoolStateInfo
 from flex.db.model.pools import PoolType, PoolInfo
 from flex.db.model.priced import UserCost, PoolStateCost
@@ -168,8 +168,19 @@ async def handle_get_lp_state_by_lp_token_id_OLD(lp_token_id: int) -> LpStateInf
 # ASSETS API
 
 @router.post('/asset', tags=['Assets'])
-async def get_asset_info_by_id(asset_id: int) -> Asset:
-    return get_asset(asset_id)
+async def handle_get_asset_by_id(asset_id: int) -> AssetDetails:
+    return get_asset_details(asset_id)
+
+
+class AssetsParams(BaseModel):
+    ids: list[int] | None = None
+
+
+@router.post('/assets', tags=['Assets'])
+async def handle_get_assets_by(params: AssetsParams) -> list[AssetDetails]:
+    if params.ids is None:
+        return get_all_asset_details()
+    return [get_asset_details(asset_id) for asset_id in params.ids]
 
 
 # DB API
