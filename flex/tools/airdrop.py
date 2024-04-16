@@ -14,13 +14,13 @@ AIRDROP_ID = 'meta_a200_2'
 logger = logging.getLogger(__name__)
 
 
-def send_airdrop(
+async def send_airdrop(
         asset_info: AssetInfo,
         total_amount_micros: int,
         address_shares: dict[str, float],
         note: str
 ) -> list[TxInfo]:
-    current_round = get_current_round()
+    current_round = await get_current_round()
     logger.info(f'Sending airdrop for {asset_info.name}! Round: {current_round}. Cometa address: {cometa_public_key}')
 
     logger.info('Checking opted-in addresses...')
