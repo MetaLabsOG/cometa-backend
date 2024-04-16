@@ -13,5 +13,5 @@ def asset_add_reserve() -> None:
     removed_cnt = db.assets.clear()
     logger.info(f'Removed {removed_cnt} assets')
 
-    asset_ids = load_all_assets_data()
-    logger.info(f'Loaded {len(asset_ids)} assets')
+    # asset_ids = load_all_assets_data()
+    # logger.info(f'Loaded {len(asset_ids)} assets')
