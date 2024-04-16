@@ -1,49 +1,50 @@
 import logging
 
-from cachetools import cached, LRUCache, TTLCache
+from aiocache import cached
 
 from flex import db
 from flex.blockchain.info import fetch_asset, ALGO_ASSET
 from flex.db.model.blockchain import Asset, AssetInfo, AssetDetails
+from flex.util import build_key_str
 
 logger = logging.getLogger(__name__)
 
 
-@cached(cache=LRUCache(maxsize=1024))
-def get_full_asset(asset_id: int) -> Asset:
+@cached(namespace='full_asset', key_builder=build_key_str)
+async def get_full_asset(asset_id: int) -> Asset:
     asset = db.assets.get_by_primary_key(asset_id, throw_ex=False)
     if asset is None:
-        asset = fetch_asset(asset_id)
+        asset = await fetch_asset(asset_id)
         db.assets.create(asset)
-        logger.info(f'New Asset: {asset.to_details()}')
+        logger.info(f'New Asset: id={asset.id}, name={asset.name}')
     return asset
 
 
-@cached(cache=LRUCache(maxsize=1024))
-def get_asset_info(asset_id: int) -> AssetInfo:
-    return get_full_asset(asset_id).to_info()
+@cached(namespace='asset_info', key_builder=build_key_str)
+async def get_asset_info(asset_id: int) -> AssetInfo:
+    return (await get_full_asset(asset_id)).to_info()
 
 
-@cached(cache=LRUCache(maxsize=1024))
-def get_asset_details(asset_id: int) -> AssetDetails:
-    return get_full_asset(asset_id).to_details()
+@cached(namespace='asset_details', key_builder=build_key_str)
+async def get_asset_details(asset_id: int) -> AssetDetails:
+    return (await get_full_asset(asset_id)).to_details()
 
 
-@cached(cache=TTLCache(maxsize=1, ttl=30))
-def get_all_asset_details() -> list[AssetDetails]:
+@cached(ttl=20, namespace='all_asset_details', key='420')
+async def get_all_asset_details() -> list[AssetDetails]:
     all_assets = db.assets.get_all()
     return [asset.to_details() for asset in all_assets]
 
 
-def micros_to_amount(asset_id: int, amount_micros: int) -> float:
-    return get_full_asset(asset_id).micros_to_amount(amount_micros)
+async def micros_to_amount(asset_id: int, amount_micros: int) -> float:
+    return (await get_full_asset(asset_id)).micros_to_amount(amount_micros)
 
 
-def amount_to_micros(asset_id: int, amount: float) -> int:
-    return get_full_asset(asset_id).amount_to_micros(amount)
+async def amount_to_micros(asset_id: int, amount: float) -> int:
+    return (await get_full_asset(asset_id)).amount_to_micros(amount)
 
 
-def load_all_assets_data() -> list[Asset]:
+async def load_all_assets_data() -> list[Asset]:
     logger.info('Loading all assets data.')
 
     asset_ids = {ALGO_ASSET.id}
@@ -60,7 +61,7 @@ def load_all_assets_data() -> list[Asset]:
 
     assets = []
     for asset_id in asset_ids:
-        asset = get_full_asset(asset_id)
+        asset = await get_full_asset(asset_id)
         assets.append(asset)
 
     logger.info(f'{len(asset_ids)} assets data loaded.')

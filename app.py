@@ -29,7 +29,6 @@ from blockchain.indexer import get_address_app_ids
 from blockchain.node import get_current_round
 from blockchain.util import date_from_block
 from core.cometa import fetch_user_pools
-from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, get_contracts_by_type, remove_contract, \
     remove_contracts, update_contract, get_all_pool_contracts, insert_contract
@@ -39,12 +38,11 @@ from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
 from flex.migrations.contracts import create_pool_from_contract
-from flex.migrations.fix_dex_providers import fix_dex_names
 from flex.migrations.migrate_assets import asset_add_reserve
 from flex.providers.vestige import get_dex_tag_by_name
 from flex.sync_pools import get_sync_user_state_by_address
 
-VERSION = '1.42.0'
+VERSION = '2.0.3'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
@@ -59,6 +57,7 @@ app.add_middleware(
 )
 app.include_router(flex.api.router)
 logger = logging.getLogger(__name__)
+logging.getLogger('base').setLevel(logging.INFO)
 
 
 def check_password(password: str) -> None:
@@ -567,10 +566,11 @@ async def address_app_ids(password: str, address: str, only_active: bool = False
 
 def setup_logging():
     logging.basicConfig(
-        format=LOG_FORMAT,
-        datefmt=LOG_DATE_FORMAT,
+        format=settings.logging_format,
+        datefmt=settings.logging_date_format,
         level=settings.logging_level
     )
+    logging.getLogger('aiocache.base').setLevel(logging.INFO)
 
 
 setup_logging()

@@ -1,6 +1,5 @@
-from cachetools import cached, TTLCache, LRUCache
+from aiocache import cached
 
-from env import settings
 from flex.blockchain.base import indexer_client, algod_client
 from flex.db.model.blockchain import Asset, AssetInfo
 
@@ -16,7 +15,7 @@ ALGO_ASSET = Asset(
 )
 
 
-def fetch_asset(asset_id: int) -> Asset:
+async def fetch_asset(asset_id: int) -> Asset:
     if asset_id == 0:
         return ALGO_ASSET
 
@@ -39,25 +38,25 @@ def fetch_asset(asset_id: int) -> Asset:
     )
 
 
-def get_address_assets(address: str) -> dict:
+async def get_address_assets(address: str) -> dict:
     data = indexer_client.lookup_account_assets(address=address)
     return {asset['asset-id']: asset['amount'] for asset in data['assets']}
 
 
-def get_address_assets_with_algo(address: str) -> dict:
+async def get_address_assets_with_algo(address: str) -> dict:
     data = indexer_client.account_info(address)
     asset_balances = {asset['asset-id']: asset['amount'] for asset in data['account']['assets']}
     asset_balances[0] = data['account']['amount']
     return asset_balances
 
 
-@cached(cache=TTLCache(maxsize=1, ttl=settings.block_time))
-def get_current_round():
+@cached(ttl=10, namespace='node', key='current_round')
+async def get_current_round():
     data = algod_client.status()
     return data['last-round']
 
 
-def get_app_address(app_id: int) -> str:
+async def get_app_address(app_id: int) -> str:
     data = indexer_client.application_logs(application_id=app_id, limit=10)
     log_data = data['log-data']
 
@@ -67,7 +66,7 @@ def get_app_address(app_id: int) -> str:
     return data['transaction']['inner-txns'][0]['sender']
 
 
-def get_address_app_ids(address: str) -> list[int]:
+async def get_address_app_ids(address: str) -> list[int]:
     data = indexer_client.account_info(address=address)
     return [app_state['id'] for app_state in data['account']['apps-local-state']]
 
