@@ -37,6 +37,17 @@ class PoolTransaction(BaseEntity['PoolTransaction']):
 
 @dataclass_json
 @dataclass
+class LpTokenInfo:
+    id: int
+    asset1_id: int
+    asset2_id: int
+    dex_provider: str
+    address: str
+    pool_id: int
+
+
+@dataclass_json
+@dataclass
 class LpToken(BaseEntity['LpToken']):
     asset1_id: int
     asset2_id: int
@@ -47,6 +58,16 @@ class LpToken(BaseEntity['LpToken']):
     id: int
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
+
+    def to_info(self) -> LpTokenInfo:
+        return LpTokenInfo(
+            id=self.id,
+            asset1_id=self.asset1_id,
+            asset2_id=self.asset2_id,
+            dex_provider=self.dex_provider,
+            address=self.address,
+            pool_id=self.pool_id
+        )
 
 
 class AssetBase(ABC):

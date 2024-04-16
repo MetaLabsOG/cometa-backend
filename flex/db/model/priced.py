@@ -11,37 +11,6 @@ from flex.db.util import get_uuid
 
 @dataclass_json
 @dataclass
-class PricedUserPool:
-    id: int
-
-    stake_token_id: int
-    stake_token_unit_name: str
-    stake_amount: float
-    stake_usd: float
-
-    reward_token_id: int
-    reward_token_unit_name: str
-    reward_amount: float
-    reward_usd: float
-
-    total_usd: float
-    total_amount: float
-    current_apr: float
-
-    updated_round: int
-
-
-@dataclass_json
-@dataclass
-class PricedUser:
-    address: str
-    total_staked_usd: float
-    pools_by_id: dict[int, PricedUserPool]
-    updated_round: int
-
-
-@dataclass_json
-@dataclass
 class PoolStateCost:
     info: PoolStateInfo
     staked_usd: float
@@ -75,3 +44,34 @@ class AirdropReward(BaseEntity['AirdropReward']):
     id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
+
+
+@dataclass_json
+@dataclass
+class AssetPriceInfo:
+    asset_id: int
+    price_usd: float
+    price_algo: float
+    last_update_round: int
+
+
+@dataclass_json
+@dataclass
+class AssetPrice(BaseEntity['AssetPrice']):
+    price_usd: float
+    price_algo: float
+    last_update_round: int
+
+    id: int
+    tinyman_algo_pool_id: int | None = None
+
+    created: datetime = field(default_factory=datetime.now)
+    updated: datetime = field(default_factory=datetime.now)
+
+    def to_info(self) -> AssetPriceInfo:
+        return AssetPriceInfo(
+            asset_id=self.id,
+            price_usd=self.price_usd,
+            price_algo=self.price_algo,
+            last_update_round=self.last_update_round
+        )
