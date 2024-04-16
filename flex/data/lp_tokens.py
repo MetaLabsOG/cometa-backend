@@ -53,7 +53,6 @@ def fetch_lp_token_strong(lp_token_id: int, asset1_id: int, asset2_id: int, dex_
 def fetch_lp_token_by_id(lp_token_id: int) -> LpToken | None:
     farming_pool = db.farming_pools.get_one(**{'stake_token.id': lp_token_id})
     if farming_pool is None:
-        logger.debug(f'Farming pool not found for token ID = {lp_token_id}')
         return None
 
     return fetch_lp_token_strong(
