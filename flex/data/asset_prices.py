@@ -90,7 +90,7 @@ def create_asset_price(asset_id: int) -> AssetPrice:
                 last_update_round=get_current_round()
             )
     db.asset_prices.create(asset_price)
-    logger.info(f'New Asset Price: {asset_price}')
+    logger.info(f'\nNew Asset Price ${asset_price.name}: usd = {asset_price.price_usd}, algo = {asset_price.price_algo}\n')
     return asset_price
 
 
@@ -123,7 +123,7 @@ def update_asset_price(asset_price: AssetPrice) -> AssetPrice:
 def update_asset_price_with_lp_state(lp_state: LpState, algo_price_usd: float | None = None) -> AssetPrice | None:
     if not is_algo_pool(lp_state):
         return None
-    logger.debug(f'Updating asset price with Tinyman pool {lp_state.id}')
+    logger.debug(f'Updating "{lp_state.asset1_id}" price with Tiny ALGO pool {lp_state.id}')
 
     asset_price = db.asset_prices.get_one(id=lp_state.asset1_id)
     if asset_price is None:
