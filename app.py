@@ -578,6 +578,9 @@ setup_logging()
 if __name__ == "__main__":
     argv = sys.argv[1:]
 
+    if settings.migrate:
+        asset_add_reserve()
+
     if settings.enable_js:
         with start_js_interop_server():
             with start_bg_tasks():
