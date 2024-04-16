@@ -8,8 +8,7 @@ import subprocess
 import time
 from os import path
 
-from core.constants import DIR_PATH
-from env import settings
+from env import DIR_PATH
 
 COMETA_SOCK = f'/tmp/cometa-js-interop.sock'
 

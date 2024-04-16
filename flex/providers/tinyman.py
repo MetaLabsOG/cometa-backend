@@ -43,7 +43,7 @@ def get_amount(micros: int, asset: Asset) -> float:
     return micros / decimals
 
 
-def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
+async def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
     if asset1_id < asset2_id:
         # Tinyman Pool class do that for some untangible issue reason
         asset1_id, asset2_id = asset2_id, asset1_id
@@ -77,9 +77,9 @@ def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
     )
 
 
-def get_algo_tinyman_pool_by_asset_id(asset_id: int) -> TinymanPoolInfo | None:
+async def get_algo_tinyman_pool_by_asset_id(asset_id: int) -> TinymanPoolInfo | None:
     try:
-        pool = get_tinyman_pool_info(asset_id, 0)
+        pool = await get_tinyman_pool_info(asset_id, 0)
         return pool
     except ValueError as e:
         logger.error(f'Failed to get pool for asset {asset_id}: {e}')

@@ -14,7 +14,7 @@ from flex.db.model.pools import StakingPool, FarmingPool, CometaPool
 logger = logging.getLogger(__name__)
 
 
-def staking_pool_from_contract_info(contract_info: ContractInfo, distribution: bool = False) -> StakingPool:
+async def staking_pool_from_contract_info(contract_info: ContractInfo, distribution: bool = False) -> StakingPool:
     # FIXME: I DON'T issue CARE, IT WORKS
     if distribution:
         stake_token_id = contract_info.metadata.get('stake_token_id')
@@ -54,10 +54,10 @@ def staking_pool_from_contract_info(contract_info: ContractInfo, distribution: b
     return StakingPool(
         id=contract_info.id,
         description=contract_info.description,
-        address=get_app_address(contract_info.id),
+        address=(await get_app_address(contract_info.id)),
 
-        stake_token=get_asset_info(stake_token_id),
-        reward_token=get_asset_info(reward_token_id),
+        stake_token=await get_asset_info(stake_token_id),
+        reward_token=await get_asset_info(reward_token_id),
 
         reward_amount_micros=reward_amount_micros,
         algo_reward_amount_micros=algo_reward_amount_micros,
@@ -72,7 +72,7 @@ def staking_pool_from_contract_info(contract_info: ContractInfo, distribution: b
     )
 
 
-def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
+async def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
     # TODO: migrations could be so beautiful and elegant
     first_token_id = contract_info.metadata.get('asset1_id')
     if first_token_id is None:
@@ -103,22 +103,22 @@ def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
     end_date = contract_info.end_date
     if begin_date is None:
         start_time = datetime.now()
-        current_block = get_current_round()
+        current_block = await get_current_round()
         begin_date = date_from_block(begin_block, current_block, start_time)
         end_date = date_from_block(end_block, current_block, start_time)
 
-    lp_token_info = get_asset_info(lp_token_id)
+    lp_token_info = await get_asset_info(lp_token_id)
 
     return FarmingPool(
         id=contract_info.id,
         dex_name=contract_info.metadata['dex'],
         description=contract_info.description,
-        address=get_app_address(contract_info.id),
+        address=(await get_app_address(contract_info.id)),
 
-        first_token=get_asset_info(first_token_id),
-        second_token=get_asset_info(second_token_id),
+        first_token=await get_asset_info(first_token_id),
+        second_token=await get_asset_info(second_token_id),
         stake_token=lp_token_info,
-        reward_token=get_asset_info(reward_token_id),
+        reward_token=await get_asset_info(reward_token_id),
 
         reward_amount_micros=reward_amount_micros,
         algo_reward_amount_micros=algo_reward_amount_micros,
@@ -133,7 +133,7 @@ def farming_pool_from_contract_info(contract_info: ContractInfo) -> FarmingPool:
     )
 
 
-def create_pool_from_contract(contract: ContractInfo) -> CometaPool | None:
+async def create_pool_from_contract(contract: ContractInfo) -> CometaPool | None:
     logger.debug(f'Creating Pool from {contract.type} contract {contract.id}')
 
     if contract.type == 'distribution':
@@ -141,7 +141,7 @@ def create_pool_from_contract(contract: ContractInfo) -> CometaPool | None:
             logger.info(f'Staking pool {contract.id} already exists in DB')
             return None
 
-        pool = staking_pool_from_contract_info(contract, distribution=True)
+        pool = await staking_pool_from_contract_info(contract, distribution=True)
         db.staking_pools.create(pool)
         return pool
 
@@ -153,7 +153,7 @@ def create_pool_from_contract(contract: ContractInfo) -> CometaPool | None:
             logger.info(f'Farming pool {contract.id} already exists in DB')
             return None
 
-        pool = farming_pool_from_contract_info(contract)
+        pool = await farming_pool_from_contract_info(contract)
         db.farming_pools.create(pool)
         return pool
 
@@ -161,7 +161,7 @@ def create_pool_from_contract(contract: ContractInfo) -> CometaPool | None:
         logger.info(f'Staking pool {contract.id} already exists in DB')
         return None
 
-    pool = staking_pool_from_contract_info(contract)
+    pool = await staking_pool_from_contract_info(contract)
     db.staking_pools.create(pool)
     return pool
 
@@ -174,7 +174,7 @@ async def all_contracts_to_pools() -> dict:
     failed_contract_ids = []
     for contract in distribution_contracts:
         try:
-            pool = create_pool_from_contract(contract)
+            pool = await create_pool_from_contract(contract)
             if pool is not None:
                 created_pools.append(pool)
         except Exception as e:
@@ -185,7 +185,7 @@ async def all_contracts_to_pools() -> dict:
     logger.info(f'Migrating {len(farm_contracts)} farm contracts to Pools DB\n')
     for contract in farm_contracts:
         try:
-            pool = create_pool_from_contract(contract)
+            pool = await create_pool_from_contract(contract)
             if pool is not None:
                 created_pools.append(pool)
         except Exception as e:

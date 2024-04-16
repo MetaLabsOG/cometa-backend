@@ -1,6 +1,6 @@
 import logging
 
-from cachetools import cached, TTLCache
+from aiocache import cached
 
 from env import settings
 from flex import db
@@ -12,14 +12,15 @@ from flex.providers.tinyman import get_algo_tinyman_pool_by_asset_id
 from flex.providers.vestige import get_full_asset_price, get_algo_price_usd
 from flex.db.model.blockchain import LpToken
 from flex.db.model.liquidity_pools import LpState, LpTransaction, PricedLpStateInfo
+from flex.util import build_key_str
 
 logger = logging.getLogger(__name__)
 
 
-def lp_state_to_priced_info(lp_state: LpState) -> PricedLpStateInfo:
-    asset1 = get_full_asset(lp_state.asset1_id)
-    asset2 = get_full_asset(lp_state.asset2_id)
-    token_asset = get_full_asset(lp_state.token_id)
+async def lp_state_to_priced_info(lp_state: LpState) -> PricedLpStateInfo:
+    asset1 = await get_full_asset(lp_state.asset1_id)
+    asset2 = await get_full_asset(lp_state.asset2_id)
+    token_asset = await get_full_asset(lp_state.token_id)
 
     asset1_reserve = asset1.micros_to_amount(lp_state.asset1_reserve_micros)
     asset2_reserve = asset2.micros_to_amount(lp_state.asset2_reserve_micros)
@@ -29,9 +30,9 @@ def lp_state_to_priced_info(lp_state: LpState) -> PricedLpStateInfo:
         token_price_algo = 0
         token_price_usd = 0
     else:
-        asset1_price_full = get_full_asset_price(lp_state.asset1_id)
+        asset1_price_full = await get_full_asset_price(lp_state.asset1_id)
         token_price_algo = asset1_price_full.algo * asset1_reserve * 2 / issued_tokens # both reserves cost the same
-        token_price_usd = token_price_algo * get_algo_price_usd()
+        token_price_usd = token_price_algo * (await get_algo_price_usd())
 
     return PricedLpStateInfo(
         id=lp_state.id,
@@ -54,38 +55,44 @@ def lp_state_to_priced_info(lp_state: LpState) -> PricedLpStateInfo:
 
 
 # TODO: seconds to settings
-@cached(cache=TTLCache(maxsize=256, ttl=30))
-def get_priced_lp_state_by_lp_token_id(lp_token_id: int) -> PricedLpStateInfo:
+@cached(ttl=30, namespace='priced_lp_state', key_builder=build_key_str)
+async def get_priced_lp_state_by_lp_token_id(lp_token_id: int) -> PricedLpStateInfo:
     lp_state = db.lp_states.get_one(token_id=lp_token_id)
     if lp_state is None:
         raise MetaError(f'LP state not found for LP token ID {lp_token_id}')
-    return lp_state_to_priced_info(lp_state)
+    return await lp_state_to_priced_info(lp_state)
 
 
-def get_priced_lp_states_by_lp_token_ids(lp_token_ids: list[int]) -> list[PricedLpStateInfo]:
+async def get_priced_lp_states_by_lp_token_ids(lp_token_ids: list[int]) -> list[PricedLpStateInfo]:
     lp_states = db.lp_states.get_by_array('token_id', lp_token_ids)
-    return [lp_state_to_priced_info(lp_state) for lp_state in lp_states]
+    priced_lp_states = []
+    for lp_state in lp_states:
+        priced_lp_states.append(await lp_state_to_priced_info(lp_state))
+    return priced_lp_states
 
 
-@cached(cache=TTLCache(maxsize=1, ttl=30))
-def get_all_priced_lp_states() -> list[PricedLpStateInfo]:
+@cached(ttl=20, namespace='all_priced_lp_states', key='kek')
+async def get_all_priced_lp_states() -> list[PricedLpStateInfo]:
     lp_states = db.lp_states.get_all()
-    return [lp_state_to_priced_info(lp_state) for lp_state in lp_states]
+    priced_lp_states = []
+    for lp_state in lp_states:
+        priced_lp_states.append(await lp_state_to_priced_info(lp_state))
+    return priced_lp_states
 
 
 # NO PRICE
 
-def create_lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
+async def create_lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
     if lp_token.asset1_id == 0 or lp_token.asset2_id == 0:
-        balances = get_address_assets_with_algo(lp_token.address)
+        balances = await get_address_assets_with_algo(lp_token.address)
     else:
-        balances = get_address_assets(lp_token.address)
+        balances = await get_address_assets(lp_token.address)
 
     asset1_reserve_micros = balances[lp_token.asset1_id]
     asset2_reserve_micros = balances[lp_token.asset2_id]
     lp_token_reserve_micros = balances[lp_token.id]
 
-    lp_token_total_supply_micros = get_full_asset(lp_token.id).total_supply_micros
+    lp_token_total_supply_micros = (await get_full_asset(lp_token.id)).total_supply_micros
     issued_lp_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
     lp_state = LpState(
@@ -98,59 +105,59 @@ def create_lp_state_from_lp_balances(lp_token: LpToken) -> LpState:
         asset1_reserve_micros=asset1_reserve_micros,
         asset2_reserve_micros=asset2_reserve_micros,
         total_tokens_micros=issued_lp_tokens_micros,
-        last_updated_round=get_current_round(),
+        last_updated_round=await get_current_round(),
     )
     db.lp_states.create(lp_state)
     return lp_state
 
 
-def create_lp_state_by_lp_token(lp_token: LpToken) -> LpState:
-    return create_lp_state_from_lp_balances(lp_token)
+async def create_lp_state_by_lp_token(lp_token: LpToken) -> LpState:
+    return await create_lp_state_from_lp_balances(lp_token)
 
 
-def create_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
-    lp_token = get_lp_token_by_id(lp_token_id)
-    return create_lp_state_by_lp_token(lp_token)
+async def create_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
+    lp_token = await get_lp_token_by_id(lp_token_id)
+    return await create_lp_state_by_lp_token(lp_token)
 
 
-def update_lp_state_from_lp_balances(lp_state: LpState) -> LpState:
+async def update_lp_state_from_lp_balances(lp_state: LpState) -> LpState:
     if lp_state.asset1_id == 0 or lp_state.asset2_id == 0:
-        balances = get_address_assets_with_algo(lp_state.address)
+        balances = await get_address_assets_with_algo(lp_state.address)
     else:
-        balances = get_address_assets(lp_state.address)
+        balances = await get_address_assets(lp_state.address)
 
     lp_state.asset1_reserve_micros = balances[lp_state.asset1_id]
     lp_state.asset2_reserve_micros = balances[lp_state.asset2_id]
 
     lp_token_reserve_micros = balances[lp_state.token_id]
-    lp_token_total_supply_micros = get_full_asset(lp_state.token_id).total_supply_micros
+    lp_token_total_supply_micros = (await get_full_asset(lp_state.token_id)).total_supply_micros
     lp_state.total_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
-    lp_state.last_updated_round = get_current_round()
+    lp_state.last_updated_round = await get_current_round()
 
     db.lp_states.update(lp_state)
     return lp_state
 
 
-def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
+async def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     lp_state = db.lp_states.get_one(token_id=lp_token_id)
     if lp_state is None:
-        lp_state = create_lp_state_by_lp_token_id(lp_token_id)
-    elif get_current_round() - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
-        lp_state = update_lp_state_from_lp_balances(lp_state)
+        lp_state = await create_lp_state_by_lp_token_id(lp_token_id)
+    elif (await get_current_round()) - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
+        lp_state = await update_lp_state_from_lp_balances(lp_state)
     return lp_state
 
 
-def get_lp_state_by_lp_token(lp_token: LpToken) -> LpState:
+async def get_lp_state_by_lp_token(lp_token: LpToken) -> LpState:
     lp_state = db.lp_states.get_one(token_id=lp_token.id)
     if lp_state is None:
-        lp_state = create_lp_state_by_lp_token(lp_token)
-    elif get_current_round() - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
-        lp_state = update_lp_state_from_lp_balances(lp_state)
+        lp_state = await create_lp_state_by_lp_token(lp_token)
+    elif (await get_current_round()) - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
+        lp_state = await update_lp_state_from_lp_balances(lp_state)
     return lp_state
 
 
-def create_lp_states() -> list[LpState]:
+async def create_lp_states() -> list[LpState]:
     farming_pools = db.farming_pools.get_all()
     new_lp_states = []
     for farming_pool in farming_pools:
@@ -158,7 +165,7 @@ def create_lp_states() -> list[LpState]:
             if db.lp_states.exists(token_id=farming_pool.stake_token.id):
                 continue
 
-            lp_state = create_lp_state_by_lp_token_id(farming_pool.stake_token.id)
+            lp_state = await create_lp_state_by_lp_token_id(farming_pool.stake_token.id)
             new_lp_states.append(lp_state)
         except Exception as e:
             logger.error(f'Failed to create LP state: {e}\n{farming_pool.pretty_str()}', exc_info=True)
@@ -208,32 +215,32 @@ async def update_lp_states_with_transactions(
     return lp_states
 
 
-def update_all_lp_states_linear() -> list[LpState]:
+async def update_all_lp_states_linear() -> list[LpState]:
     lp_states = db.lp_states.get_all()
     logger.debug(f'Updating {len(lp_states)} LP states...')
 
     updated_lp_states = []
     for lp_state in lp_states:
         try:
-            updated_lp_state = update_lp_state_from_lp_balances(lp_state)
+            updated_lp_state = await update_lp_state_from_lp_balances(lp_state)
             updated_lp_states.append(updated_lp_state)
         except Exception as e:
-            logger.error(f'Error updating LP state {lp_state.asset_id}: {e}', exc_info=True)
+            logger.error(f'Error updating state of LP {lp_state.id}: {e}', exc_info=True)
 
     logger.debug(f'Updated {len(updated_lp_states)} LP states')
     return updated_lp_states
 
 
-@cached(cache=TTLCache(maxsize=256, ttl=120))
-def get_tinyman_pool_lp_state_by_asset_id(asset_id: int) -> LpState | None:
-    tinyman_pool = get_algo_tinyman_pool_by_asset_id(asset_id)
+@cached(ttl=120, namespace='tinyman_lp_state', key_builder=build_key_str)
+async def get_tinyman_pool_lp_state_by_asset_id(asset_id: int) -> LpState | None:
+    tinyman_pool = await get_algo_tinyman_pool_by_asset_id(asset_id)
     if tinyman_pool is None or tinyman_pool.lp_token_id is None:
         logger.debug(f'Tinyman pool for asset {asset_id} not found')
         return None
 
     lp_token = db.lp_tokens.get_by_primary_key(tinyman_pool.lp_token_id, throw_ex=False)
     if lp_token is None:
-        lp_token = lp_token_from_tinyman_pool(tinyman_pool)
+        lp_token = await lp_token_from_tinyman_pool(tinyman_pool)
         db.lp_tokens.create(lp_token)
 
-    return get_lp_state_by_lp_token(lp_token)
+    return await get_lp_state_by_lp_token(lp_token)

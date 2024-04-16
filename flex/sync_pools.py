@@ -1,8 +1,7 @@
 import asyncio
 import logging
-from datetime import timedelta
 
-from cachetools import cached, LRUCache
+from aiocache import cached
 
 from env import settings
 from flex import db
@@ -11,15 +10,17 @@ from flex.blockchain.info import get_current_round
 from flex.data.asset_prices import update_asset_price_with_lp_state, \
     create_and_update_asset_prices
 from flex.data.assets import load_all_assets_data
-from flex.data.lp_states import update_all_lp_states_linear, update_lp_states_with_transactions, create_lp_states
-from flex.data.pool_state import update_pool_states_with_transactions, update_all_pool_states_linear, \
-    get_or_create_pool_state, update_pool_state
+from flex.data.lp_states import update_lp_states_with_transactions, create_lp_states, update_all_lp_states_linear
+from flex.data.pool_state import update_pool_states_with_transactions, get_or_create_pool_state, update_pool_state, \
+    update_all_pool_states_linear
 from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
-from flex.db.model.blockchain import PoolTransaction, SyncState, SyncBlock
+from flex.db.model.blockchain import PoolTransaction, SyncBlock
 from flex.db.model.liquidity_pools import LpState, LpTransaction
 from flex.db.model.pool_states import PoolState, UserState
 from flex.db.model.priced import AssetPrice
 from flex.providers.vestige import get_algo_price_usd
+from flex.sync_state import get_sync_state, is_sync_delayed
+from flex.util import build_key_str
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +53,12 @@ def find_transfer_transactions(txns: list[dict]) -> list[dict]:
     return transfer_transactions
 
 
-@cached(cache=LRUCache(maxsize=1024))
-def get_pool_state_by_address(address: str) -> PoolState:
+@cached(ttl=30, namespace='pool_state', key_builder=build_key_str)
+async def get_pool_state_by_address(address: str) -> PoolState:
     return db.pool_states.get_one(address=address)
 
 
-def process_lp_transactions(transactions: list[dict]) -> list[LpTransaction]:
+async def process_lp_transactions(transactions: list[dict]) -> list[LpTransaction]:
     lp_transactions = []
     for tx in transactions:
         txid = tx['id']
@@ -95,7 +96,7 @@ def process_lp_transactions(transactions: list[dict]) -> list[LpTransaction]:
     return lp_transactions
 
 
-def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
+async def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
     pool_transactions = []
     for tx in txns:
         txid = tx['id']
@@ -105,8 +106,7 @@ def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
         amount = tx[ASSET_TRANSFER_TX]['amount']
         confirmed_round = tx['confirmed-round']
 
-        # TODO: optimize lookup locally
-        withdraw_pool = get_pool_state_by_address(address=sender)
+        withdraw_pool = await get_pool_state_by_address(address=sender)
         if withdraw_pool is not None:
             if withdraw_pool.stake_token.id == tx_asa_id:
                 pool_tx = PoolTransaction(
@@ -120,7 +120,7 @@ def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
                 )
                 pool_transactions.append(pool_tx)
 
-        stake_pool = get_pool_state_by_address(address=receiver)
+        stake_pool = await get_pool_state_by_address(address=receiver)
         if stake_pool is not None:
             if stake_pool.stake_token.id == tx_asa_id:
                 pool_tx = PoolTransaction(
@@ -137,31 +137,13 @@ def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
     return pool_transactions
 
 
-def get_sync_state() -> SyncState:
-    sync_state = db.sync_states.get_one()
-    if sync_state is None:
-        sync_state = db.sync_states.create(SyncState())
-    return sync_state
-
-
-# TODO: move to settings
-SYNC_MAX_DELAY = timedelta(minutes=1)
-SYNC_MAX_DELAY_ROUNDS = int(SYNC_MAX_DELAY.total_seconds() / settings.block_time)
-
-
-def is_sync_delayed(current_round: int | None = None) -> bool:
-    current_round = current_round or get_current_round()
-    sync_state = get_sync_state()
-    return current_round - sync_state.last_round > SYNC_MAX_DELAY_ROUNDS
-
-
 async def update_pools(txns: list[dict]) -> [PoolState]:
-    pool_transactions = process_pool_transactions(txns)
+    pool_transactions = await process_pool_transactions(txns)
     return await update_pool_states_with_transactions(pool_transactions)
 
 
 async def update_lps(txns: list[dict]) -> list[LpState]:
-    lp_transactions = process_lp_transactions(txns)
+    lp_transactions = await process_lp_transactions(txns)
     return await update_lp_states_with_transactions(lp_transactions)
 
 
@@ -170,9 +152,9 @@ async def update_asset_prices(
         algo_price_usd: float | None = None
 ) -> list[AssetPrice]:
     updated_asset_prices = []
-    algo_price_usd = algo_price_usd or get_algo_price_usd()
+    algo_price_usd = algo_price_usd or (await get_algo_price_usd())
     for lp_state in updated_lp_states:
-        updated_asset_price = update_asset_price_with_lp_state(lp_state, algo_price_usd)
+        updated_asset_price = await update_asset_price_with_lp_state(lp_state, algo_price_usd)
         if updated_asset_price is not None:
             updated_asset_prices.append(updated_asset_price)
 
@@ -182,31 +164,28 @@ async def update_asset_prices(
 
 
 async def sync_pools_loop():
-    current_round = get_current_round()
+    current_round = await get_current_round()
 
     logger.info(f'\nStart pools sync loop. Current round = {current_round}\n')
 
-    sync_state = get_sync_state()
+    sync_state = await get_sync_state()
     sync_lag = current_round - sync_state.last_round if sync_state.last_round is not None else None
 
     if sync_state.last_round is None or sync_lag > settings.sync_lag_max_rounds:
         logger.info('\nSyncing ALL pool states in order first.\n')
         logger.info(f'\nLast sync round = {sync_state.last_round}, sync lag = {sync_lag} rounds.\n')
 
-        # TODO: uncomment
-        # await update_all_pool_states_linear()
+        _ = await load_all_assets_data()
+        await update_all_pool_states_linear()
 
-        _ = load_all_assets_data()
-
-        current_round = get_current_round()
+        current_round = await get_current_round()
         logger.info(f'\nAnother, shorter loop, starting from round {current_round}\n')
         await update_all_pool_states_linear()
 
-        # TODO: async
         logger.info('\nSyncing ALL LP states linearly.\n')
-        _ = create_lp_states()
-        _ = update_all_lp_states_linear()
-        _ = create_and_update_asset_prices()
+        _ = await create_lp_states()
+        _ = await update_all_lp_states_linear()
+        _ = await create_and_update_asset_prices()
 
         sync_state.last_round = current_round
         db.sync_states.update(sync_state)
@@ -257,7 +236,7 @@ async def sync_pools_loop():
 
 async def get_sync_pool_state_by_id(pool_id: int) -> PoolState:
     pool_state = await get_or_create_pool_state(pool_id)
-    if is_sync_delayed():
+    if await is_sync_delayed():
         pool_state = await update_pool_state(pool_state)
     return pool_state
 
