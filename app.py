@@ -44,7 +44,7 @@ from flex.migrations.migrate_assets import asset_add_reserve
 from flex.providers.vestige import get_dex_tag_by_name
 from flex.sync_pools import get_sync_user_state_by_address
 
-VERSION = '1.9.3'
+VERSION = '1.42.0'
 app = FastAPI(
     title='Cometa',
     version=VERSION,

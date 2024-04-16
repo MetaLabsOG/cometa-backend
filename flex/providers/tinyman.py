@@ -17,21 +17,14 @@ else:
 logger = logging.getLogger(__name__)
 
 
-def get_amount(micros: int, asset: Asset) -> float:
-    decimals = 10 ** asset.decimals
-    return micros / decimals
-
-
-def get_micros(amount: float, asset: Asset) -> int:
-    decimals = 10 ** asset.decimals
-    return int(amount * decimals)
-
-
 @dataclass_json
 @dataclass
 class TinymanPoolInfo:
     name: str
     lp_token_id: int | None
+
+    asset1_id: int
+    asset2_id: int
 
     asset1_reserve: float
     asset2_reserve: float
@@ -43,6 +36,11 @@ class TinymanPoolInfo:
 
     address: str
     updated: datetime = field(default_factory=datetime.now)
+
+
+def get_amount(micros: int, asset: Asset) -> float:
+    decimals = 10 ** asset.decimals
+    return micros / decimals
 
 
 def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
@@ -67,6 +65,8 @@ def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
     return TinymanPoolInfo(
         name=pool.pool_token_asset.name,
         lp_token_id=pool.pool_token_asset.id if pool.pool_token_asset is not None else None,
+        asset1_id=pool.asset_1.id,
+        asset2_id=pool.asset_2.id,
         asset1_reserve=asset1_reserve,
         asset2_reserve=asset2_reserve,
         total_lp_tokens=lp_tokens_amount,
@@ -75,3 +75,12 @@ def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
         total_lp_tokens_micros=pool.issued_pool_tokens,
         address=pool.address
     )
+
+
+def get_algo_tinyman_pool_by_asset_id(asset_id: int) -> TinymanPoolInfo | None:
+    try:
+        pool = get_tinyman_pool_info(asset_id, 0)
+        return pool
+    except ValueError as e:
+        logger.error(f'Failed to get pool for asset {asset_id}: {e}')
+        return None

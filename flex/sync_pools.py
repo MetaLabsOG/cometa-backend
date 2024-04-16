@@ -180,15 +180,15 @@ async def sync_pools_loop():
         await update_all_pool_states_linear()
 
         # TODO: async
-        logger.info('\n\nSyncing ALL LP states linearly.\n\n')
+        logger.info('\nSyncing ALL LP states linearly.\n')
         create_lp_states()
         update_all_lp_states_linear()
 
         sync_state.last_round = current_round
         db.sync_states.update(sync_state)
-        logger.info(f'\n\nPools synced up to round {current_round}.\n\n')
+        logger.info(f'\nPools synced up to round {current_round}.\n')
 
-    logger.info('\n\nStarting the main BLOCKCHAIN sync loop.\n\n')
+    logger.info('\nStarting the main BLOCKCHAIN sync loop.\n')
 
     no_block_seconds = 0
     MAX_BLOCK_DELAY_SECONDS = 10

@@ -6,18 +6,19 @@ from pydantic import BaseModel
 
 from env import settings
 from flex import db
-from flex.data.assets import get_full_asset, get_all_asset_details, get_asset_details
+from flex.data.asset_prices import get_asset_price, get_all_asset_prices
+from flex.data.assets import get_all_asset_details, get_asset_details
 from flex.db.model.liquidity_pools import LpStateInfo, PricedLpStateInfo
 from flex.migrations.contracts import all_contracts_to_pools
-from flex.data.costs import calculate_pool_state_cost, calculate_user_pool_state_cost
+from flex.data.pool_state_priced import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.lp_states import get_lp_state_by_lp_token_id, \
     get_priced_lp_state_by_lp_token_id, get_all_priced_lp_states, get_priced_lp_states_by_lp_token_ids
 from flex.data.lp_tokens import get_lp_token_by_id
 from flex.data.pools import get_pool_info_by_id
-from flex.db.model.blockchain import LpToken, Asset, AssetDetails
+from flex.db.model.blockchain import AssetDetails, LpTokenInfo
 from flex.db.model.pool_states import UserStateInfo, PoolStateInfo
 from flex.db.model.pools import PoolType, PoolInfo
-from flex.db.model.priced import UserCost, PoolStateCost
+from flex.db.model.priced import UserCost, PoolStateCost, AssetPriceInfo
 from flex.providers.vestige import DexProvider
 from flex.sync_pools import get_sync_pool_state_by_id, get_sync_user_state_by_address
 
@@ -108,8 +109,8 @@ async def migrate_pools_from_contracts(password: str) -> dict:
 # LP API
 
 @router.post('/lp/token', tags=['LP'])
-async def get_lp_token_info(lp_token_id: int) -> LpToken:
-    return get_lp_token_by_id(lp_token_id)
+async def get_lp_token_info(lp_token_id: int) -> LpTokenInfo:
+    return get_lp_token_by_id(lp_token_id).to_info()
 
 
 @router.post('/lp/state/', tags=['LP'])
@@ -172,6 +173,11 @@ async def handle_get_asset_by_id(asset_id: int) -> AssetDetails:
     return get_asset_details(asset_id)
 
 
+@router.post('/asset/price', tags=['Assets'])
+async def handle_get_asset_price_by_id(asset_id: int) -> AssetPriceInfo:
+    return get_asset_price(asset_id).to_info()
+
+
 class AssetsParams(BaseModel):
     ids: list[int] | None = None
 
@@ -181,6 +187,13 @@ async def handle_get_assets_by(params: AssetsParams) -> list[AssetDetails]:
     if params.ids is None:
         return get_all_asset_details()
     return [get_asset_details(asset_id) for asset_id in params.ids]
+
+
+@router.post('/assets/price', tags=['Assets'])
+async def handle_get_assets_prices_by(params: AssetsParams) -> list[AssetPriceInfo]:
+    if params.ids is None:
+        return get_all_asset_prices()
+    return [get_asset_price(asset_id).to_info() for asset_id in params.ids]
 
 
 # DB API

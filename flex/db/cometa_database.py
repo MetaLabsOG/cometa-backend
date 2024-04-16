@@ -5,7 +5,7 @@ from flex.db.model.blockchain import LpToken, Asset, PoolTransaction, SyncState,
 from flex.db.model.liquidity_pools import LpState, LpTransaction
 from flex.db.model.pool_states import UserState, PoolState
 from flex.db.model.pools import StakingPool, FarmingPool
-from flex.db.model.priced import AirdropReward
+from flex.db.model.priced import AirdropReward, AssetPrice
 
 
 class CometaDatabase(EntitiesDatabase):
@@ -21,6 +21,8 @@ class CometaDatabase(EntitiesDatabase):
         self.user_states = self.create_collection_manager_for_type(UserState)
         self.pool_states = self.create_collection_manager_for_type(PoolState)
         self.lp_states = self.create_collection_manager_for_type(LpState)
+
+        self.asset_prices = self.create_collection_manager_for_type(AssetPrice)
 
         self.pool_transactions = self.create_collection_manager_for_type(PoolTransaction)
         self.lp_transactions = self.create_collection_manager_for_type(LpTransaction)
