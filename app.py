@@ -40,6 +40,7 @@ from core.util import parse_bignum, strip_version
 from env import settings
 from flex.migrations.contracts import create_pool_from_contract
 from flex.migrations.fix_dex_providers import fix_dex_names
+from flex.migrations.migrate_assets import asset_add_reserve
 from flex.providers.vestige import get_dex_tag_by_name
 from flex.sync_pools import get_sync_user_state_by_address
 
@@ -578,7 +579,7 @@ if __name__ == "__main__":
     argv = sys.argv[1:]
 
     if settings.migrate:
-        fix_dex_names()
+        asset_add_reserve()
 
     if settings.enable_js:
         with start_js_interop_server():

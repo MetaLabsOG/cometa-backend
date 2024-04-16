@@ -10,7 +10,8 @@ ALGO_ASSET = Asset(
     decimals=6,
     name='Algorand',
     unit_name='ALGO',
-    creator_address='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
+    creator='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
+    reserve='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
     total_supply=10_000_000_000
 )
 
@@ -29,20 +30,13 @@ def fetch_asset(asset_id: int) -> Asset:
     )
     return Asset(
         id=asset_id,
-        decimals=params['decimals'],
-        name=params['name'],
-        unit_name=params['unit-name'],
-        creator_address=params['creator'],
+        decimals=asset_info.decimals,
+        name=asset_info.name,
+        unit_name=asset_info.unit_name,
+        creator=params['creator'],
+        reserve=params['reserve'],
         total_supply=asset_info.micros_to_amount(params['total'])
     )
-
-
-@cached(cache=LRUCache(maxsize=4096))
-def get_asset_total_supply(asset_id: int) -> int:
-    if asset_id == 0:
-        return 10000000000 * 1000000  # 10B
-    data = indexer_client.asset_info(asset_id)
-    return data['asset']['params']['total']
 
 
 def get_address_assets(address: str) -> dict:
