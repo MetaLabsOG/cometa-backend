@@ -77,7 +77,7 @@ async def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolIn
     )
 
 
-async def get_algo_tinyman_pool_by_asset_id(asset_id: int) -> TinymanPoolInfo | None:
+async def fetch_algo_tinyman_pool_by_asset_id(asset_id: int) -> TinymanPoolInfo | None:
     try:
         pool = await get_tinyman_pool_info(asset_id, 0)
         return pool
