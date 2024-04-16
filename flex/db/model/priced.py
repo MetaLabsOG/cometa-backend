@@ -50,6 +50,7 @@ class AirdropReward(BaseEntity['AirdropReward']):
 @dataclass
 class AssetPriceInfo:
     asset_id: int
+    asset_name: str
     price_usd: float
     price_algo: float
     last_update_round: int
@@ -62,6 +63,7 @@ class AssetPrice(BaseEntity['AssetPrice']):
     price_algo: float
     last_update_round: int
 
+    name: str
     id: int
     tinyman_algo_pool_id: int | None = None
 
@@ -71,6 +73,7 @@ class AssetPrice(BaseEntity['AssetPrice']):
     def to_info(self) -> AssetPriceInfo:
         return AssetPriceInfo(
             asset_id=self.id,
+            asset_name=self.name,
             price_usd=self.price_usd,
             price_algo=self.price_algo,
             last_update_round=self.last_update_round
