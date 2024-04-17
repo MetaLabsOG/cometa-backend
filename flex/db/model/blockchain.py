@@ -105,6 +105,8 @@ class AssetDetails(AssetBase):
     decimals: int
     creator: str
     reserve: str
+    total_supply: float
+    logo_url: str | None = None
 
 
 @dataclass_json
@@ -118,6 +120,7 @@ class Asset(BaseEntity['Asset'], AssetBase):
     total_supply: float
     id: int
 
+    logo_url: str | None = None
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
 
@@ -140,7 +143,9 @@ class Asset(BaseEntity['Asset'], AssetBase):
             unit_name=self.unit_name,
             decimals=self.decimals,
             creator=self.creator,
-            reserve=self.reserve
+            reserve=self.reserve,
+            logo_url=self.logo_url,
+            total_supply=self.total_supply
         )
 
 

@@ -54,7 +54,7 @@ class AssetPriceInfo:
     price_usd: float
     price_algo: float
     last_update_round: int
-    seconds_since_update: int | None = None
+    seconds_since_update: int
 
 
 @dataclass_json
@@ -71,8 +71,8 @@ class AssetPrice(BaseEntity['AssetPrice']):
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
 
-    def to_info(self, current_time: datetime | None = None) -> AssetPriceInfo:
-        seconds_since_update = None if current_time is None else (current_time - self.updated).total_seconds()
+    def to_info(self, current_time: datetime) -> AssetPriceInfo:
+        seconds_since_update = (current_time - self.updated).total_seconds()
         return AssetPriceInfo(
             asset_id=self.id,
             asset_name=self.name,
