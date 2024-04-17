@@ -2,6 +2,8 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import requests
+from cachetools import cached, TTLCache
 from dataclasses_json import dataclass_json
 from tinyman.assets import Asset
 from tinyman.v2.client import TinymanV2MainnetClient, TinymanV2TestnetClient
@@ -84,3 +86,35 @@ async def fetch_algo_tinyman_pool_by_asset_id(asset_id: int) -> TinymanPoolInfo 
     except ValueError as e:
         logger.error(f'Failed to get pool for asset {asset_id}: {e}')
         return None
+
+
+@dataclass_json
+@dataclass
+class TinymanAssetInfo:
+    id: int
+    name: str
+    unit_name: str
+    decimals: int
+    total_amount: float
+    logo_svg_url: str
+    logo_png_url: str
+
+
+@cached(cache=TTLCache(maxsize=1, ttl=3600))
+def get_tinyman_assets_details() -> list[TinymanAssetInfo]:
+    url = 'https://asa-list.tinyman.org/assets.json'
+    response = requests.get(url)
+    data = response.json()
+    assets_info = []
+    for asa_id, asa_data in data.items():
+        asset_details = TinymanAssetInfo(
+            id=int(asa_id),
+            name=asa_data['name'],
+            unit_name=asa_data['unit_name'],
+            decimals=asa_data['decimals'],
+            total_amount=asa_data['total_amount'],
+            logo_png_url=asa_data['logo']['png'],
+            logo_svg_url=asa_data['logo']['svg']
+        )
+        assets_info.append(asset_details)
+    return assets_info

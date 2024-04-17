@@ -6,8 +6,7 @@ from env import settings
 from flex import db
 from flex.blockchain.info import get_current_round, ALGO_ASSET
 from flex.data.assets import micros_to_amount, get_asset_details
-from flex.data.lp_states import get_tinyman_pool_lp_state_by_asset_id, get_priced_lp_state_by_lp_token_id, \
-    get_lp_state_by_lp_token
+from flex.data.lp_states import get_tinyman_pool_lp_state_by_asset_id, get_priced_lp_state_by_lp_token_id
 from flex.data.lp_tokens import get_lp_token_by_id
 from flex.db.model.liquidity_pools import LpState
 from flex.db.model.priced import AssetPrice

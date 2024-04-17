@@ -37,8 +37,8 @@ from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
+from flex.migrations import migrate_before_start
 from flex.migrations.contracts import create_pool_from_contract
-from flex.migrations.migrate_assets import asset_add_reserve
 from flex.providers.vestige import get_dex_tag_by_name
 from flex.sync_pools import get_sync_user_state_by_address
 
@@ -579,7 +579,7 @@ if __name__ == "__main__":
     argv = sys.argv[1:]
 
     if settings.migrate:
-        asset_add_reserve()
+        migrate_before_start()
 
     if settings.enable_js:
         with start_js_interop_server():
