@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     reach_connector_mode: str = 'ALGO'
     sync_humble_pools: int = 0
 
+    asset_default_logo_url: str = 'https://app.cometa.farm/static/media/tokenPlaceholder.b822bbf7d312b67292cf97f3d22194ed.svg'
+
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
     def is_mainnet(self):
