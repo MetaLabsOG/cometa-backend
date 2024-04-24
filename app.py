@@ -37,6 +37,7 @@ from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
+from flex.data.lp_states import create_lp_state_by_lp_token_id
 from flex.migrations import migrate_before_start
 from flex.migrations.contracts import create_pool_from_contract
 from flex.providers.vestige import get_dex_tag_by_name
@@ -143,8 +144,8 @@ def parse_cache(cache: Optional[dict]) -> dict:
     }
 
 
-def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractInfo:
-    return create_contract_with(
+async def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractInfo:
+    return await create_contract_with(
         type=contract_info.type,
         id=contract_info.id,
         version=contract_info.version,
@@ -153,7 +154,7 @@ def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractI
     )
 
 
-def create_contract_with(type: str, id: int, version: str, description: str, metadata: dict) -> ContractInfo:
+async def create_contract_with(type: str, id: int, version: str, description: str, metadata: dict) -> ContractInfo:
     cache = metadata.get('cache')
     metadata_fields = parse_cache(cache)
     current_date = datetime.now()
@@ -174,7 +175,9 @@ def create_contract_with(type: str, id: int, version: str, description: str, met
     insert_contract(contract)
 
     try:
-        _ = create_pool_from_contract(contract)
+        pool_info = await create_pool_from_contract(contract)
+        if pool_info is not None and 'dex' in metadata:
+            _ = await create_lp_state_by_lp_token_id(pool_info.stake_token.id)
     except Exception as e:
         logger.error(f'Error creating pool from contract: {e}', exc_info=True)
 
@@ -189,8 +192,23 @@ async def add_new_contract(contract: AddContract, password: str) -> ContractInfo
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
-    created_contract = create_contract(contract, contract.metadata)
+    created_contract = await create_contract(contract, contract.metadata)
     return created_contract
+
+
+@app.post('/contracts/add', tags=['Contracts'])
+async def add_new_contract(contracts: list[AddContract], password: str) -> list[ContractInfo]:
+    logger.info(f'Adding {len(contracts)} new contracts')
+    check_password(password)
+
+    created_contracts = []
+    for contract in contracts:
+        if get_contract(contract.id) is not None:
+            logger.warning(f'Contract {contract.id} already exists')
+        created_contract = await create_contract(contract, contract.metadata)
+        created_contracts.append(created_contract)
+
+    return created_contracts
 
 
 # This method is NOT password-protected: it is intended to be used by users who add contracts themselves.
@@ -236,7 +254,7 @@ async def register_contract(contract: AddContract) -> ContractInfo:
 
     metadata = {**contract.metadata, **cache_metadata} if contract.metadata is not None else cache_metadata
     logger.info(f'Registering a contract with metadata:\n{metadata}')
-    rich_contract = create_contract(contract, metadata)
+    rich_contract = await create_contract(contract, metadata)
 
     try:
         await notify_new_pool(
@@ -266,7 +284,7 @@ async def deploy_contract(password: str, parameters: DeployContract) -> Contract
     check_password(password)
     version = await calljs("contractVersion", contractType=parameters.type)
     contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
-    created_contract = create_contract_with(parameters.type, contract_id, version, parameters.description,
+    created_contract = await create_contract_with(parameters.type, contract_id, version, parameters.description,
                                             parameters.metadata)
 
     await notify_new_pool(
