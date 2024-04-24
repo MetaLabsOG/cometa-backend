@@ -5,9 +5,9 @@ from aiocache import cached
 from env import settings
 from flex import db
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_current_round
-from flex.data.asset_prices import update_lp_assets_price
 from flex.data.assets import get_full_asset, micros_to_amount
 from flex.data.lp_tokens import get_lp_token_by_id, lp_token_from_tinyman_pool
+from flex.data.tinyman_lps import update_algo_tinyman_lp_assets_price
 from flex.meta_error import MetaError
 from flex.providers.tinyman import fetch_algo_tinyman_pool_by_asset_id
 from flex.providers.vestige import get_full_asset_price
@@ -73,6 +73,7 @@ async def create_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
         total_tokens=issued_tokens,
         token_price_algo=lp_token_price_algo,
         last_updated_round=await get_current_round(),
+        is_algo_pool=lp_token.asset2_id == 0 or lp_token.asset1_id == 0
     )
 
     db.lp_states.create(lp_state)
@@ -97,7 +98,8 @@ async def update_lp_state(lp_state: LpState, current_round: int | None = None, a
     lp_state.last_updated_round = current_round or await get_current_round()
 
     db.lp_states.update(lp_state)
-    _ = await update_lp_assets_price(lp_state, algo_price_usd)
+    if lp_state.is_algo_pool:
+        _ = await update_algo_tinyman_lp_assets_price(lp_state, algo_price_usd)
 
     return lp_state
 
@@ -204,8 +206,8 @@ async def get_tinyman_pool_lp_state_by_asset_id(asset_id: int) -> LpState | None
     current_round = await get_current_round()
     tiny_lp_state = db.lp_states.get_one(asset1_id=asset_id, asset2_id=0)
     if tiny_lp_state is not None:
-        if current_round - tiny_lp_state.last_updated_round > settings.lp_state_ttl_rounds:
-            tiny_lp_state = await update_lp_state(tiny_lp_state)
+        # if current_round - tiny_lp_state.last_updated_round > settings.lp_state_ttl_rounds:
+        #     tiny_lp_state = await update_lp_state(tiny_lp_state)
         return tiny_lp_state
 
     tinyman_pool = await fetch_algo_tinyman_pool_by_asset_id(asset_id)
