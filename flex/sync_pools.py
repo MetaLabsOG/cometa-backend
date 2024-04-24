@@ -7,12 +7,12 @@ from env import settings
 from flex import db
 from flex.blockchain.base import indexer_client
 from flex.blockchain.info import get_current_round
-from flex.data.asset_prices import update_lp_assets_price, \
-    create_and_update_asset_prices
+from flex.data.asset_prices import create_and_update_asset_prices
 from flex.data.assets import load_all_assets_data
 from flex.data.lp_states import update_lp_states_with_transactions, create_lp_states_from_all_pools, update_all_lp_states_linear
 from flex.data.pool_state import update_pool_states_with_transactions, get_or_create_pool_state, update_pool_state, \
     update_all_pool_states_linear
+from flex.data.tinyman_lps import update_algo_tinyman_lp_assets_price
 from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
 from flex.db.model.blockchain import PoolTransaction, SyncBlock, SyncState
 from flex.db.model.liquidity_pools import LpState, LpTransaction
@@ -157,9 +157,10 @@ async def update_asset_prices(
 
     algo_price_usd = algo_price_usd or (await get_algo_price_usd())
     for lp_state in updated_lp_states:
-        updated_asset_price = await update_lp_assets_price(lp_state, algo_price_usd)
-        if updated_asset_price is not None:
-            updated_asset_prices.append(updated_asset_price)
+        if lp_state.is_algo_pool:
+            updated_asset_price = await update_algo_tinyman_lp_assets_price(lp_state, algo_price_usd)
+            if updated_asset_price is not None:
+                updated_asset_prices.append(updated_asset_price)
 
     if len(updated_asset_prices) > 0:
         logger.debug(f'Updated {len(updated_asset_prices)} asset prices.')
