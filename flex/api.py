@@ -1,26 +1,26 @@
 import logging
 import secrets
 from datetime import datetime
+from enum import Enum
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from env import settings
 from flex import db
-from flex.data.asset_prices import get_asset_price, get_all_asset_prices
-from flex.data.assets import get_all_asset_details, get_asset_details
-from flex.db.model.liquidity_pools import LpStateInfo, PricedLpStateInfo
+from flex.data.asset_prices import get_asset_price, get_all_asset_prices, get_asset_prices_by_query
+from flex.data.assets import get_all_asset_details, get_asset_details, get_asset_details_by_query
+from flex.db.model.liquidity_pools import LpStateInfo
 from flex.migrations.contracts import all_contracts_to_pools
 from flex.data.pool_state_priced import calculate_pool_state_cost, calculate_user_pool_state_cost
-from flex.data.lp_states import get_lp_state_by_lp_token_id, \
-    get_priced_lp_state_by_lp_token_id, get_all_priced_lp_states, get_priced_lp_states_by_lp_token_ids
-from flex.data.lp_tokens import get_lp_token_by_id
+from flex.data.lp_states import get_lp_state_by_lp_token_id
+from flex.data.lp_tokens import get_lp_token_by_id, get_all_lp_tokens
 from flex.data.pools import get_pool_info_by_id
 from flex.db.model.blockchain import AssetDetails, LpTokenInfo
 from flex.db.model.pool_states import UserStateInfo, PoolStateInfo
 from flex.db.model.pools import PoolType, PoolInfo
 from flex.db.model.priced import UserCost, PoolStateCost, AssetPriceInfo
-from flex.providers.vestige import DexProvider
+from flex.providers.vestige import DexProvider, get_algo_price_usd
 from flex.sync_pools import get_sync_pool_state_by_id, get_sync_user_state_by_address
 
 router = APIRouter()
@@ -36,7 +36,7 @@ def check_password(password: str) -> None:
 
 @router.get('/pool/', tags=['Pools 2.0'])
 async def get_pool_by_id(pool_id: int) -> PoolInfo:
-    return get_pool_info_by_id(pool_id)
+    return await get_pool_info_by_id(pool_id)
 
 
 @router.get('/pool/state', tags=['Pools 2.0'])
@@ -114,15 +114,16 @@ async def get_lp_token_info(lp_token_id: int) -> LpTokenInfo:
     return (await get_lp_token_by_id(lp_token_id)).to_info()
 
 
+@router.post('/lp/tokens', tags=['LP'])
+async def get_lp_token_info(lp_token_ids: list[int] | None = None) -> list[LpTokenInfo]:
+    return [token.to_info() for token in (await get_all_lp_tokens())]
+
+
 @router.post('/lp/state/', tags=['LP'])
 async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
     lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
-    return lp_state.to_info()
-
-
-@router.post('/lp/state/priced', tags=['LP'])
-async def handle_get_priced_lp_state_by_lp_token_id(lp_token_id: int) -> PricedLpStateInfo:
-    return await get_priced_lp_state_by_lp_token_id(lp_token_id)
+    algo_price_usd = await get_algo_price_usd()
+    return lp_state.to_info(algo_price_usd)
 
 
 @router.post('/lp/states', tags=['LP'])
@@ -144,27 +145,17 @@ async def get_lp_states_by(
     if max_count is not None:
         lp_states = lp_states[:max_count]
 
-    return [state.to_info() for state in lp_states]
+    current_time = datetime.now()
+    algo_price_usd = await get_algo_price_usd()
 
-
-class PricedLpStatesParams(BaseModel):
-    lp_token_ids: list[int] | None = None
-
-
-@router.post('/lp/states/priced', tags=['LP'])
-async def handle_get_priced_lp_states(
-        params: PricedLpStatesParams
-) -> list[PricedLpStateInfo]:
-    if params.lp_token_ids is None:
-        return await get_all_priced_lp_states()
-    else:
-        return await get_priced_lp_states_by_lp_token_ids(params.lp_token_ids)
+    return [state.to_info(algo_price_usd, current_time=current_time) for state in lp_states]
 
 
 @router.post('/info/lp/state/', tags=['LP'])
 async def handle_get_lp_state_by_lp_token_id_OLD(lp_token_id: int) -> LpStateInfo:
     lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
-    return lp_state.to_info()
+    algo_price_usd = await get_algo_price_usd()
+    return lp_state.to_info(algo_price_usd)
 
 
 # ASSETS API
@@ -179,25 +170,51 @@ async def handle_get_asset_price_by_id(asset_id: int) -> AssetPriceInfo:
     return (await get_asset_price(asset_id)).to_info(datetime.now())
 
 
+class ShowLpTokensOption(str, Enum):
+    ONLY = 'ONLY_LP_TOKENS'
+    NO = 'NO_LP_TOKENS'
+    WHATEVER_SHOW_ALL = 'WHATEVER_SHOW_ALL'
+
+
 class AssetsParams(BaseModel):
     ids: list[int] | None = None
+    show_lp_tokens: ShowLpTokensOption = ShowLpTokensOption.WHATEVER_SHOW_ALL
+
+    def to_query_dict(self) -> dict:
+        query_dict = {}
+        if self.show_lp_tokens != ShowLpTokensOption.WHATEVER_SHOW_ALL:
+            query_dict['show_lp_token'] = {'is_lp_token': self.show_lp_tokens == ShowLpTokensOption.ONLY}
+        if self.ids:
+            query_dict['id'] = {'$in': self.ids}
+        return query_dict
 
 
 @router.post('/assets', tags=['Assets'])
 async def handle_get_assets_by(params: AssetsParams) -> list[AssetDetails]:
-    if params.ids is None:
+    query_dict = params.to_query_dict()
+    if len(query_dict) == 0:
         return await get_all_asset_details()
-    return [(await get_asset_details(asset_id)) for asset_id in params.ids]
+    return await get_asset_details_by_query(query_dict)
 
 
 @router.post('/assets/price', tags=['Assets'])
 async def handle_get_assets_prices_by(params: AssetsParams) -> list[AssetPriceInfo]:
+    query_dict = params.to_query_dict()
     current_time = datetime.now()
-    if params.ids is None:
-        price_infos = await get_all_asset_prices()
+    if len(query_dict) == 0:
+        return await get_all_asset_prices(current_time=current_time)
     else:
-        price_infos = [(await get_asset_price(asset_id)) for asset_id in params.ids]
-    return [price_info.to_info(current_time) for price_info in price_infos]
+        return await get_asset_prices_by_query(query_dict, current_time=current_time)
+
+
+@router.post('/assets/price/detailed', tags=['Assets'])
+async def handle_get_assets_prices_by(params: AssetsParams) -> list[AssetPriceInfo]:
+    query_dict = params.to_query_dict()
+    current_time = datetime.now()
+    if len(query_dict) == 0:
+        return await get_all_asset_prices(current_time=current_time)
+    else:
+        return await get_asset_prices_by_query(query_dict, current_time=current_time)
 
 
 # DB API

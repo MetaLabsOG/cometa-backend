@@ -19,7 +19,7 @@ class TxInfo:
 @dataclass_json
 @dataclass
 class PoolTransaction(BaseEntity['PoolTransaction']):
-    # TODO: remove one of the fields
+    id: str
     pool_id: int
     pool_address: str
     user_address: str
@@ -27,7 +27,6 @@ class PoolTransaction(BaseEntity['PoolTransaction']):
     delta_amount_micros: int
     confirmed_round: int
 
-    id: str
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
 
@@ -49,13 +48,13 @@ class LpTokenInfo:
 @dataclass_json
 @dataclass
 class LpToken(BaseEntity['LpToken']):
+    id: int
     asset1_id: int
     asset2_id: int
     dex_provider: str
     address: str
     pool_id: int
 
-    id: int
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
 
@@ -112,15 +111,17 @@ class AssetDetails(AssetBase):
 @dataclass_json
 @dataclass
 class Asset(BaseEntity['Asset'], AssetBase):
+    id: int
     name: str
     decimals: int
     unit_name: str
     creator: str
     reserve: str
     total_supply: float
-    id: int
 
+    is_lp_token: bool = False
     logo_url: str | None = None
+
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
 
@@ -152,11 +153,14 @@ class Asset(BaseEntity['Asset'], AssetBase):
 @dataclass_json
 @dataclass
 class SyncState(BaseEntity['SyncState']):
+    id: str = field(default_factory=get_uuid)
     last_round: int | None = None
 
-    id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
+
+    def rounds_since_updated(self, current_round: int) -> int | None:
+        return current_round - self.last_round if self.last_round else None
 
 
 @dataclass_json
@@ -164,6 +168,7 @@ class SyncState(BaseEntity['SyncState']):
 class SyncBlock(BaseEntity['SyncBlock']):
     round: int
     timestamp: int
+
     # TODO: remove - migrate
     pool_tx_ids: list[str] | None = None
 
