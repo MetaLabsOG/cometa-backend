@@ -46,12 +46,12 @@ class Settings(BaseSettings):
     sync_behind_seconds_threshold: int = 60
 
     contracts_cache_ttl: int = 30
-    algo_price_ttl: int = 5
-    asset_prices_ttl: int = 60
-    lp_token_prices_ttl: int = 60
+    algo_price_ttl: int = 3
+    asset_prices_ttl: int = 30
+    lp_token_prices_ttl: int = 30
     total_tvl_ttl: int = 30
 
-    lp_state_ttl_rounds: int = 40  # 2 minutes
+    lp_state_ttl_rounds: int = 10  # 30s
 
     farm_creation_fee: int
     farm_flat_algo_creation_fee: int
@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     reach_connector_mode: str = 'ALGO'
     sync_humble_pools: int = 0
 
-    asset_default_logo_url: str = 'https://app.cometa.farm/static/media/tokenPlaceholder.b822bbf7d312b67292cf97f3d22194ed.svg'
+    asset_default_logo_svg_url: str = 'https://app.cometa.farm/static/media/tokenPlaceholder.b822bbf7d312b67292cf97f3d22194ed.svg'
 
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 

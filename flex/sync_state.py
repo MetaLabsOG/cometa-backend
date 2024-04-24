@@ -20,4 +20,4 @@ sync_max_delay_rounds = int(sync_max_delay.total_seconds() / settings.block_time
 async def is_sync_delayed(current_round: int | None = None) -> bool:
     current_round = current_round or (await get_current_round())
     sync_state = await get_sync_state()
-    return current_round - sync_state.last_round > sync_max_delay_rounds
+    return sync_state.rounds_since_updated(current_round) > sync_max_delay_rounds

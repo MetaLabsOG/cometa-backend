@@ -1,5 +1,4 @@
 import json
-from abc import abstractmethod
 from datetime import datetime
 
 from typing import Any, TypeVar, Generic
@@ -11,17 +10,9 @@ EntityT = TypeVar('EntityT')
 
 # IMPLEMENTATIONS MUST be dataclass and dataclass_json
 class BaseEntity(Generic[EntityT]):
-    @abstractmethod
-    def id(self) -> str | int:
-        pass
-
-    @abstractmethod
-    def updated(self) -> datetime:
-        pass
-
-    @abstractmethod
-    def created(self) -> datetime:
-        pass
+    id: int | str
+    updated: datetime
+    created: datetime
 
     @classmethod
     def primary_key_name(cls) -> str:
@@ -38,7 +29,7 @@ class BaseEntity(Generic[EntityT]):
         return cls.from_dict(data)
 
     def to_dict(self) -> dict:
-        return self.to_dict()
+        return self.__class__.to_dict(self)
 
     def field(self, name: str, default_value: Any = None, default_factory: callable = None) -> Any:
         res = getattr(self, name)

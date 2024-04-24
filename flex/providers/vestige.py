@@ -48,7 +48,7 @@ class Price:
     usd: float
 
 
-@cached(ttl=10, namespace='algo_price', key='algo_price')
+@cached(ttl=settings.algo_price_ttl, namespace='algo_price', key='algo_price')
 async def get_algo_price_usd() -> float:
     url = f'{BASE_URL}/currency/USD/price'
     data = requests.get(url).json()

@@ -5,18 +5,25 @@ from aiocache import cached
 from flex import db
 from flex.blockchain.info import fetch_asset, ALGO_ASSET
 from flex.db.model.blockchain import Asset, AssetInfo, AssetDetails
+from flex.providers.tinyman import get_asset_logo_url
 from flex.util import build_key_str
 
 logger = logging.getLogger(__name__)
+
+
+async def create_asset(asset_id: int) -> Asset:
+    asset = await fetch_asset(asset_id)
+    asset.logo_url = get_asset_logo_url(asset_id)
+    db.assets.create(asset)
+    logger.info(f'New Asset: id={asset.id}, name={asset.name}')
+    return asset
 
 
 @cached(namespace='full_asset', key_builder=build_key_str)
 async def get_full_asset(asset_id: int) -> Asset:
     asset = db.assets.get_by_primary_key(asset_id, throw_ex=False)
     if asset is None:
-        asset = await fetch_asset(asset_id)
-        db.assets.create(asset)
-        logger.info(f'New Asset: id={asset.id}, name={asset.name}')
+        asset = await create_asset(asset_id)
     return asset
 
 
@@ -28,6 +35,10 @@ async def get_asset_info(asset_id: int) -> AssetInfo:
 @cached(namespace='asset_details', key_builder=build_key_str)
 async def get_asset_details(asset_id: int) -> AssetDetails:
     return (await get_full_asset(asset_id)).to_details()
+
+
+async def get_asset_details_by_query(query_dict: dict) -> list[AssetDetails]:
+    return [asset.to_details() for asset in db.assets.get_many(query_dict)]
 
 
 @cached(ttl=20, namespace='all_asset_details', key='420')

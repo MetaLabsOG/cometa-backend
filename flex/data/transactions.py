@@ -4,6 +4,7 @@ from flex.blockchain.base import indexer_client
 from flex.blockchain.info import get_app_address
 from flex.db.model.blockchain import PoolTransaction
 from flex.db.model.pool_states import PoolState
+from flex.meta_error import MetaError
 
 # class TransactionTypeName:
 ASSET_TRANSFER_TX = 'asset-transfer-transaction'
@@ -26,7 +27,7 @@ async def pool_fetch_new_transactions_by_id(
     if pool_address is None:
         pool_address = await get_app_address(pool_id)
         if pool_address is None:
-            pass  # TODO: think
+            raise MetaError(f'Pool {pool_id} address not found')
 
     new_transactions = []
     next_token = None
