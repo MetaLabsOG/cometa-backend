@@ -100,8 +100,8 @@ class TinymanAssetInfo:
     logo_png_url: str
 
 
-@cached(cache=TTLCache(maxsize=1, ttl=3600))
-def get_tinyman_assets_details() -> list[TinymanAssetInfo]:
+@cached(cache=TTLCache(maxsize=1, ttl=60 * 60 * 24))
+def get_tinyman_assets_details() -> dict[int, TinymanAssetInfo]:
     url = 'https://asa-list.tinyman.org/assets.json'
     response = requests.get(url)
     data = response.json()
@@ -117,4 +117,12 @@ def get_tinyman_assets_details() -> list[TinymanAssetInfo]:
             logo_svg_url=asa_data['logo']['svg']
         )
         assets_info.append(asset_details)
-    return assets_info
+    return {asset.id: asset for asset in assets_info}
+
+
+def get_asset_logo_url(asset_id: int) -> str:
+    assets_details = get_tinyman_assets_details()
+    asset = assets_details.get(asset_id)
+    if asset is None:
+        return settings.asset_default_logo_svg_url
+    return asset.logo_svg_url

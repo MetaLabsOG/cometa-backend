@@ -16,6 +16,7 @@ from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
 from core.util import strip_version, parse_bignum
 from env import settings
+from flex.migrations import migrate_background
 from flex.sync_pools import sync_pools_loop
 
 spawn = multiprocessing.get_context('spawn')
@@ -174,6 +175,7 @@ async def sync_new_pools():
 def run_background():
     async def tasks():
         await asyncio.gather(
+            migrate_background(),
             update_contracts_worker(),
             # update_pools_info_worker()
             sync_new_pools()
@@ -196,4 +198,3 @@ def start_bg_tasks():
     finally:
         proc.terminate()
         proc.join()
-
