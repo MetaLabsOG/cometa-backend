@@ -106,7 +106,7 @@ async def update_asset_price(asset_price: AssetPrice, algo_price_usd: float | No
         asset_price.price_algo = priced_lp_state.token_price_algo
         asset_price.price_usd = priced_lp_state.token_price_usd
 
-    elif asset_price.tinyman_algo_pool_id is not None:
+    elif asset_price.tinyman_algo_pool_id is not None and asset_price.id != 1696994742:  # TODO: remove BDNRI HACK SHIT MAN
         lp_state = db.lp_states.get_one(id=asset_price.tinyman_algo_pool_id)
         if lp_state is not None:
             algo_price_usd = algo_price_usd or (await get_algo_price_usd())
@@ -116,6 +116,10 @@ async def update_asset_price(asset_price: AssetPrice, algo_price_usd: float | No
             price = await get_full_asset_price(asset_id=asset_price.id)
             asset_price.price_algo = price.algo
             asset_price.price_usd = price.usd
+    else:
+        price = await get_full_asset_price(asset_id=asset_price.id)
+        asset_price.price_algo = price.algo
+        asset_price.price_usd = price.usd
 
     asset_price.last_updated_round = await get_current_round()
     db.asset_prices.update(asset_price)
@@ -142,10 +146,14 @@ async def update_asset_price_with_lp_state(lp_state: LpState, algo_price_usd: fl
 
 @cached(ttl=settings.asset_prices_ttl, namespace='asset_price', key='asset_id')
 async def get_asset_price(asset_id: int) -> AssetPrice:
+    return await asset_create_or_update(asset_id)
+
+
+async def asset_create_or_update(asset_id: int) -> AssetPrice:
     asset_price = db.asset_prices.get_one(id=asset_id)
     if asset_price is None:
         asset_price = await create_asset_price(asset_id)
-    elif (await is_sync_delayed()):
+    else:
         asset_price = await update_asset_price(asset_price)
     return asset_price
 
@@ -162,7 +170,7 @@ async def create_and_update_asset_prices() -> list[AssetPrice]:
     asset_prices = []
     for asset in all_assets:
         try:
-            asset_price = await get_asset_price(asset.id)
+            asset_price = await asset_create_or_update(asset.id)
             asset_prices.append(asset_price)
         except Exception as e:
             logger.error(f'Error creating asset price for {asset.id}: {e}')
