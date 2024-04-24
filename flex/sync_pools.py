@@ -7,14 +7,14 @@ from env import settings
 from flex import db
 from flex.blockchain.base import indexer_client
 from flex.blockchain.info import get_current_round
-from flex.data.asset_prices import update_asset_price_with_lp_state, \
+from flex.data.asset_prices import update_lp_assets_price, \
     create_and_update_asset_prices
 from flex.data.assets import load_all_assets_data
-from flex.data.lp_states import update_lp_states_with_transactions, create_lp_states, update_all_lp_states_linear
+from flex.data.lp_states import update_lp_states_with_transactions, create_lp_states_from_all_pools, update_all_lp_states_linear
 from flex.data.pool_state import update_pool_states_with_transactions, get_or_create_pool_state, update_pool_state, \
     update_all_pool_states_linear
 from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
-from flex.db.model.blockchain import PoolTransaction, SyncBlock
+from flex.db.model.blockchain import PoolTransaction, SyncBlock, SyncState
 from flex.db.model.liquidity_pools import LpState, LpTransaction
 from flex.db.model.pool_states import PoolState, UserState
 from flex.db.model.priced import AssetPrice
@@ -142,7 +142,7 @@ async def update_pools(txns: list[dict]) -> [PoolState]:
     return await update_pool_states_with_transactions(pool_transactions)
 
 
-async def update_lps(txns: list[dict]) -> list[LpState]:
+async def update_lp_states(txns: list[dict]) -> list[LpState]:
     lp_transactions = await process_lp_transactions(txns)
     return await update_lp_states_with_transactions(lp_transactions)
 
@@ -152,9 +152,12 @@ async def update_asset_prices(
         algo_price_usd: float | None = None
 ) -> list[AssetPrice]:
     updated_asset_prices = []
+    if len(updated_lp_states) == 0:
+        return updated_asset_prices
+
     algo_price_usd = algo_price_usd or (await get_algo_price_usd())
     for lp_state in updated_lp_states:
-        updated_asset_price = await update_asset_price_with_lp_state(lp_state, algo_price_usd)
+        updated_asset_price = await update_lp_assets_price(lp_state, algo_price_usd)
         if updated_asset_price is not None:
             updated_asset_prices.append(updated_asset_price)
 
@@ -163,33 +166,36 @@ async def update_asset_prices(
     return updated_asset_prices
 
 
+async def catch_up_the_sync_manually(sync_state: SyncState, current_round: int) -> SyncState:
+    logger.info('\nSyncing ALL pool states in order first.\n')
+    logger.info(f'\nLast sync round = {sync_state.last_round}, sync lag = {sync_state.rounds_since_updated(current_round)} rounds.\n')
+
+    _ = await load_all_assets_data()
+    _ = await update_all_pool_states_linear()
+
+    current_round = await get_current_round()
+    logger.info(f'\nAnother, shorter loop, starting from round {current_round}\n')
+    await update_all_pool_states_linear()
+
+    logger.info('\nSyncing ALL LP states linearly.\n')
+    _ = await create_lp_states_from_all_pools()
+    _ = await update_all_lp_states_linear()
+    _ = await create_and_update_asset_prices()
+
+    sync_state.last_round = current_round
+    db.sync_states.update(sync_state)
+    logger.info(f'\nPools synced up to round {current_round}.\n')
+
+    return sync_state
+
+
 async def sync_pools_loop():
     current_round = await get_current_round()
-
     logger.info(f'\nStart pools sync loop. Current round = {current_round}\n')
-
     sync_state = await get_sync_state()
-    sync_lag = current_round - sync_state.last_round if sync_state.last_round is not None else None
 
-    if sync_state.last_round is None or sync_lag > settings.sync_lag_max_rounds:
-        logger.info('\nSyncing ALL pool states in order first.\n')
-        logger.info(f'\nLast sync round = {sync_state.last_round}, sync lag = {sync_lag} rounds.\n')
-
-        _ = await load_all_assets_data()
-        await update_all_pool_states_linear()
-
-        current_round = await get_current_round()
-        logger.info(f'\nAnother, shorter loop, starting from round {current_round}\n')
-        await update_all_pool_states_linear()
-
-        logger.info('\nSyncing ALL LP states linearly.\n')
-        _ = await create_lp_states()
-        _ = await update_all_lp_states_linear()
-        _ = await create_and_update_asset_prices()
-
-        sync_state.last_round = current_round
-        db.sync_states.update(sync_state)
-        logger.info(f'\nPools synced up to round {current_round}.\n')
+    if sync_state.last_round is None or sync_state.rounds_since_updated(current_round) > settings.sync_lag_max_rounds:
+        sync_state = await catch_up_the_sync_manually(sync_state, current_round)
 
     logger.info('\nStarting the main BLOCKCHAIN sync loop.\n')
 
@@ -216,7 +222,7 @@ async def sync_pools_loop():
             logger.debug(f'Fetch #{next_round}: sync {len(raw_transactions)} txns')
 
             updated_pool_states = await update_pools(transfer_transactions)
-            updated_lp_states = await update_lps(transfer_transactions)
+            updated_lp_states = await update_lp_states(transfer_transactions)
             _ = await update_asset_prices(updated_lp_states)
 
             sync_state.last_round = next_round

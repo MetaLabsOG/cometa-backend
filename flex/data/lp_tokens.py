@@ -63,7 +63,12 @@ async def fetch_lp_token_by_id(lp_token_id: int) -> LpToken | None:
     )
 
 
-@cached(ttl=60, namespace='lp_token_by_id', key_builder=build_key_str)
+@cached(namespace='lp_token_get_all', key_builder=build_key_str)
+async def get_all_lp_tokens() -> list[LpToken]:
+    return db.lp_tokens.get_all()
+
+
+@cached(namespace='lp_token_by_id', key_builder=build_key_str)
 async def get_lp_token_by_id(lp_token_id: int) -> LpToken | None:
     lp_token = db.lp_tokens.get_by_primary_key(lp_token_id, throw_ex=False)
     if lp_token is None:

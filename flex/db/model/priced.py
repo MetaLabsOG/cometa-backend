@@ -50,7 +50,6 @@ class AirdropReward(BaseEntity['AirdropReward']):
 @dataclass
 class AssetPriceInfo:
     asset_id: int
-    asset_name: str
     price_usd: float
     price_algo: float
     last_update_round: int
@@ -60,12 +59,13 @@ class AssetPriceInfo:
 @dataclass_json
 @dataclass
 class AssetPrice(BaseEntity['AssetPrice']):
+    id: int
     price_usd: float
     price_algo: float
     last_update_round: int
 
-    name: str
-    id: int
+    # TODO: remove after migration
+    name: str | None = None
     tinyman_algo_pool_id: int | None = None
 
     created: datetime = field(default_factory=datetime.now)
@@ -75,7 +75,6 @@ class AssetPrice(BaseEntity['AssetPrice']):
         seconds_since_update = (current_time - self.updated).total_seconds()
         return AssetPriceInfo(
             asset_id=self.id,
-            asset_name=self.name,
             price_usd=self.price_usd,
             price_algo=self.price_algo,
             last_update_round=self.last_update_round,
