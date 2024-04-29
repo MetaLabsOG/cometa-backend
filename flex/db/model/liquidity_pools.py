@@ -48,16 +48,20 @@ class LpState(BaseEntity['LpState']):
     asset2_reserve_micros: int
     total_tokens_micros: int  # TODO: change name to issued_tokens_micros
 
-    is_algo_pool: bool = False
+    asset1_reserve: float
+    asset2_reserve: float
+    total_tokens: float
+    token_price_algo: float
 
-    asset1_reserve: float | None = None  # TODO: remove Optional after migration
-    asset2_reserve: float | None = None  # TODO: remove Optional after migration
-    total_tokens: float | None = None  # TODO: remove Optional after migration
-    token_price_algo: float | None = None  # TODO: remove Optional after migration
+    is_algo_pool: bool = False
 
     swap_fee_apr: float | None = None
     updated: datetime = field(default_factory=datetime.now)
     created: datetime = field(default_factory=datetime.now)
+
+    @classmethod
+    def primary_key_name(cls) -> str:
+        return 'token_id'
 
     def to_info(self, algo_price_usd: float, current_time: datetime | None = None) -> LpStateInfo:
         current_time = current_time or datetime.now()
@@ -80,13 +84,6 @@ class LpState(BaseEntity['LpState']):
             swap_fee_apr=self.swap_fee_apr,
             seconds_since_update=(current_time - self.updated).total_seconds()
         )
-
-
-@dataclass_json
-@dataclass
-class BalanceDelta:
-    asset_id: int
-    delta_amount_micros: int
 
 
 @dataclass_json

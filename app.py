@@ -37,6 +37,7 @@ from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
+from flex.data.asset_prices import get_asset_price_not_cached
 from flex.data.lp_states import create_lp_state_by_lp_token_id
 from flex.migrations import migrate_before_start
 from flex.migrations.contracts import create_pool_from_contract
@@ -178,6 +179,8 @@ async def create_contract_with(type: str, id: int, version: str, description: st
         pool_info = await create_pool_from_contract(contract)
         if pool_info is not None and 'dex' in metadata:
             _ = await create_lp_state_by_lp_token_id(pool_info.stake_token.id)
+        _ = await get_asset_price_not_cached(pool_info.stake_token.id)
+        _ = await get_asset_price_not_cached(pool_info.reward_token.id)
     except Exception as e:
         logger.error(f'Error creating pool from contract: {e}', exc_info=True)
 
