@@ -27,6 +27,11 @@ async def get_full_asset(asset_id: int) -> Asset:
     return asset
 
 
+@cached(namespace='asset_total_supply', key_builder=build_key_str)
+async def get_asset_total_supply(asset_id: int) -> int:
+    return (await get_full_asset(asset_id)).total_supply_micros
+
+
 @cached(namespace='asset_info', key_builder=build_key_str)
 async def get_asset_info(asset_id: int) -> AssetInfo:
     return (await get_full_asset(asset_id)).to_info()

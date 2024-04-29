@@ -55,6 +55,9 @@ async def fetch_lp_token_by_id(lp_token_id: int) -> LpToken | None:
     if farming_pool is None:
         return None
 
+    if farming_pool.first_token.id < farming_pool.second_token.id:
+        farming_pool.first_token.id, farming_pool.second_token.id = farming_pool.second_token.id, farming_pool.first_token.id
+
     return await fetch_lp_token_strong(
         lp_token_id=lp_token_id,
         asset1_id=farming_pool.first_token.id,

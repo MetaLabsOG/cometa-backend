@@ -170,20 +170,11 @@ async def handle_get_asset_price_by_id(asset_id: int) -> AssetPriceInfo:
     return (await get_asset_price(asset_id)).to_info(datetime.now())
 
 
-class ShowLpTokensOption(str, Enum):
-    ONLY = 'ONLY_LP_TOKENS'
-    NO = 'NO_LP_TOKENS'
-    WHATEVER_SHOW_ALL = 'WHATEVER_SHOW_ALL'
-
-
 class AssetsParams(BaseModel):
     ids: list[int] | None = None
-    show_lp_tokens: ShowLpTokensOption = ShowLpTokensOption.WHATEVER_SHOW_ALL
 
     def to_query_dict(self) -> dict:
         query_dict = {}
-        if self.show_lp_tokens != ShowLpTokensOption.WHATEVER_SHOW_ALL:
-            query_dict['show_lp_token'] = {'is_lp_token': self.show_lp_tokens == ShowLpTokensOption.ONLY}
         if self.ids:
             query_dict['id'] = {'$in': self.ids}
         return query_dict
@@ -198,16 +189,6 @@ async def handle_get_assets_by(params: AssetsParams) -> list[AssetDetails]:
 
 
 @router.post('/assets/price', tags=['Assets'])
-async def handle_get_assets_prices_by(params: AssetsParams) -> list[AssetPriceInfo]:
-    query_dict = params.to_query_dict()
-    current_time = datetime.now()
-    if len(query_dict) == 0:
-        return await get_all_asset_prices(current_time=current_time)
-    else:
-        return await get_asset_prices_by_query(query_dict, current_time=current_time)
-
-
-@router.post('/assets/price/detailed', tags=['Assets'])
 async def handle_get_assets_prices_by(params: AssetsParams) -> list[AssetPriceInfo]:
     query_dict = params.to_query_dict()
     current_time = datetime.now()

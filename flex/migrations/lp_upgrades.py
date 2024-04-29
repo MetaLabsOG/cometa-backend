@@ -7,20 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 def upgrade_lp_models():
-    logger.info('Upgrading LP models')
-    all_lp_tokens = db.lp_tokens.get_all()
-    all_assets = db.assets.get_all()
-    assets_by_id = {asset.id: asset for asset in all_assets}
-    for lp_token in all_lp_tokens:
-        lp_asset = assets_by_id.get(lp_token.id)
-        if lp_asset is None:
-            logger.error(f'LP Token {lp_token.id} has no corresponding asset')
-            continue
-        lp_asset.is_lp_token = True
-        db.assets.update(lp_asset)
-
-    logger.info(f'Updated {len(all_lp_tokens)} LP tokens')
-
     removed_lp_states = db.lp_states.remove_by()
     logger.info(f'Removed {removed_lp_states} LP states')
 
