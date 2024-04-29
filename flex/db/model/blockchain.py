@@ -168,9 +168,6 @@ class SyncBlock(BaseEntity['SyncBlock']):
     round: int
     timestamp: int
 
-    # TODO: remove - migrate
-    pool_tx_ids: list[str] | None = None
-
     id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)

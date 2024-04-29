@@ -97,7 +97,7 @@ async def create_lp_state_by_lp_token(lp_token: LpToken, current_round: int | No
     return lp_state
 
 
-async def update_lp_state(lp_state: LpState, current_round: int | None = None) -> LpState:
+async def update_lp_state(lp_state: LpState) -> LpState:
     if lp_state.asset1_id == 0 or lp_state.asset2_id == 0:
         # TODO: take values from DB sync
         balances = await get_address_assets_with_algo(lp_state.address)
@@ -112,7 +112,7 @@ async def update_lp_state(lp_state: LpState, current_round: int | None = None) -
     lp_state.total_tokens_micros = lp_token_total_supply_micros - lp_token_reserve_micros
 
     lp_state = await recalculate_lp_state_price_algo_with_micros(lp_state)
-    lp_state.last_updated_round = current_round or await get_current_round()
+    lp_state.last_updated_round = await get_current_round()
     db.lp_states.update(lp_state)
 
     return lp_state
@@ -196,7 +196,7 @@ async def update_all_lp_states_linear() -> list[LpState]:
     return updated_lp_states
 
 
-@cached(ttl=settings.lp_token_prices_ttl, namespace='lp_state', key_builder=build_key_str)
+@cached(ttl=settings.lp_token_prices_ttl, namespace='lp_state_by_id', key_builder=build_key_str)
 async def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     lp_state = db.lp_states.get_one(token_id=lp_token_id)
     if lp_state is None:
@@ -205,6 +205,11 @@ async def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     elif (await get_current_round()) - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
         lp_state = await update_lp_state(lp_state)
     return lp_state
+
+
+@cached(ttl=60, namespace='lp_state_by_address', key_builder=build_key_str)
+async def get_lp_state_by_address(address: str) -> LpState:
+    return db.lp_states.get_one(address=address)
 
 
 @cached(ttl=120, namespace='tinyman_lp_state', key_builder=build_key_str)

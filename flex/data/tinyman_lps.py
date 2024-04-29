@@ -2,6 +2,7 @@ import logging
 
 from flex import db
 from flex.blockchain.info import ALGO_ASSET
+from flex.data.assets import get_asset_details
 from flex.db.model.liquidity_pools import LpState
 from flex.db.model.priced import AssetPrice
 
@@ -45,7 +46,8 @@ async def update_tinyman_algo_lp_state_and_prices(lp_state: LpState, algo_price_
             price_algo=asset_price_algo,
             price_usd=asset_price_usd,
             last_update_round=lp_state.last_updated_round,
-            tinyman_algo_pool_id=lp_state.id
+            tinyman_algo_pool_id=lp_state.id,
+            name=(await get_asset_details(lp_state.asset1_id)).name,
         )
         db.asset_prices.create(asset_price)
     else:
