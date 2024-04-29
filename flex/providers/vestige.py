@@ -73,7 +73,7 @@ async def get_asset_price_usd_not_cached(asset_id: int) -> float:
     return data['USD']
 
 
-async def get_full_asset_price_not_cached(asset_id: int) -> Price:
+async def vestige_full_asset_price_not_cached(asset_id: int) -> Price:
     if asset_id == 0:
         algo_price_usd = await get_algo_price_usd()
         return Price(algo=1, usd=algo_price_usd)
@@ -89,8 +89,8 @@ async def get_full_asset_price_not_cached(asset_id: int) -> Price:
 
 
 @cached(ttl=settings.asset_prices_ttl, namespace='full_asset', key_builder=build_key_str)
-async def get_full_asset_price(asset_id: int) -> Price:
-    return await get_full_asset_price_not_cached(asset_id)
+async def vestige_full_asset_price(asset_id: int) -> Price:
+    return await vestige_full_asset_price_not_cached(asset_id)
 
 
 async def fetch_lp_token(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
@@ -101,6 +101,8 @@ async def fetch_lp_token(lp_token_id: int, asset1_id: int, asset2_id: int, dex_p
     for token_data in data:
         if token_data['token_id'] == lp_token_id:
             address = token_data['address']
+            if asset1_id < asset2_id:
+                asset1_id, asset2_id = asset2_id, asset1_id
             return LpToken(
                 id=lp_token_id,
                 pool_id=token_data['id'],

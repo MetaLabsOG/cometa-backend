@@ -50,7 +50,7 @@ class LpTokenInfo:
 class LpToken(BaseEntity['LpToken']):
     id: int
     asset1_id: int
-    asset2_id: int
+    asset2_id: int   # asset1_id > asset2_id
     dex_provider: str
     address: str
     pool_id: int
@@ -119,7 +119,6 @@ class Asset(BaseEntity['Asset'], AssetBase):
     reserve: str
     total_supply: float
 
-    is_lp_token: bool = False
     logo_url: str | None = None
 
     created: datetime = field(default_factory=datetime.now)
