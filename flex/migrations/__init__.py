@@ -7,6 +7,8 @@ def migrate_before_start() -> None:
     if not settings.migrate:
         return
 
+    print('Migrating sync...')
+
     assets_set_logo_url_from_tinyman_info()
     upgrade_lp_models()
 
@@ -14,5 +16,7 @@ def migrate_before_start() -> None:
 async def migrate_background() -> None:
     if not settings.migrate:
         return
+
+    print('Migrating ASYNC...')
 
     await set_lp_state_price_algo()

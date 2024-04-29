@@ -84,6 +84,13 @@ class LpState(BaseEntity['LpState']):
 
 @dataclass_json
 @dataclass
+class BalanceDelta:
+    asset_id: int
+    delta_amount_micros: int
+
+
+@dataclass_json
+@dataclass
 class LpTransaction(BaseEntity['LpTransaction']):
     id: str
     pool_address: int
