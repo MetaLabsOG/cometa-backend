@@ -509,7 +509,7 @@ async def nft_lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
 
 @app.post('/lottery/staking', tags=['Lottery'])
 async def nft_lottery_for_staking(address: str, pool_id: int) -> Optional[NftPrize]:
-    return await lottery_for_staking(pool_id, address, settings.is_mainnet())
+    return await lottery_for_staking(pool_id, address)
 
 
 @app.post('/lottery/new', tags=['Lottery'])
@@ -540,7 +540,7 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
 
     try:
         # to opt-in to go through
-        sleep(4)
+        sleep(8)  # 3 blocks lol
         send_nft(lottery_draw.wallet, lottery_draw.prize)
         lottery_draw.claimed = True
 
