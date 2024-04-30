@@ -530,7 +530,7 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 
 @app.patch('/lottery/claim', tags=['Lottery'])
 async def claim_prize_nft_for_swap(wallet: str) -> None:
-    wins = lottery_draws.get_many_by(**{'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
+    wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
 
     logger.info(f'Lottery wins for {wallet}: {wins}')
 
@@ -540,13 +540,16 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
 
     try:
         # to opt-in to go through
-        sleep(5)
+        sleep(4)
         send_nft(lottery_draw.wallet, lottery_draw.prize)
         lottery_draw.claimed = True
 
-        lottery = nft_lotteries.get_by_primary_key(lottery_draw.lottery_name)
-        lottery.available_nfts.remove(lottery_draw.prize)
-        nft_lotteries.update(lottery)
+        lotteries = nft_lotteries.get_all()
+        for lottery in lotteries:
+            if lottery_draw.prize in lottery.available_nfts:
+                lottery.available_nfts.remove(lottery_draw.prize)
+                nft_lotteries.update(lottery)
+
     except Exception as e:
         lottery_draw.send_error = str(e)
         logger.error(f'Error sending NFT to {wallet}: {e}')
