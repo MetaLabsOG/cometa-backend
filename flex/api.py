@@ -126,6 +126,13 @@ async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
     return lp_state.to_info(algo_price_usd)
 
 
+@router.post('/lp/state/priced', tags=['LP', 'Deprecated'])
+async def handle_get_lp_state_by_lp_token_id_DEPRECATED(lp_token_id: int) -> LpStateInfo:
+    lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
+    algo_price_usd = await get_algo_price_usd()
+    return lp_state.to_info(algo_price_usd)
+
+
 @router.post('/lp/states', tags=['LP'])
 async def get_lp_states_by(
         max_count: int | None = None,
