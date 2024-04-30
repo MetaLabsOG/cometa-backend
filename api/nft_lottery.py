@@ -84,6 +84,7 @@ def draw_id(lottery: NftLottery) -> Optional[int]:
     while True:
         if not lottery.available_nfts:
             return None
+        # TODO: refactor to get balance once
         res = random.choice(lottery.available_nfts)
         data = indexer_client.lookup_account_assets(address=cometa_public_key, asset_id=res)
         assets = data.get('assets', [])
@@ -154,25 +155,11 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
         logger.warning(f'NFTS are OVER for lottery {lottery.name}')
         return None
 
-    # participant = lottery_participants.get_by_primary_key(address)
-    # if participant is None:
-    #     participant = LotteryParticipant(address=address,
-    #                                      pool_id=pool_id,
-    #                                      last_draw_block=0)
-    #     lottery_participants.create(participant)
-
     # !!! About lock check.
     # OMIT LOCK CHECK, considering that claim is active on front only after the lock.
     # And after the lock it again not available for the whole period.
     # SO we do not need explicit check here.
     # FIXME: this can easily be hacked just by backend requests (but I'll give it a shot lol, I don't believe there are too many smart people to do that)
-
-    # lock_length = 183272 if is_mainnet else 1
-    # current_block = get_current_round()
-    #
-    # if participant.last_draw_block + lock_length > current_block:
-    #     logger.info(f'Still lock for address {address} {participant.last_draw_block + lock_length} > {current_block}')
-    #     return None
 
     logger.info(f'Lottery {lottery.name} for pool {pool_id} and address {address} started')
 
@@ -183,9 +170,6 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
                                      timestamp=time.time()))
 
     logger.info(f'The prize is {prize_id}')
-
-    # participant.last_draw_block = current_block
-    # lottery_participants.update(participant)
 
     if prize_id is not None:
         prize_info = get_nft_prize(lottery, prize_id)
