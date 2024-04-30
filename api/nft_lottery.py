@@ -143,7 +143,7 @@ def lottery_for_swap(swap: SwapInfo) -> Optional[NftPrize]:
     return prize
 
 
-async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = True) -> Optional[NftPrize]:
+async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
     lotteries = nft_lotteries.get_many({'type': LotteryType.STAKING, 'pool_id': pool_id})
     if not lotteries:
         logger.info(f'No lotteries found for pools_id {pool_id}')
@@ -164,10 +164,14 @@ async def lottery_for_staking(pool_id: int, address: str, is_mainnet: bool = Tru
     logger.info(f'Lottery {lottery.name} for pool {pool_id} and address {address} started')
 
     prize_id = draw_id(lottery)
-    lottery_draws.create(LotteryDraw(lottery_name=lottery.name,
-                                     prize=prize_id,
-                                     wallet=address,
-                                     timestamp=time.time()))
+    lottery_draws.create(
+        LotteryDraw(
+            lottery_name=lottery.name,
+            prize=prize_id,
+            wallet=address,
+            timestamp=time.time()
+        )
+    )
 
     logger.info(f'The prize is {prize_id}')
 
