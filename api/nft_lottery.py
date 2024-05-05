@@ -153,7 +153,10 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
         return None
     logger.debug(f'Lotteries found for pools_id {pool_id}: {lotteries}')
 
-    pool_state = flex.db.pool_states.get_by_primary_key(pool_id)
+    pool_state = flex.db.pool_states.get_one(pool_id=pool_id)
+    if pool_state is None:
+        logger.error(f'Pool state not found for pool {pool_id}')
+        return None
     address_stake_micros = pool_state.staked_micros_by_address.get(address)
     if address_stake_micros is None:
         logger.info(f'No staking found for address {address} in pool {pool_id}')
