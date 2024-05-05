@@ -7,7 +7,6 @@ from blockchain.node import init_algod_client
 from env import settings
 
 cometa_private_key = mnemonic.to_private_key(settings.algo_mnemonic)
-cometa_rekey_private_key = mnemonic.to_private_key(settings.rekeyed_mnemonic)
 cometa_public_key = account.address_from_private_key(cometa_private_key)
 
 algod = init_algod_client()
@@ -23,7 +22,7 @@ def send_nft(address: str, nft_id: int, amount: int = 1) -> None:
         receiver=address,
         amt=amount,
         index=nft_id)
-    stxn = txn.sign(cometa_rekey_private_key)
+    stxn = txn.sign(cometa_private_key)
 
     txid = algod.send_transaction(stxn)
     wait_for_confirmation(algod, txid)

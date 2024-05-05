@@ -8,31 +8,32 @@ private_key = mnemonic.to_private_key(settings.algo_mnemonic)
 public_key = account.address_from_private_key(private_key)
 
 
-def opt_in(asa_ids: list[int]):
-    print(f'Opting in {asa_ids}...')
+def send_nfts(asa_ids: list[int], receiver: str):
+    print(f'Sending in {asa_ids}...\n')
     for ind, asa_id in enumerate(asa_ids):
-        print(f'#{ind} Opting in {asa_id}...')
+        print(f'#{ind}/{len(asa_ids)} Sending in {asa_id}...')
         params = algod_client.suggested_params()
         txn = transaction.AssetTransferTxn(
             sender=public_key,
             sp=params,
-            receiver=public_key,
-            amt=0,
-            index=asa_id)
+            receiver=receiver,
+            amt=1,
+            index=asa_id
+        )
 
         signed_txn = txn.sign(private_key)
         txid = algod_client.send_transaction(signed_txn)
 
-        print(f'txid = {txid}')
-
         confirmed_txn = transaction.wait_for_confirmation(algod_client, txid, 3)
+        print(f'Sent with txid = {txid}')
 
 
-asa_ids = [
+RECEIVER = 'METALOLV7YCMDNYKX6QBDHQV33Y7HE6KEKWHJRPHOFUIB4BKV3F4EU4MMQ'
+ASA_IDS = [
     508894655,
     843731043,
     871459329
 ]
 
 if __name__ == '__main__':
-    opt_in(asa_ids)
+    send_nfts(ASA_IDS, RECEIVER)
