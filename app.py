@@ -1,8 +1,8 @@
+import asyncio
 import logging
 import secrets
 import sys
 from datetime import datetime, timedelta
-from time import sleep
 from typing import List, Optional
 
 import uvicorn
@@ -37,6 +37,7 @@ from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
 from env import settings
+from flex.blockchain.info import is_opted_in
 from flex.data.asset_prices import get_asset_price_not_cached
 from flex.data.lp_states import create_lp_state_by_lp_token_id
 from flex.migrations import migrate_before_start
@@ -530,8 +531,9 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 
 @app.patch('/lottery/claim', tags=['Lottery'])
 async def claim_prize_nft_for_swap(wallet: str) -> None:
-    wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
+    logger.info(f'Claiming lottery prize for {wallet}')
 
+    wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
     logger.info(f'Lottery wins for {wallet}: {wins}')
 
     if len(wins) == 0:
@@ -539,8 +541,15 @@ async def claim_prize_nft_for_swap(wallet: str) -> None:
     lottery_draw = wins[-1]
 
     try:
-        # to opt-in to go through
-        sleep(8)  # 3 blocks lol
+        start_time = datetime.now()
+        while True:
+            if is_opted_in(wallet, lottery_draw.prize):
+                break
+            if datetime.now() - start_time > timedelta(seconds=9):  # 3 blocks
+                logger.error(f'Opt-in for {wallet} to {lottery_draw.prize} is not confirmed')
+                return None
+            await asyncio.sleep(1)
+
         send_nft(lottery_draw.wallet, lottery_draw.prize)
         lottery_draw.claimed = True
 

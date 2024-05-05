@@ -18,6 +18,8 @@ from core.db.db_manager import DbManager
 from env import settings
 
 
+MIN_DRAW_INTERVAL = 60 * 60 * 24  # 24 hours
+
 class LotteryType(str, Enum):
     SWAP = 'swap'
     STAKING = 'staking'
@@ -157,14 +159,31 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
         logger.info(f'No staking found for address {address} in pool {pool_id}')
         return None
 
-    # TODO: check all lotteries by balance
-    lottery = lotteries[0]
-    if len(lottery.available_nfts) == 0:
-        logger.warning(f'NFTS are OVER for lottery {lottery.name}')
-        nft_lotteries.remove(lottery)
+    lottery = None
+    for l in lotteries:
+        if len(l.available_nfts) == 0:
+            logger.warning(f'NFTS are OVER for lottery {l.name}')
+            nft_lotteries.remove(l)
+            logger.info(f'Lottery {l.name} removed')
+            continue
+
+        if address_stake_micros >= l.min_amount and (lottery is None or l.probability > lottery.probability):
+            lottery = l
+
+    if lottery is None:
+        logger.info(f'No lottery found for address {address} in pool {pool_id}')
         return None
 
     logger.info(f'Lottery {lottery.name} for pool {pool_id} and address {address} started')
+
+    address_draws = lottery_draws.get_many({'wallet': address, 'lottery_name': lottery.name})
+    now_timestamp = time.time()
+    # TODO: optimize the check, get only last timestamp
+    if len(address_draws) > 0:
+        last_draw_timestamp = max([d.timestamp for d in address_draws])
+        if now_timestamp - last_draw_timestamp < MIN_DRAW_INTERVAL:
+            logger.info(f'Lottery {lottery.name} for pool {pool_id} and address {address} already drawn recently')
+            return None
 
     prize_id = draw_id(lottery)
     lottery_draws.create(
@@ -172,7 +191,7 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
             lottery_name=lottery.name,
             prize=prize_id,
             wallet=address,
-            timestamp=time.time()
+            timestamp=now_timestamp
         )
     )
 
