@@ -9,6 +9,7 @@ from typing import Optional
 from algosdk.v2client import indexer
 from dataclasses_json import dataclass_json
 
+import flex
 from api.swaps import SwapInfo
 from api.wallet import send_nft, cometa_public_key
 from blockchain.nfts import get_nft_info
@@ -149,17 +150,19 @@ async def lottery_for_staking(pool_id: int, address: str) -> Optional[NftPrize]:
         logger.info(f'No lotteries found for pools_id {pool_id}')
         return None
     logger.debug(f'Lotteries found for pools_id {pool_id}: {lotteries}')
-    lottery = lotteries[0]
 
-    if len(lottery.available_nfts) == 0:
-        logger.warning(f'NFTS are OVER for lottery {lottery.name}')
+    pool_state = flex.db.pool_states.get_by_primary_key(pool_id)
+    address_stake_micros = pool_state.staked_micros_by_address.get(address)
+    if address_stake_micros is None:
+        logger.info(f'No staking found for address {address} in pool {pool_id}')
         return None
 
-    # !!! About lock check.
-    # OMIT LOCK CHECK, considering that claim is active on front only after the lock.
-    # And after the lock it again not available for the whole period.
-    # SO we do not need explicit check here.
-    # FIXME: this can easily be hacked just by backend requests (but I'll give it a shot lol, I don't believe there are too many smart people to do that)
+    # TODO: check all lotteries by balance
+    lottery = lotteries[0]
+    if len(lottery.available_nfts) == 0:
+        logger.warning(f'NFTS are OVER for lottery {lottery.name}')
+        nft_lotteries.remove(lottery)
+        return None
 
     logger.info(f'Lottery {lottery.name} for pool {pool_id} and address {address} started')
 

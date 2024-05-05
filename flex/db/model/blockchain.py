@@ -105,7 +105,7 @@ class AssetDetails(AssetBase):
     creator: str
     reserve: str
     total_supply: float
-    logo_url: str | None = None
+    logo_url: str
 
 
 @dataclass_json
