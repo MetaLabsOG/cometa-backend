@@ -111,6 +111,7 @@ async def get_asset_price_not_cached(asset_id: int) -> AssetPrice:
 
 @cached(ttl=settings.asset_prices_ttl, namespace='all_assets_price', key='happy')
 async def get_all_asset_prices(current_time: datetime | None = None) -> list[AssetPriceInfo]:
+    current_time = current_time or datetime.now()
     return [asset_price.to_info(current_time) for asset_price in db.asset_prices.get_all()]
 
 
