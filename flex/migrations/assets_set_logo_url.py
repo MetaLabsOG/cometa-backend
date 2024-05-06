@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def assets_set_logo_url_from_tinyman_info() -> list[Asset]:
-    assets = db.assets.get_many_by(logo_url=None)
+    assets = db.assets.get_many(logo_url=None)
     if len(assets) == 0:
         logger.info('All assets have logo_url set.')
         return []

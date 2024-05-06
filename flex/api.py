@@ -23,6 +23,7 @@ from flex.db.model.pools import PoolType, PoolInfo
 from flex.db.model.priced import UserCost, PoolStateCost, AssetPriceInfo
 from flex.providers.vestige import DexProvider, get_algo_price_usd
 from flex.sync_pools import get_sync_pool_state_by_id, get_sync_user_state_by_address
+from flex.tdr_stats import fetch_and_record_user_txns
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -58,11 +59,11 @@ async def get_pools_by(type: PoolType = PoolType.ANY, stake_token_id: int | None
     if stake_token_id is not None:
         query_dict['stake_token.id'] = stake_token_id
     if type == PoolType.FARMING:
-        return [pool.to_info() for pool in db.farming_pools.get_many_by(**query_dict)]
+        return [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
     elif type == PoolType.STAKING:
-        return [pool.to_info() for pool in db.staking_pools.get_many_by(**query_dict)]
+        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)]
     else:
-        return [pool.to_info() for pool in db.staking_pools.get_many_by(**query_dict)] + [pool.to_info() for pool in db.farming_pools.get_many_by(**query_dict)]
+        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)] + [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
 
 
 @router.post('/pools/state/', tags=['Pools 2.0'])
@@ -153,7 +154,7 @@ async def get_lp_states_by(
         query_dict['dex_provider'] = dex_provider
     if asset_id is not None:
         query_dict['$or'] = [{'asset1_id': asset_id}, {'asset2_id': asset_id}]
-    lp_states = db.lp_states.get_many(query_dict)
+    lp_states = db.lp_states.get_many_by_query(query_dict)
 
     if max_count is not None:
         lp_states = lp_states[:max_count]
@@ -211,13 +212,22 @@ async def handle_get_assets_prices_by(params: AssetsParams) -> list[AssetPriceIn
         return await get_asset_prices_by_query(query_dict, current_time=current_time)
 
 
+# STATS
+
+@router.post('/users/txns', tags=['Stats'])
+async def handle_get_user_txns() -> int:
+    user_txns = await fetch_and_record_user_txns()
+    return len(user_txns)
+
+
 # DB API
 
 class DbGetParams(BaseModel):
     collection_name: str
     query: dict = {}
-    show_last_cnt: int | None = None
-    reverse: bool = False
+    limit: int | None = None
+    reversed: bool = False
+    sort_by: str | None = None
 
 
 @router.post('/db/find', tags=['DB'])
@@ -229,13 +239,13 @@ async def get_entities_by_dict_query(
     collection = db.get_collection_by_name(params.collection_name)
     if collection is None:
         raise HTTPException(status_code=404, detail=f'No such collection: {params.collection_name}!')
-    entities = collection.get_many(params.query)
-    entity_dicts = [e.to_dict() for e in entities]
-    if params.reverse:
-        entity_dicts.reverse()
-    if params.show_last_cnt is not None and len(entity_dicts) > params.show_last_cnt:
-        entity_dicts = entity_dicts[-params.show_last_cnt:]
-    return entity_dicts
+    entities = collection.get_many_by_query(
+        query_dict=params.query,
+        sort_by=params.sort_by,
+        reversed=params.reversed,
+        limit=params.limit
+    )
+    return [e.to_dict() for e in entities]
 
 
 class DbCountParams(BaseModel):
