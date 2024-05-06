@@ -15,10 +15,10 @@ from env import settings
 @dataclass_json
 @dataclass
 class CometaSnapshot:
-    farm_tvl: float
-    distribution_tvl: float
     timestamp: float
+    farm_tvl: float = 0
     staking_tvl: float = 0
+    distribution_tvl: float | None = None
 
 
 tiny_client = init_tinyman_client(settings.algod_address)
@@ -29,7 +29,12 @@ logger = logging.getLogger(__name__)
 
 def save_snapshot(farm_tvl: float, distribution_tvl: float, staking_tvl: float) -> CometaSnapshot:
     cur_time = time.time()
-    snapshot = CometaSnapshot(farm_tvl, distribution_tvl, cur_time, staking_tvl)
+    snapshot = CometaSnapshot(
+        farm_tvl=farm_tvl,
+        distribution_tvl=distribution_tvl,
+        timestamp=cur_time,
+        staking_tvl=staking_tvl
+    )
     snapshots.insert_one(snapshot.to_dict())
     return snapshot
 
