@@ -16,14 +16,14 @@ from flex.migrations.contracts import all_contracts_to_pools
 from flex.data.pool_state_priced import calculate_pool_state_cost, calculate_user_pool_state_cost
 from flex.data.lp_states import get_lp_state_by_lp_token_id
 from flex.data.lp_tokens import get_lp_token_by_id, get_all_lp_tokens
-from flex.data.pools import get_pool_info_by_id
+from flex.data.pools import get_pool_info_by_id, get_pools_by_query
 from flex.db.model.blockchain import AssetDetails, LpTokenInfo
 from flex.db.model.pool_states import UserStateInfo, PoolStateInfo
 from flex.db.model.pools import PoolType, PoolInfo
 from flex.db.model.priced import UserCost, PoolStateCost, AssetPriceInfo
 from flex.providers.vestige import DexProvider, get_algo_price_usd
 from flex.sync_pools import get_sync_pool_state_by_id, get_sync_user_state_by_address
-from flex.tdr_stats import fetch_and_record_user_txns
+from flex.tdr_stats import fetch_and_record_user_txns, fetch_and_record_pool_fees
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -58,12 +58,7 @@ async def get_pools_by(type: PoolType = PoolType.ANY, stake_token_id: int | None
     query_dict = {}
     if stake_token_id is not None:
         query_dict['stake_token.id'] = stake_token_id
-    if type == PoolType.FARMING:
-        return [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
-    elif type == PoolType.STAKING:
-        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)]
-    else:
-        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)] + [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
+    return await get_pools_by_query(pool_type=type, query_dict=query_dict)
 
 
 @router.post('/pools/state/', tags=['Pools 2.0'])
@@ -218,6 +213,12 @@ async def handle_get_assets_prices_by(params: AssetsParams) -> list[AssetPriceIn
 async def handle_get_user_txns() -> int:
     user_txns = await fetch_and_record_user_txns()
     return len(user_txns)
+
+
+@router.post('/pools/fees', tags=['Stats'])
+async def handle_get_pool_fees() -> int:
+    pool_fees = await fetch_and_record_pool_fees()
+    return len(pool_fees)
 
 
 # DB API
