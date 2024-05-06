@@ -4,7 +4,7 @@ from flex.db.model.pools import PoolType
 
 
 async def calculate_total_tvl_usd_for_type(type: PoolType) -> float:
-    pools = db.pool_states.get_many_by(type=type)
+    pools = db.pool_states.get_many(type=type)
     all_asset_prices = db.asset_prices.get_all()
     price_usd_by_id = {price.id: price.price_usd for price in all_asset_prices}
     total_usd = 0
