@@ -10,6 +10,7 @@ from env import settings
 from flex import db
 from flex.data.asset_prices import get_asset_price, get_all_asset_prices, get_asset_prices_by_query
 from flex.data.assets import get_all_asset_details, get_asset_details, get_asset_details_by_query
+from flex.data.stats import calculate_total_tvl_usd
 from flex.db.model.liquidity_pools import LpStateInfo
 from flex.migrations.contracts import all_contracts_to_pools
 from flex.data.pool_state_priced import calculate_pool_state_cost, calculate_user_pool_state_cost
@@ -105,6 +106,11 @@ async def get_user_pool_states_cost_by_address(address: str) -> UserCost:
 async def migrate_pools_from_contracts(password: str) -> dict:
     check_password(password)
     return await all_contracts_to_pools()
+
+
+@router.post('/pools/tvl', tags=['Pools 2.0'])
+async def handle_get_pools_tvl() -> dict:
+    return await calculate_total_tvl_usd()
 
 
 # LP API
