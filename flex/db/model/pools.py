@@ -67,6 +67,10 @@ class StakingPool(BaseEntity['StakingPool']):
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
 
+    @property
+    def reward_amount(self) -> float:
+        return self.reward_token.micros_to_amount(self.reward_amount_micros)
+
     def to_info(self) -> PoolInfo:
         return PoolInfo(
             id=self.id,
@@ -115,6 +119,10 @@ class FarmingPool(BaseEntity['FarmingPool']):
     id: int
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
+
+    @property
+    def reward_amount(self) -> float:
+        return self.reward_token.micros_to_amount(self.reward_amount_micros)
 
     def to_info(self) -> PoolInfo:
         return PoolInfo(
