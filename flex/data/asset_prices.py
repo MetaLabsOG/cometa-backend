@@ -116,7 +116,7 @@ async def get_all_asset_prices(current_time: datetime | None = None) -> list[Ass
 
 
 async def get_asset_prices_by_query(query_dict: dict, current_time: datetime | None = None) -> list[AssetPriceInfo]:
-    return [asset_price.to_info(current_time) for asset_price in db.asset_prices.get_many(query_dict)]
+    return [asset_price.to_info(current_time) for asset_price in db.asset_prices.get_many_by_query(query_dict)]
 
 
 async def create_and_update_asset_prices() -> list[AssetPrice]:

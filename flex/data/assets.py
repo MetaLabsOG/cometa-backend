@@ -43,7 +43,7 @@ async def get_asset_details(asset_id: int) -> AssetDetails:
 
 
 async def get_asset_details_by_query(query_dict: dict) -> list[AssetDetails]:
-    return [asset.to_details() for asset in db.assets.get_many(query_dict)]
+    return [asset.to_details() for asset in db.assets.get_many_by_query(query_dict)]
 
 
 @cached(ttl=20, namespace='all_asset_details', key='420')
