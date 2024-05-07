@@ -10,7 +10,7 @@ def migrate_before_start() -> None:
 
     print('Migrating sync...')
 
-    # remove_all_new_models()
+    remove_all_new_models()
 
     print('DONE sync migration.')
 
