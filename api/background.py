@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from time import sleep
 
+from api.notifications import notify_telegram_chat
 from api.stats import save_snapshot
 from blockchain.node import get_current_round
 from core.cometa import calculate_tvl_for_type, get_pool_state
@@ -17,6 +18,7 @@ from core.js_interop import calljs
 from core.util import strip_version, parse_bignum
 from env import settings
 from flex.migrations import migrate_background
+from flex.providers.vestige import get_asset_price_usd_not_cached
 from flex.sync_pools import sync_pools_loop
 
 spawn = multiprocessing.get_context('spawn')
@@ -165,6 +167,17 @@ async def update_pools_info_worker():
     logger.info('Pools info updated.')
 
 
+@repeat_every(3)
+async def notify_prices():
+    logger.info('CHECKING PRICES...')
+    degen_price = await get_asset_price_usd_not_cached(1813373577)
+    if degen_price > 0.0185:
+        await notify_telegram_chat(
+            chat_id=-4262280851,
+            text=f'DEGEN price: ${degen_price:.4f}'
+        )
+
+
 @safe_async_method
 async def sync_new_pools():
     if settings.sync_new_pools:
@@ -178,7 +191,8 @@ def run_background():
             # migrate_background(),
             update_contracts_worker(),
             # update_pools_info_worker()
-            sync_new_pools()
+            sync_new_pools(),
+            notify_prices()
         )
 
     logger.info('Started background tasks.')
