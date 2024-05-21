@@ -79,7 +79,8 @@ async def update_asset_price(asset_price: AssetPrice, current_round: int, algo_p
 
     elif asset_price.tinyman_algo_pool_id is not None:
         lp_state = db.lp_states.get_one(id=asset_price.tinyman_algo_pool_id)
-        if lp_state is not None and lp_state.dex_provider == DexProvider.TINYMAN_V2:
+        # TODO: simplify the condition or extract to method
+        if lp_state is not None and lp_state.dex_provider == DexProvider.TINYMAN_V2 and lp_state.is_algo_pool:
             asset_price.price_algo = await calculate_price_algo_from_tiny_algo_pool(lp_state)
             asset_price.price_usd = asset_price.price_algo * algo_price_usd
         else:
