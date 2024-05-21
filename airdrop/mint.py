@@ -13,7 +13,46 @@ public_key = account.address_from_private_key(private_key)
 rekeyed_private_key = mnemonic.to_private_key(settings.rekeyed_mnemonic)
 
 
-def mint_token() -> int:
+def mint_test_token() -> int:
+    params = algod_client.suggested_params()
+    supply = 420000
+    decimals = 6
+    total_units = supply * (10 ** decimals)
+    unit_name = 'TEST'
+    asset_name = 'Token For Testing'
+    asset_url = 'https://en.wikipedia.org/wiki/Software_testing'
+    unsigned_txn = transaction.AssetCreateTxn(
+        sender=public_key,
+        sp=params,
+        total=total_units,
+        decimals=decimals,
+        default_frozen=False,
+        unit_name=unit_name,
+        asset_name=asset_name,
+        manager=public_key,
+        reserve=public_key,
+        freeze=None,
+        clawback=None,
+        url=asset_url
+    )
+
+    signed_txn = unsigned_txn.sign(private_key)
+    txid = algod_client.send_transaction(signed_txn)
+
+    print(f'txid = {txid}')
+
+    confirmed_txn = transaction.wait_for_confirmation(algod_client, txid, 4)
+
+    print(f'Transaction information: {json.dumps(confirmed_txn, indent=4)}')
+
+    ptx = algod_client.pending_transaction_info(txid)
+    asset_id = ptx['asset-index']
+    print_created_asset(algod_client, public_key, asset_id)
+
+    return asset_id
+
+
+def mint_meta() -> int:
     params = algod_client.suggested_params()
     total_units = META_TOTAL_SUPPLY * (10 ** META_DECIMALS)
     unsigned_txn = transaction.AssetCreateTxn(
@@ -65,4 +104,4 @@ def change_meta_config():
 
 
 if __name__ == '__main__':
-    change_meta_config()
+    mint_test_token()

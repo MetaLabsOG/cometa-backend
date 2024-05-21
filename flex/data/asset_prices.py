@@ -12,7 +12,7 @@ from flex.data.lp_states import get_tinyman_pool_lp_state_by_asset_id, \
 from flex.data.lp_tokens import get_lp_token_by_id
 from flex.data.tinyman_lps import calculate_price_algo_from_tiny_algo_pool
 from flex.db.model.priced import AssetPrice, AssetPriceInfo
-from flex.providers.vestige import vestige_full_asset_price, get_algo_price_usd
+from flex.providers.vestige import vestige_full_asset_price, get_algo_price_usd, DexProvider
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ async def update_asset_price(asset_price: AssetPrice, current_round: int, algo_p
 
     elif asset_price.tinyman_algo_pool_id is not None:
         lp_state = db.lp_states.get_one(id=asset_price.tinyman_algo_pool_id)
-        if lp_state is not None:
+        if lp_state is not None and lp_state.dex_provider == DexProvider.TINYMAN_V2:
             asset_price.price_algo = await calculate_price_algo_from_tiny_algo_pool(lp_state)
             asset_price.price_usd = asset_price.price_algo * algo_price_usd
         else:
