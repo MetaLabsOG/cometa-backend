@@ -210,7 +210,8 @@ async def update_asset_prices(
     for lp_state in updated_lp_states:
         if lp_state.is_algo_pool:
             updated_asset_price = await update_tinyman_algo_lp_state_and_prices(lp_state, algo_price_usd)
-            updated_asset_prices.append(updated_asset_price)
+            if updated_asset_price is not None:
+                updated_asset_prices.append(updated_asset_price)
 
     if len(updated_asset_prices) > 0:
         logger.debug(f'Updated {len(updated_asset_prices)} asset prices.')

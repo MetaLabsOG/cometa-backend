@@ -22,15 +22,15 @@ async def calculate_price_algo_from_tiny_algo_pool(lp_state: LpState) -> float:
     return lp_state.asset2_reserve / lp_state.asset1_reserve
 
 
-async def update_tinyman_algo_lp_state_and_prices(lp_state: LpState, algo_price_usd: float) -> AssetPrice:
+async def update_tinyman_algo_lp_state_and_prices(lp_state: LpState, algo_price_usd: float) -> AssetPrice | None:
     if not lp_state.is_algo_pool:
-        raise ValueError(f'Not an ALGO pool: {lp_state}')
-    logger.debug(f'Updating "{lp_state.asset1_id}" price with Tiny ALGO pool {lp_state.id}')
-
-    # TODO: remove test log
+        logger.error(f'Not an ALGO pool: {lp_state}', exc_info=True)
+        return None
     if lp_state.asset1_id == 0:
-        logger.error(f'\n\n\nALGO pool with asset1_id = 0: {lp_state}\n\n')
-        raise ValueError(f'ALGO pool with asset1_id = 0: {lp_state}')
+        logger.error(f'ALGO pool with asset1_id = 0, not asset2: {lp_state}')
+        return None
+
+    logger.debug(f'Updating "{lp_state.asset1_id}" price with Tiny ALGO pool {lp_state.id}')
 
     # TODO: should I update LP token price in DB ?
     lp_state.token_price_algo = lp_state.asset2_reserve * 2 / lp_state.total_tokens
