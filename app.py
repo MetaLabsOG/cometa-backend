@@ -241,16 +241,11 @@ async def register_contract(contract: AddContract) -> ContractInfo:
 
         target_beneficiary = 'METAFG5UBD74CKQFIIABWMMQXR45J7BAP3KV6BVR3V7LDPNAEKNEVLMBRE'  # cometa.algo
         target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
-        target_flat_algo_creation_fee = settings.farm_flat_algo_creation_fee * 1000000  # in microtokens
 
         contract_beneficiary = view['initial']['beneficiary']
         if contract_beneficiary != target_beneficiary_hex:
             raise HTTPException(status_code=403,
                                 detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary}")
-
-        if parse_bignum(view['initial']['flatAlgoCreationFee']) != target_flat_algo_creation_fee:
-            raise HTTPException(status_code=403,
-                                detail=f"Farm's flat algo creation fee is invalid (expected {target_flat_algo_creation_fee})")
 
         # Cache the contract's state right away so that user sees that it is displayed correctly right after
         # the contract is created even without connected wallet.
