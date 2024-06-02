@@ -1,15 +1,13 @@
 import json
 import logging
+import random
 
 from flex import db
 from flex.blockchain.base import cometa_public_key
 from flex.blockchain.info import get_current_round, is_opted_in
 from flex.db.model.blockchain import AssetInfo
 from flex.db.model.priced import AirdropReward
-from flex.txns import TxInfo, send_asset_micros_with_wait
-
-
-AIRDROP_ID = 'meta_a200_2'
+from flex.txns import TxInfo, send_asset_micros_with_wait, send_asset_micros
 
 logger = logging.getLogger(__name__)
 
@@ -18,22 +16,26 @@ async def send_airdrop(
         asset_info: AssetInfo,
         total_amount_micros: int,
         address_shares: dict[str, float],
-        note: str
+        notes: list[str],
+        airdrop_id: str
 ) -> list[TxInfo]:
     current_round = await get_current_round()
     logger.info(f'Sending airdrop for {asset_info.name}! Round: {current_round}. Cometa address: {cometa_public_key}')
 
-    logger.info('Checking opted-in addresses...')
-    opted_in_shares = {}
-    total_shares = 0
-    it_num = 0
-    for address, share in address_shares.items():
-        it_num += 1
-        if is_opted_in(address, asset_info.id):
-            opted_in_shares[address] = share
-            total_shares += share
-        if it_num % 10 == 0:
-             logger.info(f'{len(opted_in_shares)}/{it_num}')
+    # logger.info('Checking opted-in addresses...')
+    # opted_in_shares = {}
+    # total_shares = 0
+    # it_num = 0
+    # for address, share in address_shares.items():
+    #     it_num += 1
+    #     if is_opted_in(address, asset_info.id):
+    #         opted_in_shares[address] = share
+    #         total_shares += share
+    #     if it_num % 10 == 0:
+    #          logger.info(f'{len(opted_in_shares)}/{it_num}')
+
+    opted_in_shares = address_shares
+    total_shares = sum(opted_in_shares.values())
 
     amount_per_share = asset_info.micros_to_amount(int(total_amount_micros / total_shares + 1))
     logger.info(f'Total shares: {total_shares}. Total amount: {asset_info.micros_to_amount(total_amount_micros)}. Amount per share: {amount_per_share}')
@@ -55,20 +57,28 @@ async def send_airdrop(
             it_num += 1
             logger.info(f'{it_num}/{len(opted_in_amounts)}')
 
-            already_sent = db.airdrop_rewards.get_one(address=address, airdrop_id=AIRDROP_ID)
+            already_sent = db.airdrop_rewards.get_one(address=address, airdrop_id=airdrop_id)
             if already_sent is not None:
-                logger.info(f'Skipping {address}: already sent {asset_info.micros_to_amount(already_sent.amount_micros)} {asset_info.name} tokens with txid {already_sent.tx_id}!')
+                logger.info(f'Skipping {address}: already sent {asset_info.micros_to_amount(already_sent.amount_micros)} {asset_info.name} tokens with txid {already_sent.txid}!')
                 continue
 
-            tx_info = send_asset_micros_with_wait(asset_info, address, amount_micros, note)
+            note = random.choice(notes)
+            txid = send_asset_micros(asset_info, address, amount_micros, note)
             db.airdrop_rewards.create(AirdropReward(
-                airdrop_id=AIRDROP_ID,
+                airdrop_id=airdrop_id,
                 address=address,
                 asa_id=asset_info.id,
                 amount_micros=amount_micros,
-                txid=tx_info.id
+                txid=txid
             ))
-            sent_txns.append(tx_info)
+            sent_txns.append(TxInfo(
+                id=txid,
+                amount=amount_micros,
+                asa_id=asset_info.id,
+                receiver=address,
+                note=note,
+                sender=cometa_public_key
+            ))
             total_sent_micros += amount_micros
         except Exception as e:
             logger.error(f'Error while sending airdrop to {address}: {e}', exc_info=True)
