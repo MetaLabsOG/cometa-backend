@@ -27,8 +27,8 @@ class TxInfo:
     receiver: str
     asa_id: int
     amount: int | None
-    note: str | None
-    confirmed_round: int | None
+    note: str | None = None
+    confirmed_round: int | None = None
 
 
 logger = logging.getLogger(__name__)
