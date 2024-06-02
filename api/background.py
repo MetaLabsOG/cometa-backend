@@ -192,7 +192,7 @@ def run_background():
             update_contracts_worker(),
             # update_pools_info_worker()
             sync_new_pools(),
-            notify_prices()
+            # notify_prices()
         )
 
     logger.info('Started background tasks.')
