@@ -54,13 +54,16 @@ async def pool_fetch_new_transactions_by_id(
                 tx_asa_id = int(tx[ASSET_TRANSFER_TX]['asset-id'])
                 if asset_id != tx_asa_id:
                     continue
+                tx_amount = tx[ASSET_TRANSFER_TX]['amount']
+                if tx_amount == 0:
+                    continue
                 pool_tx = PoolTransaction(
                     id=txid,
                     pool_id=pool_id,
                     user_address=tx['sender'],
                     pool_address=pool_address,
                     asa_id=tx_asa_id,
-                    delta_amount_micros=tx[ASSET_TRANSFER_TX]['amount'],
+                    delta_amount_micros=tx_amount,
                     confirmed_round=tx['confirmed-round']
                 )
                 new_transactions.append(pool_tx)
@@ -84,13 +87,16 @@ async def pool_fetch_new_transactions_by_id(
                         tx_asa_id = int(inner_tx[ASSET_TRANSFER_TX]['asset-id'])
                         if asset_id != tx_asa_id:
                             continue
+                        tx_amount = inner_tx[ASSET_TRANSFER_TX]['amount']
+                        if tx_amount == 0:
+                            continue
                         pool_tx = PoolTransaction(
                             id=txid,
                             pool_id=pool_id,
                             user_address=inner_tx[ASSET_TRANSFER_TX]['receiver'],
                             pool_address=pool_address,
                             asa_id=tx_asa_id,
-                            delta_amount_micros=-inner_tx[ASSET_TRANSFER_TX]['amount'],
+                            delta_amount_micros=-tx_amount,
                             confirmed_round=inner_tx['confirmed-round']
                         )
                         # TODO: use pooL_type withdraw/stake
