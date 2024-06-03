@@ -30,3 +30,7 @@ async def get_pools_by_query(query_dict: dict, pool_type: PoolType = PoolType.AN
         return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)]
     else:
         return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)] + [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
+
+
+async def get_all_pools() -> list[PoolInfo]:
+    return await get_pools_by_query({})

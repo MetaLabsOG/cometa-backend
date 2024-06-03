@@ -41,6 +41,11 @@ async def get_pool_by_id(pool_id: int) -> PoolInfo:
     return await get_pool_info_by_id(pool_id)
 
 
+@router.delete('/pool/', tags=['Pools 2.0'])
+async def remove_pool_by_id(pool_id: int) -> PoolInfo:
+    return await get_pool_info_by_id(pool_id)
+
+
 @router.get('/pool/state', tags=['Pools 2.0'])
 async def get_pool_state(pool_id: int) -> PoolStateInfo:
     updated_state = await get_sync_pool_state_by_id(pool_id)

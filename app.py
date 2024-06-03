@@ -40,6 +40,7 @@ from env import settings
 from flex.blockchain.info import is_opted_in
 from flex.data.asset_prices import get_asset_price_not_cached
 from flex.data.lp_states import create_lp_state_by_lp_token_id
+from flex.data.pool_state import get_or_create_pool_state, update_pool_state
 from flex.migrations import migrate_before_start
 from flex.migrations.contracts import create_pool_from_contract
 from flex.providers.vestige import get_dex_tag_by_name
@@ -180,6 +181,8 @@ async def create_contract_with(type: str, id: int, version: str, description: st
         pool_info = await create_pool_from_contract(contract)
         if pool_info is not None and 'dex' in metadata:
             _ = await create_lp_state_by_lp_token_id(pool_info.stake_token.id)
+        pool_state = await get_or_create_pool_state(pool_info.id)
+        _ = await update_pool_state(pool_state)
         _ = await get_asset_price_not_cached(pool_info.stake_token.id)
         _ = await get_asset_price_not_cached(pool_info.reward_token.id)
     except Exception as e:
