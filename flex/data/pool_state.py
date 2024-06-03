@@ -36,10 +36,6 @@ async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
         address=pool.address,
         stake_token=pool.stake_token
     )
-    if pool.stake_token.id == pool.reward_token.id:
-        logger.info(f'Pool {contract.id} has same stake and reward token\n\nyo\n')
-        # rewards and stakes are at the same address, we need only stakes
-        pool_state.total_staked_micros = -pool.reward_amount_micros
 
     db.pool_states.create(pool_state)
     logger.info(f'Created new pool state: address = {pool_state.address}')
@@ -63,6 +59,42 @@ async def get_or_create_pool_state(pool_id: int) -> PoolState:
     return pool_state
 
 
+def get_user_state_pool(user_state: UserState, pool_state: PoolState) -> UserPoolState:
+    user_pool_state = user_state.pool_by_address.get(pool_state.address)
+    if user_pool_state is None:
+        user_pool_state = UserPoolState(
+            pool_id=pool_state.pool_id,
+            stake_token=pool_state.stake_token
+        )
+        user_state.pool_by_address[pool_state.address] = user_pool_state
+    return user_pool_state
+
+
+async def apply_creation_tx(pool_state: PoolState, user_state: UserState, tx: PoolTransaction) -> PoolState:
+    if tx.asa_id != pool_state.stake_token.id:
+        logger.debug(f'Pool {pool_state.pool_id} is not distribution pool')
+        return pool_state
+    if pool_state.stake_amount_reduced_by_rewards:
+        logger.debug(f'Pool {pool_state.pool_id} already reduced rewards from the stake calc')
+        return pool_state
+
+    logger.info(f'Applying creation txn for pool {pool_state.pool_id}: {pool_state.stake_token.name}')
+
+    user_pool_state = get_user_state_pool(user_state, pool_state)
+    user_pool_state.staked_amount_micros -= tx.delta_amount_micros
+    if user_pool_state.staked_amount_micros == 0:
+        del user_state.pool_by_address[pool_state.address]
+    user_state.last_tx = tx.to_info()
+    db.user_states.update(user_state)
+
+    pool_state.total_staked_micros -= tx.delta_amount_micros
+    pool_state.last_tx = tx.to_info()
+    pool_state.stake_amount_reduced_by_rewards = True
+    db.pool_states.update(pool_state)
+
+    return pool_state
+
+
 async def update_pool_states_with_transactions(
         transactions: list[PoolTransaction],
         pool_states: list[PoolState] | None = None
@@ -70,71 +102,47 @@ async def update_pool_states_with_transactions(
     if len(transactions) == 0:
         return pool_states or []
 
-    user_state_by_address = {}
-    pool_state_by_id = {} if pool_states is None else {pool.pool_id: pool for pool in pool_states}
+    pool_state_by_id = {pool_state.pool_id: pool_state for pool_state in pool_states or []}
+
     for tx in transactions:
         if db.pool_transactions.exists(id=tx.id):
             logger.debug(f'Transaction {tx.id} already recorded in DB')
             continue
 
-        pool_state = pool_state_by_id.get(tx.pool_id)
-        if pool_state is None:
-            pool_state = await get_or_create_pool_state(tx.pool_id)
-            pool_state_by_id[tx.pool_id] = pool_state
+        user_state = await get_or_create_user_state(tx.user_address)
+        pool_state = await get_or_create_pool_state(tx.pool_id)
+
+        # initial tx with rewards
+        if pool_state.last_tx is None:
+            pool_state = await apply_creation_tx(pool_state, user_state, tx)
 
         pool_state.total_staked_micros += tx.delta_amount_micros
+        new_staked_micros = pool_state.staked_micros_by_address.setdefault(tx.user_address, 0) + tx.delta_amount_micros
+        pool_state.staked_micros_by_address[tx.user_address] = new_staked_micros
+        if new_staked_micros == 0:
+            # remove 0 stakes from storing
+            del pool_state.staked_micros_by_address[tx.user_address]
+
         pool_state.last_tx = tx.to_info()
-
-        # TODO: refactor MAYBE ??
-        prev_staked_micros = pool_state.staked_micros_by_address.get(tx.user_address)
-        if prev_staked_micros is not None:
-            new_staked_micros = prev_staked_micros + tx.delta_amount_micros
-            if new_staked_micros > 0:
-                pool_state.staked_micros_by_address[tx.user_address] = new_staked_micros
-            else:
-                del pool_state.staked_micros_by_address[tx.user_address]
-        else:
-            pool_state.staked_micros_by_address[tx.user_address] = tx.delta_amount_micros
-
-        user_state = user_state_by_address.get(tx.user_address)
-        if user_state is None:
-            user_state = db.user_states.get_one(address=tx.user_address)
-            if user_state is None:
-                user_state = db.user_states.create(UserState(address=tx.user_address))
-                logger.info(f'Created new user state: address = {user_state.address}')
-            user_state_by_address[tx.user_address] = user_state
-
-        # TODO: refactor (separate fn)
-        user_pool_state = user_state.pool_by_address.get(pool_state.address)
-        if user_pool_state is None:
-            user_state.pool_by_address[pool_state.address] = UserPoolState(
-                pool_id=pool_state.pool_id,
-                stake_token=pool_state.stake_token,
-                staked_amount_micros=tx.delta_amount_micros,
-                last_tx=tx.to_info()
-            )
-        else:
-            user_pool_state.staked_amount_micros += tx.delta_amount_micros
-            if user_pool_state.staked_amount_micros > 0:
-                user_pool_state.last_tx = tx.to_info()
-                user_state.pool_by_address[pool_state.address] = user_pool_state
-            else:
-                del user_state.pool_by_address[pool_state.address]
-
-        user_state.last_tx = tx.to_info()
-
-    for user_state in user_state_by_address.values():
-        db.user_states.update(user_state)
-
-    updated_pool_states = list(pool_state_by_id.values())
-    for pool_state in updated_pool_states:
         db.pool_states.update(pool_state)
 
-    db.pool_transactions.create_many(transactions)
+        pool_state_by_id[pool_state.pool_id] = pool_state
 
-    logger.info(f'Updated {len(pool_state_by_id)} pool states and {len(user_state_by_address)} user states with {len(transactions)} transactions')
+        user_pool_state = get_user_state_pool(user_state, pool_state)
+        user_pool_state.staked_amount_micros += tx.delta_amount_micros
+        user_pool_state.last_tx = tx.to_info()
+        user_state.pool_by_address[pool_state.address] = user_pool_state
 
-    return updated_pool_states
+        if user_pool_state.staked_amount_micros == 0:
+            del user_state.pool_by_address[pool_state.address]
+        user_state.last_tx = tx.to_info()
+        db.user_states.update(user_state)
+
+        db.pool_transactions.create(tx)
+
+    logger.info(f'Updated {len(pool_state_by_id)} pool states with {len(transactions)} transactions')
+
+    return list(pool_state_by_id.values())
 
 
 async def update_all_pool_states() -> list[PoolState]:
@@ -208,6 +216,14 @@ async def update_pool_state_by_id(pool_id: int) -> PoolState:
     logger.debug(f'Updating pool state {pool_id}')
     pool_state = await get_or_create_pool_state(pool_id)
     return await update_pool_state(pool_state)
+
+
+async def get_or_create_user_state(address: str) -> UserState:
+    user_state = db.user_states.get_one(address=address)
+    if user_state is None:
+        user_state = db.user_states.create(UserState(address=address))
+        logger.info(f'Created new user state: address = {user_state.address}')
+    return user_state
 
 
 async def update_user_state_by_address(address: str) -> UserState:
