@@ -599,6 +599,8 @@ def setup_logging():
         level=settings.logging_level
     )
     logging.getLogger('aiocache.base').setLevel(logging.INFO)
+    logging.getLogger('pymongo.serverSelection').setLevel(logging.INFO)
+    logging.getLogger('pymongo.command').setLevel(logging.INFO)
 
 
 setup_logging()
