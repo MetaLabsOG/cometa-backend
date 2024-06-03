@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from dataclasses_json import dataclass_json
 
-from flex.db.classes.base_entity import BaseEntity
+from flex.db.classes.base_entity import BaseEntity, EntityT
 from flex.db.model.blockchain import TxInfo, AssetInfo
 from flex.db.model.pools import PoolType
 from flex.db.util import get_uuid
@@ -76,6 +76,14 @@ class PoolState(BaseEntity['PoolState']):
             staked_micros_by_address=self.staked_micros_by_address
         )
 
+    def to_dict(self) -> dict:
+        return self.to_dict()
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls.from_dict(data)
+
+
 
 @dataclass_json
 @dataclass
@@ -138,3 +146,10 @@ class UserState(BaseEntity['UserState']):
             updated_round=self.last_tx.confirmed_round if self.last_tx else None,
             since_update=format_timedelta(now - self.updated)
         )
+
+    def to_dict(self) -> dict:
+        return self.to_dict()
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls.from_dict(data)
