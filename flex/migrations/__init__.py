@@ -11,7 +11,7 @@ def migrate_before_start() -> None:
 
     print('Migrating sync...')
 
-    # remove_previous_pool_states()
+    remove_previous_pool_states()
 
     print('DONE sync migration.')
 
@@ -22,6 +22,6 @@ async def migrate_background() -> None:
 
     print('Migrating ASYNC...')
 
-    await apply_creation_txns()
+    # await apply_creation_txns()
 
     print('DONE ASYNC migration.')

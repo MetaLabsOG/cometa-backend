@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from core.db.contracts import get_contract, get_all_pool_contracts
@@ -185,23 +186,31 @@ async def update_all_pool_states_linear() -> list[PoolState]:
                     logger.error(f'Failed to create pool state {pool.id}: {e}', exc_info=True)
 
     logger.info(f'Updating {len(pool_states)} pool states')
-    updated_pool_states = []
     ind = 1
+    update_pool_state_cors = []
     for pool_state in pool_states:
-        try:
-            logger.info(f'\n{ind}/{len(pool_states)} pool id = {pool_state.pool_id}\n')
-            pool_state = await update_pool_state(pool_state)
-            updated_pool_states.append(pool_state)
-            ind += 1
-        except Exception as e:
-            logger.error(f'Failed to update pool state {pool_state.pool_id}: {e}', exc_info=True)
+        update_co = update_pool_state(pool_state, msg=f'\n{ind}/{len(pool_states)}')
+        update_pool_state_cors.append(update_co)
+        ind += 1
+
+    updated_pool_states = await asyncio.gather(*update_pool_state_cors)
+
+    # updated_pool_states = []
+    # for pool_state in pool_states:
+    #     try:
+    #         logger.info(f'\n{ind}/{len(pool_states)} pool id = {pool_state.pool_id}\n')
+    #         pool_state = await update_pool_state(pool_state)
+    #         updated_pool_states.append(pool_state)
+    #         ind += 1
+    #     except Exception as e:
+    #         logger.error(f'Failed to update pool state {pool_state.pool_id}: {e}', exc_info=True)
 
     logger.info(f'Fresh {len(updated_pool_states)} pool states!')
-    return updated_pool_states
+    return list(updated_pool_states)
 
 
-async def update_pool_state(pool_state: PoolState) -> PoolState:
-    logger.debug(f'Updating pool state {pool_state.pool_id}')
+async def update_pool_state(pool_state: PoolState, msg: str | None = None) -> PoolState:
+    logger.debug(f'{msg or ""}Updating pool state {pool_state.pool_id}')
 
     new_transactions = await pool_fetch_new_transactions(pool_state)
     if len(new_transactions) == 0:
