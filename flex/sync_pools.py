@@ -165,6 +165,7 @@ async def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
                     confirmed_round=confirmed_round
                 )
                 pool_transactions.append(pool_tx)
+                continue
 
         stake_pool = await get_pool_state_by_address(address=receiver)
         if stake_pool is not None:

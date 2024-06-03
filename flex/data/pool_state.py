@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from core.db.contracts import get_contract
@@ -9,6 +8,7 @@ from flex.data.transactions import pool_fetch_new_transactions
 from flex.db.model.blockchain import PoolTransaction
 from flex.db.model.pool_states import PoolState, UserState, UserPoolState
 from flex.db.model.pools import PoolType
+from flex.db.redis import global_cache_get
 from flex.meta_error import MetaError
 
 
@@ -43,21 +43,17 @@ async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
     return pool_state
 
 
-async def get_or_create_from_contract(contract: ContractInfo) -> PoolState:
-    pool_state = db.pool_states.get_one(pool_id=contract.id)
-    if pool_state is None:
-        pool_state = await create_pool_state_from_contract(contract)
-    return pool_state
-
-
 async def get_or_create_pool_state(pool_id: int) -> PoolState:
-    pool_state = db.pool_states.get_one(pool_id=pool_id)
-    if pool_state is None:
-        contract_info = get_contract(pool_id)
-        if contract_info is None:
-            raise MetaError(f'Pool {pool_id} contract not found')
-        pool_state = await create_pool_state_from_contract(contract_info)
-    return pool_state
+    async def fetch_pool_state():
+        pool_state = db.pool_states.get_one(pool_id=pool_id)
+        if pool_state is None:
+            contract_info = get_contract(pool_id)
+            if contract_info is None:
+                raise MetaError(f'Pool {pool_id} contract not found')
+            pool_state = await create_pool_state_from_contract(contract_info)
+        return pool_state
+
+    return await global_cache_get(f'pool_state_{pool_id}', fetch_pool_state)
 
 
 def get_user_state_pool(user_state: UserState, pool_state: PoolState) -> UserPoolState:
@@ -242,22 +238,11 @@ async def update_pool_state_by_id(pool_id: int) -> PoolState:
 
 
 async def get_or_create_user_state(address: str) -> UserState:
-    user_state = db.user_states.get_one(address=address)
-    if user_state is None:
-        user_state = db.user_states.create(UserState(address=address))
-        logger.info(f'Created new user state: address = {user_state.address}')
-    return user_state
+    async def fetch_user_state():
+        user_state = db.user_states.get_one(address=address)
+        if user_state is None:
+            user_state = db.user_states.create(UserState(address=address))
+            logger.info(f'Created new user state: address = {user_state.address}')
+        return user_state
 
-
-async def update_user_state_by_address(address: str) -> UserState:
-    logger.debug(f'Updating user state {address}')
-    user_state = db.user_states.get_one(address=address)
-    if user_state is None:
-        raise MetaError(f'User with address {address} is not found')
-    return await update_user_state(user_state)
-
-
-async def update_user_state(user_state: UserState) -> UserState:
-    for addr, user_pools_state in user_state.pool_by_address.items():
-        _ = await update_pool_state_by_id(user_pools_state.pool_id)
-    return db.user_states.get_one(address=user_state.address)
+    return await global_cache_get(f'user_state_{address}', fetch_user_state)

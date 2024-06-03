@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     mongodb_port: int
     new_db_name: str = 'cometa-updated'
 
+    redis_host: str
+    redis_port: int
+
     logging_level: str = 'INFO'
     logging_format: str = '[%(asctime)s][%(levelname)s][%(filename)s] %(message)s'
     logging_date_format: str = '%I:%M:%S'
