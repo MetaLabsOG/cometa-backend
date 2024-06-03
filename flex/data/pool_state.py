@@ -53,7 +53,7 @@ async def get_or_create_pool_state(pool_id: int) -> PoolState:
             pool_state = await create_pool_state_from_contract(contract_info)
         return pool_state
 
-    return await global_cache_get(f'pool_state_{pool_id}', fetch_pool_state)
+    return await global_cache_get(f'pool_state_{pool_id}', PoolState, fetch_pool_state)
 
 
 def get_user_state_pool(user_state: UserState, pool_state: PoolState) -> UserPoolState:
@@ -245,4 +245,4 @@ async def get_or_create_user_state(address: str) -> UserState:
             logger.info(f'Created new user state: address = {user_state.address}')
         return user_state
 
-    return await global_cache_get(f'user_state_{address}', fetch_user_state)
+    return await global_cache_get(f'user_state_{address}', UserState, fetch_user_state)
