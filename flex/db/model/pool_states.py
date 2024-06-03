@@ -39,6 +39,8 @@ class PoolState(BaseEntity['PoolState']):
     total_staked_micros: int = 0
     last_tx: TxInfo | None = None
 
+    stake_amount_reduced_by_rewards: bool | None = None
+
     id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)

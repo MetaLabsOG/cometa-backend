@@ -188,7 +188,7 @@ async def sync_new_pools():
 def run_background():
     async def tasks():
         await asyncio.gather(
-            # migrate_background(),
+            migrate_background(),
             update_contracts_worker(),
             # update_pools_info_worker()
             sync_new_pools(),
