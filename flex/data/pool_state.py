@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from core.db.contracts import get_contract, get_all_pool_contracts
+from core.db.contracts import get_contract
 from core.db.model import ContractInfo
 from flex import db
 from flex.data.pools import get_pools_by_query
@@ -98,12 +98,22 @@ async def apply_creation_tx(pool_state: PoolState, user_state: UserState, tx: Po
 
 async def update_pool_states_with_transactions(
         transactions: list[PoolTransaction],
-        pool_states: list[PoolState] | None = None
+        pool_states: list[PoolState] | None = None,
+        reset_pool_states: bool = False
 ) -> list[PoolState]:
     if len(transactions) == 0:
         return pool_states or []
 
     pool_state_by_id = {pool_state.pool_id: pool_state for pool_state in pool_states or []}
+
+    # TODO: remove after migration DIRTY HACKS
+    if reset_pool_states:
+        all_user_addresses = {user_state.address for user_state in db.user_states.get_all()}
+        tx_addresses = {tx.user_address for tx in transactions}
+        new_addresses = tx_addresses - all_user_addresses
+        new_user_states = [UserState(address=address) for address in new_addresses]
+        created_user_states = db.user_states.create_many(new_user_states)
+        logger.info(f'IN BATCH Created {len(created_user_states)} new user states.')
 
     for tx in transactions:
         if db.pool_transactions.exists(id=tx.id):
@@ -146,27 +156,12 @@ async def update_pool_states_with_transactions(
     return list(pool_state_by_id.values())
 
 
-async def update_all_pool_states() -> list[PoolState]:
-    all_contracts = get_all_pool_contracts()
-    logger.info(f'Updating {len(all_contracts)} pool states')
+async def update_all_pool_states_linear(reset_pool_states: bool = False) -> list[PoolState]:
+    if reset_pool_states:
+        logger.info('Removing all pool states')
+        db.pool_states.remove_all()
+        db.user_states.remove_all()
 
-    new_transactions = []
-    pool_states = []
-    for contract in all_contracts:
-        try:
-            pool_state = await get_or_create_from_contract(contract)
-            pool_transactions = await pool_fetch_new_transactions(pool_state)
-            new_transactions.extend(pool_transactions)
-            pool_states.append(pool_state)
-        except Exception as e:
-            logger.error(f'Failed to update pool state {contract.id}: {e}', exc_info=True)
-
-    new_transactions = sorted(new_transactions, key=lambda tx: tx.confirmed_round)
-    logger.info(f'Found {len(new_transactions)} new pool transactions')
-    return await update_pool_states_with_transactions(new_transactions, pool_states)
-
-
-async def update_all_pool_states_linear() -> list[PoolState]:
     all_pools = await get_pools_by_query({})
     pool_states = db.pool_states.get_all()
 
@@ -203,7 +198,7 @@ async def update_all_pool_states_linear() -> list[PoolState]:
     for pool_state in pool_states:
         try:
             logger.info(f'\n{ind}/{len(pool_states)} pool id = {pool_state.pool_id}\n')
-            pool_state = await update_pool_state(pool_state)
+            pool_state = await update_pool_state(pool_state, reset_pool_states=reset_pool_states)
             updated_pool_states.append(pool_state)
             ind += 1
         except Exception as e:
@@ -213,15 +208,19 @@ async def update_all_pool_states_linear() -> list[PoolState]:
     return list(updated_pool_states)
 
 
-async def update_pool_state(pool_state: PoolState, msg: str | None = None) -> PoolState:
-    logger.debug(f'{msg or ""}Updating pool state {pool_state.pool_id}')
+async def update_pool_state(pool_state: PoolState, reset_pool_states: bool = False) -> PoolState:
+    logger.debug(f'Updating pool state {pool_state.pool_id} {pool_state.stake_token.name}')
 
-    new_transactions = await pool_fetch_new_transactions(pool_state)
+    if reset_pool_states:
+        new_transactions = db.pool_transactions.get_many(pool_id=pool_state.pool_id)
+        db.pool_transactions.remove_by(pool_id=pool_state.pool_id)
+    else:
+        new_transactions = await pool_fetch_new_transactions(pool_state)
     if len(new_transactions) == 0:
         logger.debug(f'No new transactions for pool {pool_state.pool_id}')
         return pool_state
 
-    updated_pool_states = await update_pool_states_with_transactions(new_transactions, pool_states=[pool_state])
+    updated_pool_states = await update_pool_states_with_transactions(new_transactions, pool_states=[pool_state], reset_pool_states=reset_pool_states)
     return updated_pool_states[0]
 
 
