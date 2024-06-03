@@ -73,7 +73,8 @@ async def get_pool_state(
         # TODO: improve
         updated_state = await get_sync_pool_state_by_id(pool_state.pool_id)
         updated_states.append(updated_state)
-    return [state.to_info() for state in updated_states]
+    now = datetime.now()
+    return [state.to_info(now) for state in updated_states]
 
 
 @router.post('/pools/cost', tags=['Pools 2.0'])
@@ -89,6 +90,8 @@ async def get_pool_states_cost() -> list[PoolStateCost]:
 @router.post('/pools/user/state', tags=['Pools 2.0'])
 async def get_user_pool_states_by_address(address: str) -> UserStateInfo:
     user_state = await get_sync_user_state_by_address(address)
+    if user_state is None:
+        return UserStateInfo(address=address)
     return user_state.to_info()
 
 

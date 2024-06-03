@@ -48,7 +48,7 @@ async def calculate_pool_state_cost(pool_state: PoolState) -> PoolStateCost:
     current_apr = total_rewards_usd / staked_usd * 100 * BLOCKS_IN_A_YEAR / pool_info.length_blocks if staked_usd > 0 else 0
 
     return PoolStateCost(
-        info=pool_state,
+        info=pool_state.to_info(),
         staked_usd=staked_usd,
         current_apr=current_apr
     )

@@ -1,8 +1,13 @@
 import base64
+from datetime import timedelta
 
 
 def format_usd_amount(usd: float) -> str:
     return format(usd, ".2f")
+
+
+def format_timedelta(td: timedelta) -> str:
+    return f'{format(td.total_seconds(), ".1f")}s'
 
 
 def decode_b64(str_b64: str | None) -> str | None:

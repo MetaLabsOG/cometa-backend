@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def asset_add_reserve() -> None:
     logger.info('Adding reserve to assets')
 
-    removed_cnt = db.assets.clear()
+    removed_cnt = db.assets.remove_all()
     logger.info(f'Removed {removed_cnt} assets')
 
     # asset_ids = load_all_assets_data()
