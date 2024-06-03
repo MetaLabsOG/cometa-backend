@@ -138,14 +138,14 @@ async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
 
 
 @router.post('/lp/state/priced', tags=['LP', 'Deprecated'])
-# async def handle_get_lp_state_by_lp_token_id_DEPRECATED(lp_token_id: int) -> LpStateInfo:
-async def handle_get_lp_state_by_lp_token_id_DEPRECATED(lp_token_id: int) -> dict:
-    async def fetch_lp_state_info_dict():
+async def handle_get_lp_state_by_lp_token_id_DEPRECATED(lp_token_id: int) -> LpStateInfo:
+# async def handle_get_lp_state_by_lp_token_id_DEPRECATED(lp_token_id: int) -> dict:
+    async def fetch_lp_state_info():
         lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
         algo_price_usd = await get_algo_price_usd()
-        return lp_state.to_info(algo_price_usd).to_dict()
+        return lp_state.to_info(algo_price_usd)
 
-    return await global_cache_get(f'lp_state_info_dict_{lp_token_id}', fetch_lp_state_info_dict)
+    return await global_cache_get(f'lp_state_info_{lp_token_id}', LpStateInfo, fetch_lp_state_info)
 
 
 @router.post('/lp/states', tags=['LP'])
