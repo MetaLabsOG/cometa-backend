@@ -212,6 +212,8 @@ async def update_pool_state(pool_state: PoolState, reset_pool_states: bool = Fal
     logger.debug(f'Updating pool state {pool_state.pool_id} {pool_state.stake_token.name}')
 
     if reset_pool_states:
+        logger.info(f'Updating WITH RESET pool state {pool_state.pool_id} {pool_state.stake_token.name}')
+
         new_transactions = db.pool_transactions.get_many(pool_id=pool_state.pool_id)
         db.pool_transactions.remove_by(pool_id=pool_state.pool_id)
     else:
