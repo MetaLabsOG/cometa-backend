@@ -4,6 +4,7 @@ from aiocache import cached
 
 from flex import db
 from flex.blockchain.info import get_address_app_ids
+from flex.providers import vestige
 from flex.providers.pact import get_pact_pool_info
 from flex.providers.tinyman import get_tinyman_pool_info, TinymanPoolInfo
 from flex.providers.vestige import DexProvider, fetch_lp_token
@@ -38,7 +39,8 @@ async def fetch_lp_token_strong(lp_token_id: int, asset1_id: int, asset2_id: int
                 address=pact_pool.address,
                 dex_provider=dex_provider
             )
-        logger.error(f'Pact pool for assets {asset1_id} and {asset2_id} not found')
+        else:
+            return await vestige.fetch_lp_token(lp_token_id, asset1_id, asset2_id, dex_provider)
 
     if dex_provider == DexProvider.TINYMAN_V2 or dex_provider == DexProvider.TINYMAN:
         try:
