@@ -202,8 +202,8 @@ async def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     if lp_state is None:
         lp_state = await create_lp_state_by_lp_token_id(lp_token_id)
     # TODO: add setting: do update or not
-    elif (await get_current_round()) - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
-        lp_state = await update_lp_state(lp_state)
+    # elif (await get_current_round()) - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
+    #     lp_state = await update_lp_state(lp_state)
     return lp_state
 
 

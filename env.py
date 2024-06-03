@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     sync_lag_max_rounds: int = 1000  # 1 hour
     sync_behind_seconds_threshold: int = 60
 
+    reset_and_resync_pool_states: bool = False
+
     contracts_cache_ttl: int = 30
     algo_price_ttl: int = 3
     asset_prices_ttl: int = 30
