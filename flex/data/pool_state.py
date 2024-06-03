@@ -105,6 +105,7 @@ async def update_pool_states_with_transactions(
         return pool_states or []
 
     pool_state_by_id = {pool_state.pool_id: pool_state for pool_state in pool_states or []}
+    user_state_by_address = {}
 
     # TODO: remove after migration DIRTY HACKS
     if reset_pool_states:
@@ -113,6 +114,7 @@ async def update_pool_states_with_transactions(
         new_addresses = tx_addresses - all_user_addresses
         new_user_states = [UserState(address=address) for address in new_addresses]
         created_user_states = db.user_states.create_many(new_user_states)
+        user_state_by_address = {user_state.address: user_state for user_state in created_user_states}
         logger.info(f'IN BATCH Created {len(created_user_states)} new user states.')
 
     for tx in transactions:
@@ -120,8 +122,8 @@ async def update_pool_states_with_transactions(
             logger.debug(f'Transaction {tx.id} already recorded in DB')
             continue
 
-        user_state = await get_or_create_user_state(tx.user_address)
-        pool_state = await get_or_create_pool_state(tx.pool_id)
+        user_state = user_state_by_address.get(tx.user_address) or await get_or_create_user_state(tx.user_address)
+        pool_state = pool_state_by_id.get(tx.pool_id) or await get_or_create_pool_state(tx.pool_id)
 
         # initial tx with rewards
         if pool_state.last_tx is None:
@@ -135,8 +137,6 @@ async def update_pool_states_with_transactions(
             del pool_state.staked_micros_by_address[tx.user_address]
 
         pool_state.last_tx = tx.to_info()
-        db.pool_states.update(pool_state)
-
         pool_state_by_id[pool_state.pool_id] = pool_state
 
         user_pool_state = get_user_state_pool(user_state, pool_state)
@@ -147,20 +147,25 @@ async def update_pool_states_with_transactions(
         if user_pool_state.staked_amount_micros == 0:
             del user_state.pool_by_address[pool_state.address]
         user_state.last_tx = tx.to_info()
-        db.user_states.update(user_state)
+        user_state_by_address[user_state.address] = user_state
 
-        db.pool_transactions.create(tx)
+    for user_state in user_state_by_address.values():
+        db.user_states.update(user_state)
+    updated_pool_states = list(pool_state_by_id.values())
+    for pool_state in updated_pool_states:
+        db.pool_states.update(pool_state)
+    db.pool_transactions.create_many(transactions)
 
     logger.info(f'Updated {len(pool_state_by_id)} pool states with {len(transactions)} transactions')
 
-    return list(pool_state_by_id.values())
+    return updated_pool_states
 
 
 async def update_all_pool_states_linear(reset_pool_states: bool = False) -> list[PoolState]:
-    if reset_pool_states:
-        logger.info('Removing all pool states')
-        db.pool_states.remove_all()
-        db.user_states.remove_all()
+    # if reset_pool_states:
+    #     logger.info('Removing all pool states')
+    #     db.pool_states.remove_all()
+    #     db.user_states.remove_all()
 
     all_pools = await get_pools_by_query({})
     pool_states = db.pool_states.get_all()
@@ -195,6 +200,7 @@ async def update_all_pool_states_linear(reset_pool_states: bool = False) -> list
     # SYNC
     ind = 1
     updated_pool_states = []
+    pool_states.reverse()
     for pool_state in pool_states:
         try:
             logger.info(f'\n{ind}/{len(pool_states)} pool id = {pool_state.pool_id}\n')
@@ -211,13 +217,15 @@ async def update_all_pool_states_linear(reset_pool_states: bool = False) -> list
 async def update_pool_state(pool_state: PoolState, reset_pool_states: bool = False) -> PoolState:
     logger.debug(f'Updating pool state {pool_state.pool_id} {pool_state.stake_token.name}')
 
-    if reset_pool_states:
-        logger.info(f'Updating WITH RESET pool state {pool_state.pool_id} {pool_state.stake_token.name}')
+    # if reset_pool_states:
+    #     logger.info(f'Updating WITH RESET pool state {pool_state.pool_id} {pool_state.stake_token.name}')
+    #
+    #     new_transactions = db.pool_transactions.get_many(pool_id=pool_state.pool_id)
+    #     db.pool_transactions.remove_by(pool_id=pool_state.pool_id)
+    # else:
+    #     new_transactions = await pool_fetch_new_transactions(pool_state)
 
-        new_transactions = db.pool_transactions.get_many(pool_id=pool_state.pool_id)
-        db.pool_transactions.remove_by(pool_id=pool_state.pool_id)
-    else:
-        new_transactions = await pool_fetch_new_transactions(pool_state)
+    new_transactions = await pool_fetch_new_transactions(pool_state)
     if len(new_transactions) == 0:
         logger.debug(f'No new transactions for pool {pool_state.pool_id}')
         return pool_state
