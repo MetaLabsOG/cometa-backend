@@ -223,7 +223,7 @@ async def catch_up_the_sync_manually(sync_state: SyncState, current_round: int) 
     logger.info(f'Last sync round = {sync_state.last_round}, sync lag = {sync_state.rounds_since_updated(current_round)} rounds.\n')
 
     _ = await load_all_assets_data()
-    _ = await update_all_pool_states_linear(reset_pool_states=settings.reset_and_resync_pool_states)
+    _ = await update_all_pool_states_linear(reset_pool_states=True)
 
     current_round = await get_current_round()
     logger.info(f'\n\nAnother, shorter loop, starting from round {current_round}\n')
