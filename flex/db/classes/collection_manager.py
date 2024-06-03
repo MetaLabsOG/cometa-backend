@@ -119,7 +119,7 @@ class CollectionManager(Generic[EntityT]):
         res = self.mongodb_collection.delete_many(kwargs)
         return res.deleted_count
 
-    def clear(self) -> int:
+    def remove_all(self) -> int:
         return self.remove_by()
 
     def count(self, **kwargs) -> int:

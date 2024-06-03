@@ -3,6 +3,7 @@ import logging
 from core.db.contracts import get_contract, get_all_pool_contracts
 from core.db.model import ContractInfo
 from flex import db
+from flex.data.pools import get_pools_by_query
 from flex.data.transactions import pool_fetch_new_transactions
 from flex.db.model.blockchain import PoolTransaction
 from flex.db.model.pool_states import PoolState, UserState, UserPoolState
@@ -22,6 +23,8 @@ def get_pool_type_from_contract(contract: ContractInfo) -> PoolType:
 
 
 async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
+    logging.info(f'Creating new pool state for contract {contract.id} - {contract.description}')
+
     pool_type = get_pool_type_from_contract(contract)
     if pool_type == PoolType.STAKING:
         pool = db.staking_pools.get_by_primary_key(contract.id)
@@ -81,23 +84,43 @@ async def update_pool_states_with_transactions(
 
         pool_state.total_staked_micros += tx.delta_amount_micros
         pool_state.last_tx = tx.to_info()
-        pool_state.staked_micros_by_address[tx.user_address] = pool_state.staked_micros_by_address.get(tx.user_address, 0) + tx.delta_amount_micros
+
+        # TODO: refactor MAYBE ??
+        prev_staked_micros = pool_state.staked_micros_by_address.get(tx.user_address)
+        if prev_staked_micros is not None:
+            new_staked_micros = prev_staked_micros + tx.delta_amount_micros
+            if new_staked_micros > 0:
+                pool_state.staked_micros_by_address[tx.user_address] = new_staked_micros
+            else:
+                del pool_state.staked_micros_by_address[tx.user_address]
+        else:
+            pool_state.staked_micros_by_address[tx.user_address] = tx.delta_amount_micros
 
         user_state = user_state_by_address.get(tx.user_address)
         if user_state is None:
             user_state = db.user_states.get_one(address=tx.user_address)
             if user_state is None:
                 user_state = db.user_states.create(UserState(address=tx.user_address))
-                logger.debug(f'Created new user state: address = {user_state.address}')
+                logger.info(f'Created new user state: address = {user_state.address}')
             user_state_by_address[tx.user_address] = user_state
 
+        # TODO: refactor (separate fn)
         user_pool_state = user_state.pool_by_address.get(pool_state.address)
         if user_pool_state is None:
-            user_pool_state = UserPoolState(pool_id=pool_state.pool_id, stake_token=pool_state.stake_token)
-            user_state.pool_by_address[pool_state.address] = user_pool_state
+            user_state.pool_by_address[pool_state.address] = UserPoolState(
+                pool_id=pool_state.pool_id,
+                stake_token=pool_state.stake_token,
+                staked_amount_micros=tx.delta_amount_micros,
+                last_tx=tx.to_info()
+            )
+        else:
+            user_pool_state.staked_amount_micros += tx.delta_amount_micros
+            if user_pool_state.staked_amount_micros > 0:
+                user_pool_state.last_tx = tx.to_info()
+                user_state.pool_by_address[pool_state.address] = user_pool_state
+            else:
+                del user_state.pool_by_address[pool_state.address]
 
-        user_pool_state.staked_amount_micros += tx.delta_amount_micros
-        user_pool_state.last_tx = tx.to_info()
         user_state.last_tx = tx.to_info()
 
     for user_state in user_state_by_address.values():
@@ -135,7 +158,24 @@ async def update_all_pool_states() -> list[PoolState]:
 
 
 async def update_all_pool_states_linear() -> list[PoolState]:
+    all_pools = await get_pools_by_query({})
     pool_states = db.pool_states.get_all()
+
+    missing_cnt = len(all_pools) - len(pool_states)
+    if missing_cnt > 0:
+        pool_state_ids = {pool_state.pool_id for pool_state in pool_states}
+        logger.info(f'Creating {missing_cnt} new pool states')
+        ind = 1
+        for pool in all_pools:
+            if pool.id not in pool_state_ids:
+                try:
+                    logging.info(f'\n#{ind}/{missing_cnt} pool id = {pool.id} - {pool.description}\n')
+                    pool_state = await get_or_create_pool_state(pool.id)
+                    pool_states.append(pool_state)
+                    ind += 1
+                except Exception as e:
+                    logger.error(f'Failed to create pool state {pool.id}: {e}', exc_info=True)
+
     logger.info(f'Updating {len(pool_states)} pool states')
     updated_pool_states = []
     ind = 1

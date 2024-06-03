@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 def remove_all_new_models():
-    removed_lp_states = db.lp_states.clear()
+    removed_lp_states = db.lp_states.remove_all()
     logger.info(f'Removed {removed_lp_states} LP states')
 
     # removed_lp_tokens = db.lp_tokens.clear()
