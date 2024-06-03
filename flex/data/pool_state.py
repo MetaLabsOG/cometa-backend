@@ -113,9 +113,10 @@ async def update_pool_states_with_transactions(
         tx_addresses = {tx.user_address for tx in transactions}
         new_addresses = tx_addresses - all_user_addresses
         new_user_states = [UserState(address=address) for address in new_addresses]
-        created_user_states = db.user_states.create_many(new_user_states)
-        user_state_by_address = {user_state.address: user_state for user_state in created_user_states}
-        logger.info(f'IN BATCH Created {len(created_user_states)} new user states.')
+        if len(new_user_states) > 0:
+            created_user_states = db.user_states.create_many(new_user_states)
+            user_state_by_address = {user_state.address: user_state for user_state in created_user_states}
+            logger.info(f'IN BATCH Created {len(created_user_states)} new user states.')
 
     for tx in transactions:
         if db.pool_transactions.exists(id=tx.id):
