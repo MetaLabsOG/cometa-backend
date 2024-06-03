@@ -15,7 +15,7 @@ import dexes.humble as humble
 import flex.api
 from airdrop_all_active_stakers import snapshot_all
 from api import stats
-from api.background import start_bg_tasks
+from api.background import start_bg_tasks, start_sync_proc
 from api.db_model import ContractType
 from api.migrations import update_contract_start_end_dates
 from api.nft_lottery import lottery_for_swap, NftLottery, nft_lotteries, lottery_draws, NftPrize, lottery_for_staking, \
@@ -617,7 +617,9 @@ if __name__ == "__main__":
     if settings.enable_js:
         with start_js_interop_server():
             with start_bg_tasks():
-                uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
+                with start_sync_proc():
+                    uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
     else:
         with start_bg_tasks():
-            uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
+            with start_sync_proc():
+                uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)

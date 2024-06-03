@@ -178,10 +178,11 @@ async def notify_prices():
         )
 
 
-@safe_async_method
-async def sync_new_pools():
+def sync_new_pools():
     if settings.sync_new_pools:
-        await sync_pools_loop()
+        logger.info('\n\nStarted SYNC process.\n')
+
+        asyncio.run(sync_pools_loop())
 
 
 # TODO: graceful shutdown here (with signal handling?)
@@ -191,7 +192,7 @@ def run_background():
             migrate_background(),
             update_contracts_worker(),
             # update_pools_info_worker()
-            sync_new_pools(),
+            # sync_new_pools(),
             # notify_prices()
         )
 
@@ -207,6 +208,18 @@ def start_bg_tasks():
     proc.start()
     logger.info(f'STARTED BG TASKS: {proc}')
     print('STARTED BORIS GREBENSCHEKOV PROTOCOL')
+    try:
+        yield proc
+    finally:
+        proc.terminate()
+        proc.join()
+
+
+@contextmanager
+def start_sync_proc():
+    proc = spawn.Process(target=sync_new_pools)
+    proc.start()
+    logger.info(f'STARTED sync proc: {proc}')
     try:
         yield proc
     finally:
