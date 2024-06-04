@@ -1,5 +1,7 @@
 import logging
 
+from aiocache import cached
+
 from core.db.contracts import get_contract
 from core.db.model import ContractInfo
 from flex import db
@@ -8,7 +10,6 @@ from flex.data.transactions import pool_fetch_new_transactions
 from flex.db.model.blockchain import PoolTransaction
 from flex.db.model.pool_states import PoolState, UserState, UserPoolState
 from flex.db.model.pools import PoolType
-from flex.db.redis import global_cache_get
 from flex.meta_error import MetaError
 
 
@@ -43,17 +44,15 @@ async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
     return pool_state
 
 
+@cached(ttl=30)
 async def get_or_create_pool_state(pool_id: int) -> PoolState:
-    async def fetch_pool_state():
-        pool_state = db.pool_states.get_one(pool_id=pool_id)
-        if pool_state is None:
-            contract_info = get_contract(pool_id)
-            if contract_info is None:
-                raise MetaError(f'Pool {pool_id} contract not found')
-            pool_state = await create_pool_state_from_contract(contract_info)
-        return pool_state
-
-    return await global_cache_get(f'pool_state_{pool_id}', PoolState, fetch_pool_state)
+    pool_state = db.pool_states.get_one(pool_id=pool_id)
+    if pool_state is None:
+        contract_info = get_contract(pool_id)
+        if contract_info is None:
+            raise MetaError(f'Pool {pool_id} contract not found')
+        pool_state = await create_pool_state_from_contract(contract_info)
+    return pool_state
 
 
 def get_user_state_pool(user_state: UserState, pool_state: PoolState) -> UserPoolState:
@@ -214,14 +213,6 @@ async def update_all_pool_states_linear(reset_pool_states: bool = False) -> list
 async def update_pool_state(pool_state: PoolState, reset_pool_states: bool = False) -> PoolState:
     logger.debug(f'Updating pool state {pool_state.pool_id} {pool_state.stake_token.name}')
 
-    # if reset_pool_states:
-    #     logger.info(f'Updating WITH RESET pool state {pool_state.pool_id} {pool_state.stake_token.name}')
-    #
-    #     new_transactions = db.pool_transactions.get_many(pool_id=pool_state.pool_id)
-    #     db.pool_transactions.remove_by(pool_id=pool_state.pool_id)
-    # else:
-    #     new_transactions = await pool_fetch_new_transactions(pool_state)
-
     new_transactions = await pool_fetch_new_transactions(pool_state)
     if len(new_transactions) == 0:
         logger.debug(f'No new transactions for pool {pool_state.pool_id}')
@@ -237,12 +228,10 @@ async def update_pool_state_by_id(pool_id: int) -> PoolState:
     return await update_pool_state(pool_state)
 
 
+@cached(ttl=30)
 async def get_or_create_user_state(address: str) -> UserState:
-    async def fetch_user_state():
-        user_state = db.user_states.get_one(address=address)
-        if user_state is None:
-            user_state = db.user_states.create(UserState(address=address))
-            logger.info(f'Created new user state: address = {user_state.address}')
-        return user_state
-
-    return await global_cache_get(f'user_state_{address}', UserState, fetch_user_state)
+    user_state = db.user_states.get_one(address=address)
+    if user_state is None:
+        user_state = db.user_states.create(UserState(address=address))
+        logger.info(f'Created new user state: address = {user_state.address}')
+    return user_state

@@ -16,7 +16,7 @@ services:
             - "${SERVER_PORT}"
         depends_on:
             - mongodb
-            - redis
+#            - redis
         logging:
             driver: json-file
             options:
@@ -30,8 +30,8 @@ services:
         volumes:
             - "/var/lib/mongodb-${ALGO_NETWORK}:/data/db"
 
-    redis:
-        image: redis
-        restart: always
-        ports:
-            - "${REDIS_PORT}:${REDIS_PORT}"
+#    redis:
+#        image: redis
+#        restart: always
+#        ports:
+#            - "${REDIS_PORT}:${REDIS_PORT}"
