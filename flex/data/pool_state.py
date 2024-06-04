@@ -51,7 +51,8 @@ async def get_or_create_pool_state(pool_id: int) -> PoolState:
         contract_info = get_contract(pool_id)
         if contract_info is None:
             raise MetaError(f'Pool {pool_id} contract not found')
-        return await create_pool_state_from_contract(contract_info)
+        pool_state = await create_pool_state_from_contract(contract_info)
+    return pool_state
 
 
 def get_user_state_pool(user_state: UserState, pool_state: PoolState) -> UserPoolState:
