@@ -41,6 +41,7 @@ from flex.blockchain.info import is_opted_in
 from flex.data.asset_prices import get_asset_price_not_cached
 from flex.data.lp_states import create_lp_state_by_lp_token_id
 from flex.data.pool_state import get_or_create_pool_state, update_pool_state
+from flex.data.pool_state_priced import calculate_user_pool_state_cost
 from flex.migrations import migrate_before_start
 from flex.migrations.contracts import create_pool_from_contract
 from flex.providers.vestige import get_dex_tag_by_name
@@ -98,6 +99,32 @@ async def wallet_nfts(address: str) -> list[NftInfo]:
 
 
 @app.get('/wallet/{address}/pools', tags=['Wallet'])
+async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
+    user_pools_state = await get_sync_user_state_by_address(address)
+    user_state_by_pool_id = {state.pool_id: state for state in user_pools_state.pool_by_address.values()}
+    # TODO: use new API OPTIMIZE
+    user_cost = await calculate_user_pool_state_cost(user_pools_state)
+    user_pools = []
+    for pool_id, pool_cost in user_cost.pools_by_id.items():
+        user_state = user_state_by_pool_id[pool_id]
+        user_pools.append(UserPool(
+            pool_id=pool_id,
+            name=pool_cost.pool_info.description,
+            current_apr=0,  # TODO
+            staked_usd=pool_cost.staked_usd,
+            reward_usd=0,  # TODO
+            lock_timestamp=0,  # TODO
+            ended_duration=None,  # TODO
+            staked_token_id=pool_cost.pool_info.stake_token.id,
+            staked_tokens=user_state.staked_amount,
+            staked_microtokens=user_state.staked_amount_micros,
+            reward_token_id=pool_cost.pool_info.reward_token.id,
+            last_updated=user_pools_state.updated
+        ))
+    return user_pools
+
+
+@app.get('/wallet/{address}/pools/deprecated', tags=['Wallet'])
 async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
     if cached:
         return await get_address_pools(address)
