@@ -9,6 +9,8 @@ from pydantic import BaseModel
 
 from env import settings
 from flex import db
+from flex.blockchain.base import indexer_client, algod_client
+from flex.blockchain.info import ALGO_ASSET
 from flex.data.asset_prices import get_asset_price, get_all_asset_prices, get_asset_prices_by_query
 from flex.data.assets import get_all_asset_details, get_asset_details, get_asset_details_by_query
 from flex.data.stats import calculate_total_tvl_usd
@@ -186,6 +188,33 @@ async def handle_get_lp_state_by_lp_token_id_OLD(lp_token_id: int) -> LpStateInf
 @router.post('/asset', tags=['Assets'])
 async def handle_get_asset_by_id(asset_id: int) -> AssetDetails:
     return await get_asset_details(asset_id)
+
+
+def fetch_all_balances(asset_id, decimals):
+    limit = 9000
+    next_page = None
+    holdings = []
+    while True:
+        response = indexer_client.asset_balances(asset_id=asset_id, limit=limit, next_page=next_page)
+        holdings += [(r['address'], r['amount'] // decimals) for r in response['balances']]
+        next_page = response.get('next-token')
+        if next_page is None:
+            break
+    return holdings
+
+
+@router.get('/asset/holdings', tags=['Assets'])
+async def handle_get_asset_holdings_by_id(asset_id: int) -> dict:
+    asset_info = algod_client.asset_info(asset_id) if asset_id != 0 else ALGO_ASSET  # TODO: refactor (now try to use original code)
+    decimals = 10 ** asset_info['params']['decimals']
+    holdings = fetch_all_balances(asset_id, decimals)
+    sorted_holdings = sorted(holdings, key=lambda x: x[1], reverse=True)
+    return {
+        "name": "root",
+        "children": [{"name": addr, "value": amt} for addr, amt in sorted_holdings[1:1000]],
+        "totalHolders": len(holdings),
+        "tokenName": asset_info['params']['name']
+    }
 
 
 @router.post('/asset/price', tags=['Assets'])
