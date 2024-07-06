@@ -213,7 +213,8 @@ async def handle_get_asset_holdings_by_id(asset_id: int) -> dict:
         "name": "root",
         "children": [{"name": addr, "value": amt} for addr, amt in sorted_holdings[1:1000]],
         "totalHolders": len(holdings),
-        "tokenName": asset_info['params']['name']
+        "tokenName": asset_info['params']['name'],
+        "tokenUnitName": asset_info['params']['unit-name']
     }
 
 
