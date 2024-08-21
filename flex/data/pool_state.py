@@ -128,9 +128,6 @@ async def update_pool_states_with_transactions(
         pool_state.total_staked_micros += tx.delta_amount_micros
         new_staked_micros = pool_state.staked_micros_by_address.setdefault(tx.user_address, 0) + tx.delta_amount_micros
         pool_state.staked_micros_by_address[tx.user_address] = new_staked_micros
-        if new_staked_micros == 0:
-            # remove 0 stakes from storing
-            del pool_state.staked_micros_by_address[tx.user_address]
 
         pool_state.last_tx = tx.to_info()
         pool_state_by_id[pool_state.pool_id] = pool_state
@@ -140,8 +137,6 @@ async def update_pool_states_with_transactions(
         user_pool_state.last_tx = tx.to_info()
         user_state.pool_by_address[pool_state.address] = user_pool_state
 
-        if user_pool_state.staked_amount_micros == 0:
-            del user_state.pool_by_address[pool_state.address]
         user_state.last_tx = tx.to_info()
         user_state_by_address[user_state.address] = user_state
 
