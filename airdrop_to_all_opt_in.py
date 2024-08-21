@@ -55,14 +55,14 @@ def get_addresses_algo_balances(addresses: list[str]) -> list[AlgoBalance]:
         balances.append(AlgoBalance(address=address, amount=not_micros))
 
     balances.sort(key=lambda x: x.amount)
-    with open(f'test_optins_balances.json', 'w') as f:
+    with open(f'temp_data/test_optins_balances.json', 'w') as f:
         f.writelines([f'"{format(item.amount, ".1f")}": "{item.address}",' for item in balances])
 
     return balances
 
 
 def get_addresses_by_amount():
-    with open('test_optins_balances.json', 'r') as f:
+    with open('temp_data/test_optins_balances.json', 'r') as f:
         lines = f.readlines()
         line = lines[0]
         items = line.split(',')
