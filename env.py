@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     logging_date_format: str = '%I:%M:%S'
 
     return_all_user_pools: bool = False
+    always_return_pool_ids: list[int] = []
 
     background_user_pools_update: bool = False
     background_pools_update: bool = False
