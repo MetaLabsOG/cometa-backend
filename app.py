@@ -415,7 +415,7 @@ async def get_contracts(
     # TODO: move as arg to DB query
     matching_pools = []
     for contract in contracts:
-        if contract.id in address_app_ids:
+        if contract.id in address_app_ids or contract.id in settings.always_return_pool_ids:
             matching_pools.append(contract)
             continue
         if contract.end_date is None:
