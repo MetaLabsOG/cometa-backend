@@ -393,15 +393,21 @@ async def get_contracts(
         without_old_pools: bool = True,
         include_address_pools: Optional[str] = None
 ) -> List[ContractInfo]:
+    contracts = get_contracts_by_type(type)
+
     # TODO: rename api param
     user_address = include_address_pools
+    if user_address == 'DLO6VI4XJJWZOYUHSEKP3MVQZXGEOKDJUTTL5NJIS7UMXAPETOYLX3KNVE' or user_address == 'native.algo':
+        # TODO: remove haard kostyl
+        logger.info(f'\n\nIncluding all pools for {user_address}')
+        return contracts
+    if user_address in settings.return_all_cometa_pools_to_addresses:
+        logger.info(f'\n\nIncluding all pools for {user_address}')
+        return contracts
 
-    contracts = get_contracts_by_type(type)
     if new_first:
         contracts.reverse()
 
-    if user_address in settings.return_all_cometa_pools_to_addresses:
-        return contracts
 
     max_end_date = None
     if without_old_pools:
@@ -413,10 +419,10 @@ async def get_contracts(
             user_state = await get_sync_user_state_by_address(user_address)
             if user_state is not None:
                 address_app_ids = [pool_state.pool_id for pool_state in user_state.pool_by_address.values()]
-                logger.debug(f'User {user_address} has {len(address_app_ids)} pools in DB: {address_app_ids}')
+                logger.info(f'User {user_address} has {len(address_app_ids)} pools in DB: {address_app_ids}')
             else:
                 address_app_ids = get_address_app_ids(user_address, only_active=True)
-                logger.debug(f'No User Pools in DB, but {len(address_app_ids)} apps in network: {address_app_ids}')
+                logger.info(f'No User Pools in DB, but {len(address_app_ids)} apps in network: {address_app_ids}')
         except Exception as e:
             logger.error(f'Error fetching app ids for {user_address}: {e}', exc_info=True)
 
