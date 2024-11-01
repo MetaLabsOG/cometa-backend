@@ -30,7 +30,8 @@ class Settings(BaseSettings):
     logging_date_format: str = '%I:%M:%S'
 
     return_all_user_pools: bool = False
-    always_return_pool_ids: list[int] = []
+    # TODO: remove HARDCORE
+    always_return_pool_ids: list[int] = [1705298492, 1713659453, 1846754940, 1911323813, 1911383471]
     return_all_cometa_pools_to_addresses: list[str] = []
 
     background_user_pools_update: bool = False
@@ -86,3 +87,5 @@ DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 print(f'Algo Network = {settings.algo_network}')
 print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')
+print(f'Alway Return Pool IDs = {settings.always_return_pool_ids}')
+print(f'Return All Cometa Pools to Addresses = {settings.return_all_cometa_pools_to_addresses}')
