@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     return_all_user_pools: bool = False
     always_return_pool_ids: list[int] = []
+    return_all_cometa_pools_to_addresses: list[str] = []
 
     background_user_pools_update: bool = False
     background_pools_update: bool = False
@@ -81,6 +82,7 @@ class Settings(BaseSettings):
 settings = Settings()
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+
 
 print(f'Algo Network = {settings.algo_network}')
 print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')
