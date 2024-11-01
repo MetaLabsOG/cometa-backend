@@ -399,37 +399,36 @@ async def get_contracts(
     user_address = include_address_pools
     if user_address == 'DLO6VI4XJJWZOYUHSEKP3MVQZXGEOKDJUTTL5NJIS7UMXAPETOYLX3KNVE' or user_address == 'native.algo':
         # TODO: remove haard workaround
-        logger.info(f'\n\nIncluding all pools for {user_address}')
+        logger.info(f'NATIVE Including all pools for {user_address}')
         return contracts
     if user_address in settings.return_all_cometa_pools_to_addresses:
-        logger.info(f'\n\nIncluding all pools for {user_address}')
+        logger.info(f'Including all pools for {user_address}')
         return contracts
 
     if new_first:
         contracts.reverse()
 
-
     max_end_date = None
     if without_old_pools:
         max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
 
-    address_app_ids = []
+    address_app_ids = list(settings.always_return_pool_ids)
     if settings.return_all_user_pools and user_address is not None:
         try:
             user_state = await get_sync_user_state_by_address(user_address)
             if user_state is not None:
-                address_app_ids = [pool_state.pool_id for pool_state in user_state.pool_by_address.values()]
-                logger.info(f'User {user_address} has {len(address_app_ids)} pools in DB: {address_app_ids}')
+                address_app_ids.extend([pool_state.pool_id for pool_state in user_state.pool_by_address.values()])
+                logger.info(f'User {user_address} has {len(address_app_ids)} pools in DB')
             else:
-                address_app_ids = get_address_app_ids(user_address, only_active=True)
-                logger.info(f'No User Pools in DB, but {len(address_app_ids)} apps in network: {address_app_ids}')
+                address_app_ids.extend(get_address_app_ids(user_address, only_active=True))
+                logger.info(f'No User Pools in DB, but {len(address_app_ids)} apps in network')
         except Exception as e:
             logger.error(f'Error fetching app ids for {user_address}: {e}', exc_info=True)
 
     # TODO: move as arg to DB query
     matching_pools = []
     for contract in contracts:
-        if contract.id in address_app_ids or contract.id in settings.always_return_pool_ids:
+        if contract.id in address_app_ids:
             matching_pools.append(contract)
             continue
         if contract.end_date is None:
@@ -625,7 +624,7 @@ async def tvl() -> dict:
 
 
 @app.get('/stats/app-ids', tags=['Stats'])
-async def address_app_ids(password: str, address: str, only_active: bool = False) -> dict:
+async def handle_address_app_ids(password: str, address: str, only_active: bool = False) -> dict:
     check_password(password)
     app_ids = get_address_app_ids(address, only_active)
     contracts = get_all_pool_contracts()
