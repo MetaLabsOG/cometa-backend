@@ -44,6 +44,8 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
     all_txns = []
     balances = defaultdict(lambda: 0)
 
+    total_staked = 0
+
     if watch_address is not None:
         print(f'Watching address {watch_address}')
 
@@ -54,6 +56,7 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
         print(f'New txns, cnt = {len(txns)}')
 
         for tx in txns:
+            print(f'Processing tx: {tx}')
             if ASSET_TRANSFER_TX in tx:
                 if max_round is not None and tx['confirmed-round'] > max_round:
                     continue
@@ -63,6 +66,8 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
                 if sender == watch_address:
                     print(f'{balances[sender]} + {amount} = {balances[sender] + amount}')
                 balances[sender] += amount
+                print(f'Total staked + {amount} = {total_staked + amount}')
+                total_staked += amount
             elif APPLICATION_CALL_TX in tx:
                 inner_txns = tx['inner-txns']
                 is_claim = False
@@ -81,6 +86,8 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
                         if receiver == watch_address:
                             print(f'{balances[receiver]} - {amount} = {balances[receiver] - amount}')
                         balances[receiver] -= amount
+                        print(f'Total staked - {amount} = {total_staked - amount}')
+                        total_staked -= amount
 
         print(f'{len(txns)} txns processed!')
         print(f'Currently {len(balances)} balances')
