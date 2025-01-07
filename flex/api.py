@@ -17,7 +17,8 @@ from flex.data.stats import calculate_total_tvl_usd
 from flex.db.model.liquidity_pools import LpStateInfo
 from flex.migrations.contracts import all_contracts_to_pools
 from flex.data.pool_state_priced import calculate_pool_state_cost, calculate_user_pool_state_cost
-from flex.data.lp_states import get_lp_state_by_lp_token_id
+from flex.data.lp_states import get_lp_state_by_lp_token_id, recalculate_lp_state_price_algo_with_micros, \
+    update_lp_state
 from flex.data.lp_tokens import get_lp_token_by_id, get_all_lp_tokens
 from flex.data.pools import get_pool_info_by_id, get_pools_by_query
 from flex.db.model.blockchain import AssetDetails, LpTokenInfo
@@ -137,6 +138,20 @@ async def handle_get_lp_state_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
     lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
     algo_price_usd = await get_algo_price_usd()
     return lp_state.to_info(algo_price_usd)
+
+
+@router.post('/lp/state/recalculate', tags=['LP'])
+async def handle_recalculate_lp_state_by_lp_token_id(lp_token_id: int) -> dict:
+    lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
+    algo_price_usd = await get_algo_price_usd()
+
+    recalculated_lp_state = await recalculate_lp_state_price_algo_with_micros(lp_state)
+    updated_lp_state = await update_lp_state(lp_state)
+    return {
+        'initial': lp_state.to_info(algo_price_usd),
+        'recalculated': recalculated_lp_state.to_info(algo_price_usd),
+        'updated': updated_lp_state.to_info(algo_price_usd)
+    }
 
 
 @cached(ttl=30)
