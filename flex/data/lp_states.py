@@ -17,6 +17,17 @@ from flex.util import build_key_str
 logger = logging.getLogger(__name__)
 
 
+async def get_price_algo(asset_id) -> float:
+    # TODO: fix DB caching
+    # asset_db_price = db.asset_prices.get_one(id=asset_id)
+    # if asset_db_price is not None:
+    #     price_algo = asset_db_price.price_algo
+    # else:
+    #     price_algo = (await vestige_full_asset_price(asset_id)).algo
+    asset_price = await vestige_full_asset_price(asset_id)
+    return asset_price.algo
+
+
 async def recalculate_lp_state_price_algo_with_micros(lp_state: LpState) -> LpState:
     if lp_state.total_tokens_micros == 0:
         lp_state.total_tokens = 0
@@ -27,12 +38,7 @@ async def recalculate_lp_state_price_algo_with_micros(lp_state: LpState) -> LpSt
     lp_state.asset2_reserve = await micros_to_amount(lp_state.asset2_id, lp_state.asset2_reserve_micros)
     lp_state.total_tokens = await micros_to_amount(lp_state.token_id, lp_state.total_tokens_micros)
 
-    # TODO: check if not outdated price
-    asset1_db_price = db.asset_prices.get_one(id=lp_state.asset1_id)
-    if asset1_db_price is not None:
-        asset1_price_algo = asset1_db_price.price_algo
-    else:
-        asset1_price_algo = (await vestige_full_asset_price(lp_state.asset1_id)).algo
+    asset1_price_algo = await get_price_algo(lp_state.asset1_id)
     lp_state.token_price_algo = asset1_price_algo * lp_state.asset1_reserve * 2 / lp_state.total_tokens
     return lp_state
 
