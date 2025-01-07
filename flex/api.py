@@ -154,6 +154,28 @@ async def handle_recalculate_lp_state_by_lp_token_id(lp_token_id: int) -> dict:
     }
 
 
+@router.post('/lp/states/update', tags=['LP'])
+async def handle_update_all_lp_states() -> list:
+    all_lp_states = db.lp_states.get_all()
+    logger.info(f'Updating {len(all_lp_states)} LP states')
+
+    price_diffs = []
+    for i, lp_state in enumerate(all_lp_states):
+        logger.info(f'Updating LP state {i + 1}/{len(all_lp_states)}: id = {lp_state.token_id}')
+        lp_state = await get_lp_state_by_lp_token_id(lp_state.token_id)
+        updated_lp_state = await update_lp_state(lp_state)
+        db.lp_states.update(updated_lp_state)
+        if lp_state.token_price_algo != updated_lp_state.token_price_algo:
+            price_diffs.append({
+                'lp_token_id': lp_state.token_id,
+                'initial': lp_state.token_price_algo,
+                'updated': updated_lp_state.token_price_algo,
+                'ratio': updated_lp_state.token_price_algo / lp_state.token_price_algo if lp_state.token_price_algo != 0 else 0
+            })
+
+    return price_diffs
+
+
 @cached(ttl=30)
 async def get_lp_state_info_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
     lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
