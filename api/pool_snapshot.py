@@ -1,4 +1,5 @@
 import json
+import logging
 from collections import defaultdict
 from typing import Optional
 
@@ -13,6 +14,7 @@ ASSET_TRANSFER_TX = 'asset-transfer-transaction'
 APPLICATION_CALL_TX = 'application-transaction'
 PAYMENT_TX = 'payment-transaction'
 
+logger = logging.getLogger(__name__)
 
 def get_pool_wallet(pool_id: int) -> Optional[str]:
     data = indexer_client.application_logs(application_id=pool_id, limit=10)
@@ -35,7 +37,7 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
         pool_wallet = get_pool_wallet(pool_id)
     if pool_wallet is None:
         return {'error': 'Pool not found, bro.'}
-    print(f'Pool wallet: {pool_wallet}')
+    logger.info(f'Pool wallet: {pool_wallet}')
 
     if max_round is None:
         max_round = get_current_round()
@@ -47,16 +49,16 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
     total_staked = 0
 
     if watch_address is not None:
-        print(f'Watching address {watch_address}')
+        logger.info(f'Watching address {watch_address}')
 
     while True:
         data = indexer_client.search_transactions_by_address(address=pool_wallet,
                                                              next_page=next_token)
         txns = data['transactions']
-        print(f'New txns, cnt = {len(txns)}')
+        logger.info(f'New txns, cnt = {len(txns)}')
 
         for tx in txns:
-            print(f'Processing tx: {tx}')
+            logger.info(f'Processing tx: {tx}')
             if ASSET_TRANSFER_TX in tx:
                 if max_round is not None and tx['confirmed-round'] > max_round:
                     continue
@@ -64,9 +66,9 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
                 sender = tx['sender']
                 amount = tx[ASSET_TRANSFER_TX]['amount']
                 if sender == watch_address:
-                    print(f'{balances[sender]} + {amount} = {balances[sender] + amount}')
+                    logger.info(f'{balances[sender]} + {amount} = {balances[sender] + amount}')
                 balances[sender] += amount
-                print(f'Total staked + {amount} = {total_staked + amount}')
+                logger.info(f'Total staked + {amount} = {total_staked + amount}')
                 total_staked += amount
             elif APPLICATION_CALL_TX in tx:
                 inner_txns = tx['inner-txns']
@@ -84,14 +86,13 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
                         receiver = inner_tx[ASSET_TRANSFER_TX]['receiver']
                         amount = inner_tx[ASSET_TRANSFER_TX]['amount']
                         if receiver == watch_address:
-                            print(f'{balances[receiver]} - {amount} = {balances[receiver] - amount}')
+                            logger.info(f'{balances[receiver]} - {amount} = {balances[receiver] - amount}')
                         balances[receiver] -= amount
-                        print(f'Total staked - {amount} = {total_staked - amount}')
+                        logger.info(f'Total staked - {amount} = {total_staked - amount}')
                         total_staked -= amount
 
-        print(f'{len(txns)} txns processed!')
-        print(f'Currently {len(balances)} balances')
-        print()
+        logger.info(f'{len(txns)} txns processed!')
+        logger.info(f'Currently {len(balances)} balances\n')
 
         all_txns.extend(txns)
         if 'next-token' in data:
@@ -103,14 +104,14 @@ def get_pool_snapshot(pool_id: int, max_round: Optional[int] = None, watch_addre
     with open(res_filename, 'w') as write_file:
         json.dump(balances, write_file, indent=4, sort_keys=True)
 
-    print(f'{len(all_txns)} processed!')
-    print(f'{len(balances)} wallets are written to "{res_filename}"!')
+    logger.info(f'{len(all_txns)} processed!')
+    logger.info(f'{len(balances)} wallets are written to "{res_filename}"!')
 
     total_microtokens = 0
     for k, v in balances.items():
         total_microtokens += v
 
-    print(f'In total {total_microtokens} microtokens')
+    logger.info(f'In total {total_microtokens} microtokens')
 
     return balances
 
