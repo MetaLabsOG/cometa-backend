@@ -1,6 +1,9 @@
 import json
+import random
+import asyncio
+import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
 from env import settings
 
@@ -47,3 +50,47 @@ def strip_version(version: str) -> str:
     if version[0] == '^':
         return version[1:]
     return version
+
+
+async def with_exponential_backoff(func, *args, max_retries=3, initial_delay=1, 
+                                  backoff_factor=2, **kwargs):
+    """Execute function with exponential backoff on failure
+    
+    Args:
+        func: The async function to call
+        *args: Arguments to pass to func
+        max_retries: Maximum number of retries
+        initial_delay: Initial delay in seconds
+        backoff_factor: Multiplier for delay after each failed attempt
+        **kwargs: Keyword arguments to pass to func
+        
+    Returns:
+        The return value of the function
+        
+    Raises:
+        Exception: The last exception encountered after max_retries
+    """
+    delay = initial_delay
+    last_exception = None
+    
+    for retry in range(max_retries + 1):  # +1 for initial attempt
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            last_exception = e
+            
+            if retry >= max_retries:
+                # We've exhausted our retries
+                raise
+            
+            # Add jitter to prevent thundering herd
+            jitter = random.uniform(0.75, 1.25)
+            actual_delay = delay * jitter
+            
+            logging.warning(
+                f"Error: {e}. Retrying in {actual_delay:.2f}s "
+                f"(attempt {retry+1}/{max_retries})"
+            )
+            
+            await asyncio.sleep(actual_delay)
+            delay *= backoff_factor  # Increase delay
