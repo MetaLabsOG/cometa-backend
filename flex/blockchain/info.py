@@ -1,4 +1,6 @@
 from aiocache import cached
+from algosdk.error import AlgodHTTPError
+import logging
 
 from flex.blockchain.base import indexer_client, algod_client
 from flex.db.model.blockchain import Asset, AssetInfo
@@ -52,8 +54,20 @@ async def get_address_assets_with_algo(address: str) -> dict:
 
 @cached(ttl=10, namespace='node', key='current_round')
 async def get_current_round():
-    data = algod_client.status()
-    return data['last-round']
+    try:
+        data = algod_client.status()
+        current_round = data['last-round']
+        # Store for fallback
+        get_current_round._last_known_round = current_round
+        return current_round
+    except AlgodHTTPError as e:
+        logging.error(f"Failed to get current round from Algod: {e}")
+        fallback = getattr(get_current_round, '_last_known_round', 0)
+        logging.warning(f"Using fallback round: {fallback}")
+        return fallback
+    except Exception as e:
+        logging.error(f"Unexpected error getting current round: {e}", exc_info=True)
+        return getattr(get_current_round, '_last_known_round', 0)
 
 
 async def get_app_address(app_id: int) -> str:
