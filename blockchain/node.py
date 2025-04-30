@@ -3,7 +3,9 @@ from base64 import b64decode
 
 from algosdk import mnemonic, account, transaction
 from algosdk.v2client.algod import AlgodClient
+from algosdk.error import AlgodHTTPError
 from cachetools import cached, TTLCache
+import logging
 
 from env import settings
 
@@ -22,8 +24,16 @@ algod_client = init_algod_client()
 
 @cached(cache=TTLCache(maxsize=1, ttl=settings.block_time))
 def get_current_round():
-    data = algod_client.status()
-    return data['last-round']
+    try:
+        data = algod_client.status()
+        return data['last-round']
+    except AlgodHTTPError as e:
+        logging.error(f"Failed to get current round from Algod: {e}")
+        # Return a sensible default or re-raise a different exception if needed
+        # For now, returning None or a default round might prevent crashes downstream
+        # but could lead to unexpected behavior. Returning 0 might be safest if
+        # downstream code expects an int, but be aware of the implications.
+        return 0 # Or None, or raise custom error
 
 
 # fast copypaste
