@@ -129,3 +129,87 @@ dmypy.json
 .pyre/
 
 .idea
+metapunks/arweave_key.json
+metapunks/copy_chosen_nfts.sh
+metapunks/filter_nft_files.sh
+metapunks/image_urls.txt
+metapunks/model_urls.txt
+metapunks/remove_used.sh
+metapunks/ybg_2_id_mapping.json
+metapunks/ybg_first_50_ids.json
+metapunks/ybg_info.json
+metapunks/ybg_metapunks_numbers.json
+sample_jsons/algo_brdini_farm.json
+sample_jsons/arm_algo_pact_create_info.json
+sample_jsons/bloom_ipt_farm_create.json
+sample_jsons/bndri_algo_farm.json
+sample_jsons/cjesus_cat_staking.json
+sample_jsons/lp_tx.json
+sample_jsons/meta_ballsack_deploy.json
+sample_jsons/meta_niko_farm_info.json
+sample_jsons/meta_pact_nft_lottery.json
+sample_jsons/meta_pool_info.json
+sample_jsons/meta_pool_txns.json
+.archive/cometa_2746104200.json
+.archive/cosmic_snapshot_2.json
+.archive/cosmic_snapshot_3.json
+.archive/cosmic_snapshot.json
+.archive/cosmic_stakes_26672956.json
+.archive/cosmic_stakes_27330358.json
+.archive/cosmic_stakes_27461042.json
+.archive/cosmic_stakes_27494994.json
+.archive/cosmic_stakes_old_27330238.json
+.archive/cosmic_stakes_prev_27461042.json
+.archive/free_punks.txt
+.archive/latest_cosg_pool_28810058.json
+.archive/lol.json
+.archive/meta_lotteries.json
+.archive/nft_list_1.txt
+.archive/opyx_pool_28858365.json
+.archive/opyx_pool_29858365.json
+bot/.DS_Store
+bot/.env
+bot_log/bot.log.2022-09-15
+bot_log/bot.log.2022-09-17
+bot_log/bot.log.2022-09-26
+core/.DS_Store
+temp_data/airdrop_amounts_algo 200_37601573.json
+temp_data/airdrop_amounts_algo 200_37603224.json
+temp_data/airdrop_amounts_algo 200_37603344.json
+temp_data/airdrop_amounts_algo 200_37603373.json
+temp_data/airdrop_amounts_algo 200_37603507.json
+temp_data/airdrop_amounts_algo 200_37604069.json
+temp_data/airdrop_amounts_token for testing_39225461.json
+temp_data/airdrop_amounts_token for testing_39226450.json
+temp_data/airdrop_amounts_token for testing_39226505.json
+temp_data/airdrop_amounts_token for testing_39226635.json
+temp_data/airdrop_amounts_token for testing_39226652.json
+temp_data/airdrop_amounts_token for testing_39226671.json
+temp_data/airdrop_amounts_token for testing_39226683.json
+temp_data/airdrop_txns_algo 200_37603373.json
+temp_data/airdrop_txns_algo 200_37603507.json
+temp_data/airdrop_txns_algo 200_37604069.json
+temp_data/airdrop_txns_token for testing_39226505.json
+temp_data/airdrop_txns_token for testing_39226683.json
+temp_data/algofi_airdrop.txt
+temp_data/cometa_info.html
+temp_data/coop_meta_farm.json
+temp_data/deploy_requests.json
+temp_data/kek.json
+temp_data/meta_coop_nft_lottery.json
+temp_data/meta_staked_airdrop.py
+temp_data/metapunk_holders.txt
+temp_data/outage_opted_in.json
+temp_data/pool_costs_37598572.json
+temp_data/pool_fees_35720000_37530000.json
+temp_data/response_1712150137492.json
+temp_data/response_1712151196711.json
+temp_data/response_1712153435846.json
+temp_data/response_1712153944657.json
+temp_data/test_optins_balances_count.json
+temp_data/test_optins_balances.json
+temp_data/test_optins.json
+temp_data/user_pools_snapshot.json
+temp_data/user_pools.json
+temp_data/user_txns_35720000_37530000.json
+.env

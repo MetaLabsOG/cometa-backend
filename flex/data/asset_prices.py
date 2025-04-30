@@ -1,5 +1,7 @@
 import logging
 from datetime import datetime
+import asyncio
+from typing import List
 
 from aiocache import cached
 
@@ -110,14 +112,90 @@ async def get_asset_price_not_cached(asset_id: int) -> AssetPrice:
     return asset_price
 
 
+async def update_stale_asset_prices(asset_prices: List[AssetPrice]) -> List[AssetPrice]:
+    """
+    Efficiently update stale asset prices in batches.
+    
+    Args:
+        asset_prices: List of asset prices to check and potentially update
+        
+    Returns:
+        List of updated asset prices
+    """
+    if not asset_prices:
+        return []
+        
+    current_round = await get_current_round()
+    stale_prices = []
+    
+    # Find stale prices that need updating
+    for price in asset_prices:
+        if current_round - price.last_update_round > settings.asset_prices_ttl:
+            stale_prices.append(price)
+    
+    if not stale_prices:
+        return asset_prices
+        
+    logger.info(f"Updating {len(stale_prices)} stale asset prices")
+    
+    # Get the algo price once for all updates
+    algo_price_usd = await get_algo_price_usd()
+    
+    # Update in small batches to avoid rate limiting
+    batch_size = min(5, len(stale_prices))
+    updated_prices = []
+    
+    for i in range(0, len(stale_prices), batch_size):
+        batch = stale_prices[i:i+batch_size]
+        update_tasks = []
+        
+        for asset_price in batch:
+            task = update_asset_price(asset_price, current_round, algo_price_usd)
+            update_tasks.append(task)
+            
+        # Process batch concurrently
+        batch_results = await asyncio.gather(*update_tasks, return_exceptions=True)
+        
+        for j, result in enumerate(batch_results):
+            if isinstance(result, Exception):
+                logger.error(f"Error updating asset price for {batch[j].id}: {result}")
+                updated_prices.append(batch[j])  # Keep old price on error
+            else:
+                updated_prices.append(result)
+                
+        # Small delay between batches to avoid rate limiting
+        if i + batch_size < len(stale_prices):
+            await asyncio.sleep(1)
+    
+    # Replace stale prices with updated ones in the original list
+    result = []
+    stale_ids = {p.id for p in stale_prices}
+    updated_dict = {p.id: p for p in updated_prices}
+    
+    for price in asset_prices:
+        if price.id in stale_ids:
+            result.append(updated_dict[price.id])
+        else:
+            result.append(price)
+            
+    return result
+
+
 @cached(ttl=settings.asset_prices_ttl, namespace='all_assets_price', key='happy')
 async def get_all_asset_prices(current_time: datetime | None = None) -> list[AssetPriceInfo]:
     current_time = current_time or datetime.now()
-    return [asset_price.to_info(current_time) for asset_price in db.asset_prices.get_all()]
+    
+    # Simply return all asset prices from the database without checking for staleness
+    all_prices = db.asset_prices.get_all()
+    return [asset_price.to_info(current_time) for asset_price in all_prices]
 
 
 async def get_asset_prices_by_query(query_dict: dict, current_time: datetime | None = None) -> list[AssetPriceInfo]:
-    return [asset_price.to_info(current_time) for asset_price in db.asset_prices.get_many_by_query(query_dict)]
+    current_time = current_time or datetime.now()
+    
+    # Return prices matching the query without checking for staleness
+    matching_prices = db.asset_prices.get_many_by_query(query_dict)
+    return [asset_price.to_info(current_time) for asset_price in matching_prices]
 
 
 async def create_and_update_asset_prices() -> list[AssetPrice]:
