@@ -16,7 +16,8 @@ from core.db.model import PoolStatus, PoolInfo, PoolType
 from core.db.pools import pools_db
 from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
-from core.util import strip_version, parse_bignum
+from core.util import strip_version, parse_bignum, with_exponential_backoff
+from core.circuit_breaker import get_circuit_breaker
 from env import settings
 from flex import db
 from flex.migrations import migrate_background
@@ -26,6 +27,19 @@ from flex.data.asset_prices import create_and_update_asset_prices, get_asset_pri
 
 spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
+
+
+async def safe_background_task(coro, task_name="Unnamed"):
+    """Wrapper to prevent background tasks from crashing the process"""
+    try:
+        await coro
+    except asyncio.CancelledError:
+        # Normal during shutdown
+        raise
+    except Exception as e:
+        logger.error(f"Background task '{task_name}' error: {e}", exc_info=True)
+        # Don't crash the entire system
+        await asyncio.sleep(5)  # Pause before potential retry
 
 
 @safe_async_method
@@ -188,76 +202,109 @@ def sync_new_pools():
         asyncio.run(sync_pools_loop())
 
 
-@repeat_every(settings.asset_prices_update_interval)  # Use the configured interval for updates
+@repeat_every(settings.asset_prices_update_interval)
 @safe_async_method
 async def update_asset_prices_background():
-    """
-    Background task that updates asset prices periodically.
-    Uses rate limiting to avoid hitting Vestige API limits.
-    """
+    """Background task that updates asset prices with robust error handling"""
     if not settings.background_asset_prices_update:
         logger.info('Background asset price updates are disabled')
         return
         
     logger.info('Starting background asset price update')
     
-    # Get all assets that need price updates
-    all_assets = db.assets.get_all()
+    # Get current round with built-in fallback
     current_round = get_current_round()
     
-    # Prioritize frequently requested assets
+    # Get and prioritize assets
+    all_assets = db.assets.get_all()
     prioritized_assets = list(settings.always_return_pool_ids)
     
-    # Add all other assets
+    # Add remaining assets
     for asset in all_assets:
         if asset.id not in prioritized_assets:
             prioritized_assets.append(asset.id)
     
-    # Shuffle non-priority assets to distribute load and prevent always hitting 
-    # the API for the same assets in the same order
+    # Shuffle non-priority assets to distribute load
     regular_assets = prioritized_assets[len(settings.always_return_pool_ids):]
     random.shuffle(regular_assets)
     prioritized_assets = prioritized_assets[:len(settings.always_return_pool_ids)] + regular_assets
     
     total_updated = 0
+    failures = 0
     batch_size = min(settings.asset_price_update_batch_size, len(prioritized_assets))
     
-    # Process in small batches with delays between API calls
+    # Get or create circuit breaker
+    cb = get_circuit_breaker("vestige_api") 
+    
+    # Process in batches with delays
     for i in range(0, len(prioritized_assets), batch_size):
         batch = prioritized_assets[i:i+batch_size]
+        batch_success = 0
+        
         for asset_id in batch:
             try:
                 asset_price = db.asset_prices.get_one(id=asset_id)
                 
                 # Only update if price is stale or missing
                 if asset_price is None or (current_round - asset_price.last_update_round > settings.asset_prices_ttl):
-                    await get_asset_price_not_cached(asset_id)
+                    # Use circuit breaker + backoff
+                    await cb.execute(
+                        with_exponential_backoff,
+                        get_asset_price_not_cached,  # Function that does the API call
+                        asset_id,
+                        max_retries=2
+                    )
                     total_updated += 1
-                    
-                    # Small delay between API calls to prevent rate limiting
-                    await asyncio.sleep(settings.asset_price_api_call_delay)
+                    batch_success += 1
+                
+                # Prevent rate limiting
+                await asyncio.sleep(settings.asset_price_api_call_delay)
                 
             except Exception as e:
+                failures += 1
                 logger.error(f'Error updating price for asset {asset_id}: {e}')
         
-        # Larger delay between batches
-        if i + batch_size < len(prioritized_assets):
+        # Add longer delay if batch had high failure rate
+        if batch_success < len(batch) / 2 and len(batch) > 1:
+            await asyncio.sleep(settings.asset_price_batch_delay * 2)
+        elif i + batch_size < len(prioritized_assets):
             await asyncio.sleep(settings.asset_price_batch_delay)
     
-    logger.info(f'Background asset price update completed. Updated {total_updated}/{len(prioritized_assets)} assets')
+    logger.info(f'Asset price update completed: {total_updated} updated, {failures} failed')
 
 
 # TODO: graceful shutdown here (with signal handling?)
 def run_background():
     async def tasks():
-        await asyncio.gather(
-            migrate_background(),
-            update_contracts_worker(),
-            update_asset_prices_background(),
-            # update_pools_info_worker()
-            # sync_new_pools(),
-            # notify_prices()
-        )
+        task_list = []
+        
+        # Create independent tasks
+        if settings.migrate:
+            task_list.append(
+                asyncio.create_task(
+                    safe_background_task(migrate_background(), "migrate_background")
+                )
+            )
+        
+        if settings.enable_js and settings.update_contract_caches:
+            task_list.append(
+                asyncio.create_task(
+                    safe_background_task(update_contracts_worker(), "update_contracts")
+                )
+            )
+        
+        if settings.background_asset_prices_update:
+            task_list.append(
+                asyncio.create_task(
+                    safe_background_task(update_asset_prices_background(), "update_prices")
+                )
+            )
+        
+        # Wait for all tasks to complete, with individual error handling
+        if task_list:
+            await asyncio.gather(*task_list, return_exceptions=True)
+        else:
+            logger.warning("No background tasks were configured to run")
 
     logger.info('Started background tasks.')
     asyncio.run(tasks())

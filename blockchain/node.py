@@ -26,14 +26,19 @@ algod_client = init_algod_client()
 def get_current_round():
     try:
         data = algod_client.status()
-        return data['last-round']
+        current_round = data['last-round']
+        # Store successful value as fallback for future failures
+        get_current_round._last_known_round = current_round
+        return current_round
     except AlgodHTTPError as e:
         logging.error(f"Failed to get current round from Algod: {e}")
-        # Return a sensible default or re-raise a different exception if needed
-        # For now, returning None or a default round might prevent crashes downstream
-        # but could lead to unexpected behavior. Returning 0 might be safest if
-        # downstream code expects an int, but be aware of the implications.
-        return 0 # Or None, or raise custom error
+        # Return last known good value or safe default
+        fallback = getattr(get_current_round, '_last_known_round', 0)
+        logging.warning(f"Using fallback round: {fallback}")
+        return fallback
+    except Exception as e:
+        logging.error(f"Unexpected error getting current round: {e}", exc_info=True)
+        return getattr(get_current_round, '_last_known_round', 0)
 
 
 # fast copypaste
