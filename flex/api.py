@@ -257,7 +257,9 @@ async def handle_get_asset_holdings_by_id(asset_id: int) -> dict:
 
 @router.post('/asset/price', tags=['Assets'])
 async def handle_get_asset_price_by_id(asset_id: int) -> AssetPriceInfo:
-    return (await get_asset_price(asset_id)).to_info(datetime.now())
+    # Use the cached version to avoid updating on every request
+    asset_price = await get_asset_price(asset_id)
+    return asset_price.to_info(datetime.now())
 
 
 class AssetsParams(BaseModel):

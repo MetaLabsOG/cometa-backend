@@ -82,7 +82,7 @@ class LpState(BaseEntity['LpState']):
             token_price_usd=self.token_price_algo * algo_price_usd,
             last_updated_round=self.last_updated_round,
             swap_fee_apr=self.swap_fee_apr,
-            seconds_since_update=(current_time - self.updated).total_seconds()
+            seconds_since_update=int((current_time - self.updated).total_seconds())
         )
 
 

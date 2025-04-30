@@ -36,6 +36,10 @@ class Settings(BaseSettings):
 
     background_user_pools_update: bool = False
     background_pools_update: bool = False
+    background_asset_prices_update: bool = True  # Enable background update of asset prices
+    asset_price_update_batch_size: int = 10  # Number of assets to update in one batch
+    asset_price_api_call_delay: float = 0.5  # Delay between API calls in seconds
+    asset_price_batch_delay: float = 2.0  # Delay between batches in seconds
 
     sync_new_pools: bool = True
     sync_liquidity_pools: bool = False
@@ -56,6 +60,7 @@ class Settings(BaseSettings):
     contracts_cache_ttl: int = 30
     algo_price_ttl: int = 3
     asset_prices_ttl: int = 30
+    asset_prices_update_interval: int = 60  # Run the background update every 60 seconds
     lp_token_prices_ttl: int = 30
     total_tvl_ttl: int = 30
 
