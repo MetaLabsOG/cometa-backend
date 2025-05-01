@@ -72,9 +72,9 @@ async def calljs(cmd: str, **params):
 
             if "error" in response:
                 error_msg = response["error"]
-                # Specific handling for the "View initial.undefined" error
+                # Completely suppress "View initial.undefined" errors
                 if "View initial.undefined is not set" in error_msg:
-                    logger.warning(f"Contract view error (possibly unavailable): {error_msg}")
+                    # Don't log anything for this specific error
                     
                     # For global views, return empty structure so calling code won't crash
                     if cmd == "fetchContractsGlobalViews":

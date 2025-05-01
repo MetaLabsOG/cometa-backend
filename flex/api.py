@@ -257,9 +257,16 @@ async def handle_get_asset_holdings_by_id(asset_id: int) -> dict:
 
 @router.post('/asset/price', tags=['Assets'])
 async def handle_get_asset_price_by_id(asset_id: int) -> AssetPriceInfo:
-    # Use the cached version to avoid updating on every request
-    asset_price = await get_asset_price(asset_id)
-    return asset_price.to_info(datetime.now())
+    try:
+        # Try to get the asset price (will create if not exists, refresh if old)
+        asset_price = await get_asset_price(asset_id)
+        return asset_price.to_info(datetime.now())
+    except Exception as e:
+        logger.error(f"Error getting price for asset {asset_id}: {e}")
+        # Return 404 if asset not found, or 500 for other errors
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=f"Asset {asset_id} not found")
+        raise HTTPException(status_code=500, detail=f"Failed to get price for asset {asset_id}")
 
 
 class AssetsParams(BaseModel):
