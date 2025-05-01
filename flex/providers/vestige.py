@@ -79,13 +79,20 @@ async def vestige_full_asset_price_not_cached(asset_id: int) -> Price:
         return Price(algo=1, usd=algo_price_usd)
 
     url = f'{BASE_URL}/asset/{asset_id}/price'
-    response = requests.get(url)
-    data = response.json()
+    try:
+        response = requests.get(url, timeout=10)
+        data = response.json()
 
-    price_usd = data.get('USD')
-    if price_usd is None:
-        raise MetaError(f'Failed request {url}: code = {response.status_code}')
-    return Price(algo=data['price'], usd=price_usd)
+        price_usd = data.get('USD')
+        if price_usd is None:
+            raise MetaError(f'Failed request {url}: USD price not available. Response: {data}')
+        return Price(algo=data['price'], usd=price_usd)
+    except requests.RequestException as e:
+        logger.error(f"Vestige API request failed for asset {asset_id}: {e}")
+        raise MetaError(f'Failed to fetch price from Vestige API: {e}')
+    except (ValueError, KeyError) as e:
+        logger.error(f"Invalid response from Vestige API for asset {asset_id}: {e}")
+        raise MetaError(f'Invalid response from Vestige API: {e}')
 
 
 @cached(ttl=settings.asset_prices_ttl, namespace='full_asset', key_builder=build_key_str)

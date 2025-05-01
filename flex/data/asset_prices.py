@@ -15,40 +15,50 @@ from flex.data.lp_tokens import get_lp_token_by_id
 from flex.data.tinyman_lps import calculate_price_algo_from_tiny_algo_pool
 from flex.db.model.priced import AssetPrice, AssetPriceInfo
 from flex.providers.vestige import vestige_full_asset_price, get_algo_price_usd, DexProvider
+from flex.meta_error import MetaError
 
 logger = logging.getLogger(__name__)
 
 
 async def create_asset_price(asset_id: int, current_round: int, algo_price_usd: float | None = None) -> AssetPrice:
-    asset_details = await get_asset_details(asset_id)
-    logger.debug(f'Creating asset price {asset_id} = {asset_details.name}')
+    try:
+        asset_details = await get_asset_details(asset_id)
+        logger.debug(f'Creating asset price {asset_id} = {asset_details.name}')
 
-    algo_price_usd = algo_price_usd or await get_algo_price_usd()
-    lp_token = await get_lp_token_by_id(asset_id)
-    if lp_token is not None:
-        # TODO: optimize
-        priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
-        asset_price = AssetPrice(
-            id=lp_token.id,
-            name=asset_details.name,
-            price_algo=priced_lp_state.token_price_algo,
-            price_usd=priced_lp_state.token_price_algo * algo_price_usd,
-            last_update_round=priced_lp_state.last_updated_round
-        )
-    else:
-        asset_price = await get_simple_asset_price_from_pools(asset_id, algo_price_usd)
-        if asset_price is None:
-            price = await vestige_full_asset_price(asset_id)
+        algo_price_usd = algo_price_usd or await get_algo_price_usd()
+        lp_token = await get_lp_token_by_id(asset_id)
+        if lp_token is not None:
+            # TODO: optimize
+            priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
             asset_price = AssetPrice(
-                id=asset_id,
+                id=lp_token.id,
                 name=asset_details.name,
-                price_algo=price.algo,
-                price_usd=price.usd,
-                last_update_round=current_round
+                price_algo=priced_lp_state.token_price_algo,
+                price_usd=priced_lp_state.token_price_algo * algo_price_usd,
+                last_update_round=priced_lp_state.last_updated_round
             )
-    db.asset_prices.create(asset_price)
-    logger.info(f'\nNew Asset Price ${asset_price.name}: usd = {asset_price.price_usd}, algo = {asset_price.price_algo}\n')
-    return asset_price
+        else:
+            asset_price = await get_simple_asset_price_from_pools(asset_id, algo_price_usd)
+            if asset_price is None:
+                try:
+                    price = await vestige_full_asset_price(asset_id)
+                    asset_price = AssetPrice(
+                        id=asset_id,
+                        name=asset_details.name,
+                        price_algo=price.algo,
+                        price_usd=price.usd,
+                        last_update_round=current_round
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to get price from Vestige for asset {asset_id}: {e}")
+                    raise MetaError(f"Could not fetch price for asset {asset_id}")
+                
+        db.asset_prices.create(asset_price)
+        logger.info(f'\nNew Asset Price ${asset_price.name}: usd = {asset_price.price_usd}, algo = {asset_price.price_algo}\n')
+        return asset_price
+    except Exception as e:
+        logger.error(f"Failed to create asset price for {asset_id}: {e}")
+        raise
 
 
 async def get_simple_asset_price_from_pools(asset_id: int, algo_price_usd: float | None = None) -> AssetPrice | None:
@@ -71,24 +81,38 @@ async def get_simple_asset_price_from_pools(asset_id: int, algo_price_usd: float
 
 async def update_asset_price(asset_price: AssetPrice, current_round: int, algo_price_usd: float | None = None) -> AssetPrice:
     logger.debug(f'Updating Asset Price id = {asset_price.id}, algo_price = {asset_price.price_algo}')
+    old_price_algo = asset_price.price_algo
+    old_price_usd = asset_price.price_usd
 
     lp_token = await get_lp_token_by_id(asset_price.id)
     algo_price_usd = algo_price_usd or (await get_algo_price_usd())
-    if lp_token is not None:
-        priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
-        asset_price.price_algo = priced_lp_state.token_price_algo
-        asset_price.price_usd = priced_lp_state.token_price_algo * algo_price_usd
+    
+    try:
+        if lp_token is not None:
+            priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
+            asset_price.price_algo = priced_lp_state.token_price_algo
+            asset_price.price_usd = priced_lp_state.token_price_algo * algo_price_usd
 
-    elif asset_price.tinyman_algo_pool_id is not None:
-        lp_state = db.lp_states.get_one(id=asset_price.tinyman_algo_pool_id)
-        # TODO: simplify the condition or extract to method
-        if lp_state is not None and lp_state.dex_provider == DexProvider.TINYMAN_V2 and lp_state.is_algo_pool:
-            asset_price.price_algo = await calculate_price_algo_from_tiny_algo_pool(lp_state)
-            asset_price.price_usd = asset_price.price_algo * algo_price_usd
+        elif asset_price.tinyman_algo_pool_id is not None:
+            lp_state = db.lp_states.get_one(id=asset_price.tinyman_algo_pool_id)
+            # TODO: simplify the condition or extract to method
+            if lp_state is not None and lp_state.dex_provider == DexProvider.TINYMAN_V2 and lp_state.is_algo_pool:
+                asset_price.price_algo = await calculate_price_algo_from_tiny_algo_pool(lp_state)
+                asset_price.price_usd = asset_price.price_algo * algo_price_usd
+            else:
+                price = await vestige_full_asset_price(asset_id=asset_price.id)
+                asset_price.price_algo = price.algo
+                asset_price.price_usd = price.usd
         else:
             price = await vestige_full_asset_price(asset_id=asset_price.id)
             asset_price.price_algo = price.algo
             asset_price.price_usd = price.usd
+    except Exception as e:
+        logger.error(f"Failed to update price for asset {asset_price.id}: {e}")
+        logger.info(f"Keeping old price values for asset {asset_price.id}")
+        # Keep the old values on error
+        asset_price.price_algo = old_price_algo
+        asset_price.price_usd = old_price_usd
 
     asset_price.last_updated_round = current_round
     db.asset_prices.update(asset_price)
@@ -97,7 +121,7 @@ async def update_asset_price(asset_price: AssetPrice, current_round: int, algo_p
     return asset_price
 
 
-@cached(ttl=settings.asset_prices_ttl, namespace='asset_price', key='asset_id')
+@cached(ttl=120, namespace='asset_price', key='asset_id')  # 120 seconds (2 minutes) TTL
 async def get_asset_price(asset_id: int) -> AssetPrice:
     return await get_asset_price_not_cached(asset_id)
 
@@ -105,10 +129,22 @@ async def get_asset_price(asset_id: int) -> AssetPrice:
 async def get_asset_price_not_cached(asset_id: int) -> AssetPrice:
     asset_price = db.asset_prices.get_one(id=asset_id)
     current_round = await get_current_round()
+    
+    # If asset doesn't exist in cache/database, create it
     if asset_price is None:
-        asset_price = await create_asset_price(asset_id, current_round)
-    elif current_round - asset_price.last_update_round > settings.asset_prices_ttl:
-        asset_price = await update_asset_price(asset_price, current_round)
+        try:
+            asset_price = await create_asset_price(asset_id, current_round)
+        except Exception as e:
+            logger.error(f"Failed to create asset price for ID {asset_id}: {e}")
+            raise
+    # If asset exists but cache is old (>120s), try to refresh it
+    elif current_round - asset_price.last_update_round > 120:  # 120 seconds TTL
+        try:
+            asset_price = await update_asset_price(asset_price, current_round)
+        except Exception as e:
+            logger.error(f"Failed to update asset price for ID {asset_id}, using cached value: {e}")
+            # On failure, return the old cached value
+    
     return asset_price
 
 
