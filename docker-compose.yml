@@ -16,7 +16,7 @@ services:
             - "${SERVER_PORT}"
         depends_on:
             - mongodb
-#            - redis
+            - algod
         logging:
             driver: json-file
             options:
@@ -30,8 +30,18 @@ services:
         volumes:
             - "/var/lib/mongodb-${ALGO_NETWORK}:/data/db"
 
-#    redis:
-#        image: redis
-#        restart: always
-#        ports:
-#            - "${REDIS_PORT}:${REDIS_PORT}"
+    algod:
+        image: algorand/algod:latest
+        container_name: algod-node
+        restart: unless-stopped
+        environment:
+            - NETWORK=mainnet
+            - FAST_CATCHUP=1           # snapshot-based fast sync
+            - TOKEN=${ALGOD_TOKEN}     # 64+ char API key for REST
+        volumes:
+            - algod-data:/algod/data   # persists ~20 GB ledger
+        ports:
+            - "127.0.0.1:4190:8080"    # bind REST API to localhost
+
+volumes:
+  algod-data:
