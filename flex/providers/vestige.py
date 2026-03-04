@@ -1,8 +1,9 @@
+import asyncio
 import logging
 from dataclasses import dataclass
 from enum import Enum
 
-import requests
+import httpx
 from aiocache import cached
 
 from env import settings
@@ -10,10 +11,23 @@ from flex.db.model.blockchain import LpToken
 from flex.meta_error import MetaError
 from flex.util import build_key_str
 
-BASE_URL = 'https://free-api.vestige.fi'
+BASE_URL = 'https://api.vestigelabs.org'
+USDC_ASSET_ID = 31566704
 
 
 logger = logging.getLogger(__name__)
+
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=5.0),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+    return _http_client
 
 
 class DexProvider(str, Enum):
@@ -50,12 +64,17 @@ class Price:
 
 @cached(ttl=settings.algo_price_ttl, namespace='algo_price', key='algo_price')
 async def get_algo_price_usd() -> float:
-    url = f'{BASE_URL}/currency/USD/price'
-    data = requests.get(url).json()
-    return data['price']
+    url = f'{BASE_URL}/assets/price?asset_ids=0&denominating_asset_id={USDC_ASSET_ID}'
+    client = _get_client()
+    response = await client.get(url)
+    response.raise_for_status()
+    data = response.json()
+    if isinstance(data, list) and len(data) > 0:
+        return data[0]['price']
+    raise MetaError(f'Failed to get ALGO price from Vestige API: {data}')
 
 
-@cached(ttl=settings.asset_prices_ttl, namespace='asset_price', key_builder=build_key_str)
+@cached(ttl=settings.asset_prices_ttl, namespace='vestige_asset_price', key_builder=build_key_str)
 async def get_asset_price_usd(asset_id: int) -> float:
     return await get_asset_price_usd_not_cached(asset_id)
 
@@ -64,13 +83,15 @@ async def get_asset_price_usd_not_cached(asset_id: int) -> float:
     if asset_id == 0:
         return await get_algo_price_usd()
 
-    url = f'{BASE_URL}/asset/{asset_id}/price'
-    response = requests.get(url)
+    url = f'{BASE_URL}/assets/price?asset_ids={asset_id}&denominating_asset_id={USDC_ASSET_ID}'
+    client = _get_client()
+    response = await client.get(url)
+    response.raise_for_status()
     data = response.json()
 
-    if 'USD' not in data:
-        raise MetaError(f'Failed request {url}: code = {response.status_code}')
-    return data['USD']
+    if isinstance(data, list) and len(data) > 0:
+        return data[0]['price']
+    raise MetaError(f'Failed to get price for asset {asset_id} from Vestige API: {data}')
 
 
 async def vestige_full_asset_price_not_cached(asset_id: int) -> Price:
@@ -78,16 +99,29 @@ async def vestige_full_asset_price_not_cached(asset_id: int) -> Price:
         algo_price_usd = await get_algo_price_usd()
         return Price(algo=1, usd=algo_price_usd)
 
-    url = f'{BASE_URL}/asset/{asset_id}/price'
     try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
+        client = _get_client()
+        url_usd = f'{BASE_URL}/assets/price?asset_ids={asset_id}&denominating_asset_id={USDC_ASSET_ID}'
+        url_algo = f'{BASE_URL}/assets/price?asset_ids={asset_id}&denominating_asset_id=0'
 
-        price_usd = data.get('USD')
-        if price_usd is None:
-            raise MetaError(f'Failed request {url}: USD price not available. Response: {data}')
-        return Price(algo=data['price'], usd=price_usd)
-    except requests.RequestException as e:
+        response_usd, response_algo = await asyncio.gather(
+            client.get(url_usd),
+            client.get(url_algo),
+        )
+        response_usd.raise_for_status()
+        response_algo.raise_for_status()
+        data = response_usd.json()
+
+        if not isinstance(data, list) or len(data) == 0:
+            raise MetaError(f'No price data for asset {asset_id}. Response: {data}')
+
+        price_usd = data[0]['price']
+
+        data_algo = response_algo.json()
+        price_algo = data_algo[0]['price'] if isinstance(data_algo, list) and len(data_algo) > 0 else 0
+
+        return Price(algo=price_algo, usd=price_usd)
+    except httpx.HTTPError as e:
         logger.error(f"Vestige API request failed for asset {asset_id}: {e}")
         raise MetaError(f'Failed to fetch price from Vestige API: {e}')
     except (ValueError, KeyError) as e:
@@ -102,10 +136,13 @@ async def vestige_full_asset_price(asset_id: int) -> Price:
 
 async def fetch_lp_token(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
     ref_id = asset2_id if asset1_id == 0 else asset1_id
-    url = f'{BASE_URL}/pools/{dex_provider}?assets=%5B{ref_id}%5D'
-    response = requests.get(url)
+    url = f'{BASE_URL}/pools?asset_1_id={ref_id}&limit=100'
+    client = _get_client()
+    response = await client.get(url)
+    response.raise_for_status()
     data = response.json()
-    for token_data in data:
+    results = data.get('results', data) if isinstance(data, dict) else data
+    for token_data in results:
         if token_data['token_id'] == lp_token_id:
             address = token_data['address']
             if asset1_id < asset2_id:

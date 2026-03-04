@@ -30,15 +30,24 @@ class Settings(BaseSettings):
     logging_date_format: str = '%I:%M:%S'
 
     return_all_user_pools: bool = False
-    # TODO: remove HARDCORE
+    # List of pool IDs that should always be returned
     always_return_pool_ids: list[int] = [1705298492, 1713659453, 1846754940, 1911323813, 1911383471]
     return_all_cometa_pools_to_addresses: list[str] = []
+
+    # Special addresses that should receive all pools
+    special_addresses: list[str] = ['DLO6VI4XJJWZOYUHSEKP3MVQZXGEOKDJUTTL5NJIS7UMXAPETOYLX3KNVE', 'native.algo']
+
+    # Beneficiary address for contract verification
+    beneficiary_address: str = 'METAFG5UBD74CKQFIIABWMMQXR45J7BAP3KV6BVR3V7LDPNAEKNEVLMBRE'
+
+    # Uvicorn log level
+    uvicorn_log_level: str = 'info'
 
     background_user_pools_update: bool = False
     background_pools_update: bool = False
     background_asset_prices_update: bool = True  # Enable background update of asset prices
     asset_price_update_batch_size: int = 10  # Number of assets to update in one batch
-    asset_price_api_call_delay: float = 0.5  # Delay between API calls in seconds
+    asset_price_api_call_delay: float = 1  # Delay between API calls in seconds
     asset_price_batch_delay: float = 2.0  # Delay between batches in seconds
 
     sync_new_pools: bool = True
@@ -57,7 +66,7 @@ class Settings(BaseSettings):
 
     reset_and_resync_pool_states: bool = False
 
-    contracts_cache_ttl: int = 30
+    contracts_cache_ttl: int = 120
     algo_price_ttl: int = 3
     asset_prices_ttl: int = 120  # 120 seconds (2 minutes)
     asset_prices_update_interval: int = 60  # Run the background update every 60 seconds

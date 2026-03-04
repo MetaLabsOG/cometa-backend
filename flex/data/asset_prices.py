@@ -16,6 +16,7 @@ from flex.data.tinyman_lps import calculate_price_algo_from_tiny_algo_pool
 from flex.db.model.priced import AssetPrice, AssetPriceInfo
 from flex.providers.vestige import vestige_full_asset_price, get_algo_price_usd, DexProvider
 from flex.meta_error import MetaError
+from flex.util import build_key_str
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ async def update_asset_price(asset_price: AssetPrice, current_round: int, algo_p
     return asset_price
 
 
-@cached(ttl=120, namespace='asset_price', key='asset_id')  # 120 seconds (2 minutes) TTL
+@cached(ttl=120, namespace='asset_price', key_builder=build_key_str)  # 120 seconds (2 minutes) TTL
 async def get_asset_price(asset_id: int) -> AssetPrice:
     return await get_asset_price_not_cached(asset_id)
 

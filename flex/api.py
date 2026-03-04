@@ -28,6 +28,8 @@ from flex.db.model.priced import UserCost, PoolStateCost, AssetPriceInfo
 from flex.providers.vestige import DexProvider, get_algo_price_usd
 from flex.sync_pools import get_sync_pool_state_by_id, get_sync_user_state_by_address
 from flex.tdr_stats import fetch_and_record_user_txns, fetch_and_record_pool_fees
+from core.db.contracts import get_contracts_by_type
+from core.util import parse_bignum
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -356,4 +358,109 @@ async def get_entity_count(
 
     return {
         'count': collection.count(**params.query)
+    }
+
+
+# ENRICHED FARM ENDPOINT
+
+def _parse_bignum_safe(obj) -> int | None:
+    if obj is None:
+        return None
+    if isinstance(obj, int):
+        return obj
+    if isinstance(obj, dict) and obj.get('type') == 'BigNumber' and 'hex' in obj:
+        return int(obj['hex'], 16)
+    return None
+
+
+def serialize_contract_slim(contract) -> dict:
+    meta = dict(contract.metadata) if contract.metadata else {}
+    cache = meta.pop('cache', None)
+    if cache:
+        initial = cache.get('initial', {})
+        global_state = cache.get('global', {})
+        meta['begin_block'] = meta.get('begin_block') or _parse_bignum_safe(initial.get('beginBlock'))
+        meta['end_block'] = meta.get('end_block') or _parse_bignum_safe(initial.get('endBlock'))
+        meta['lock_length_blocks'] = meta.get('lock_length_blocks') or _parse_bignum_safe(initial.get('lockLengthBlocks'))
+        meta['total_staked'] = _parse_bignum_safe(global_state.get('totalStaked'))
+        meta['reward_per_token'] = _parse_bignum_safe(global_state.get('rewardPerTokenStored'))
+        meta['total_reward_amount'] = _parse_bignum_safe(initial.get('totalRewardAmount'))
+        meta['total_algo_reward_amount'] = _parse_bignum_safe(initial.get('totalAlgoRewardAmount'))
+        meta['stake_token'] = _parse_bignum_safe(initial.get('stakeToken'))
+        meta['reward_token'] = _parse_bignum_safe(initial.get('rewardToken'))
+        meta['last_update_block'] = _parse_bignum_safe(global_state.get('lastUpdateBlock'))
+    return {
+        'type': contract.type,
+        'id': contract.id,
+        'version': contract.version,
+        'deployed_timestamp': contract.deployed_timestamp,
+        'description': contract.description,
+        'metadata': meta,
+        'begin_date': contract.begin_date.isoformat() if contract.begin_date else None,
+        'end_date': contract.end_date.isoformat() if contract.end_date else None,
+    }
+
+
+@router.get('/contracts/farm/enriched', tags=['Contracts'])
+@cached(ttl=30, namespace='farm_enriched', key='farm_enriched')
+async def get_farm_enriched():
+    contracts = get_contracts_by_type('farm')
+
+    # Collect unique asset IDs from all contracts
+    asset_ids = set()
+    for c in contracts:
+        m = c.metadata or {}
+        for key in ('stake_token_id', 'reward_token_id', 'asset1_id', 'asset2_id'):
+            val = m.get(key)
+            if val is not None:
+                asset_ids.add(int(val))
+
+        # Also extract from cache if present
+        cache = m.get('cache')
+        if cache:
+            initial = cache.get('initial', {})
+            for key in ('stakeToken', 'rewardToken'):
+                val = _parse_bignum_safe(initial.get(key))
+                if val is not None:
+                    asset_ids.add(val)
+
+    asset_ids.discard(0)  # ALGO doesn't need lookup
+
+    # Collect LP token IDs from DEX contracts
+    lp_token_ids = set()
+    for c in contracts:
+        m = c.metadata or {}
+        if m.get('dex'):
+            cache = m.get('cache')
+            if cache:
+                stake_token = _parse_bignum_safe(cache.get('initial', {}).get('stakeToken'))
+                if stake_token:
+                    lp_token_ids.add(stake_token)
+            stake_token_meta = m.get('stake_token_id')
+            if stake_token_meta:
+                lp_token_ids.add(int(stake_token_meta))
+
+    # Batch-fetch assets and prices from DB
+    current_time = datetime.now()
+    assets_list = db.assets.get_many_by_query({'id': {'$in': list(asset_ids)}}) if asset_ids else []
+    prices_list = db.asset_prices.get_many_by_query({'id': {'$in': list(asset_ids | {0})}})
+
+    # Batch-fetch LP states (isolated error handling — don't break assets/prices if LP fetch fails)
+    lp_states_dict = {}
+    try:
+        if lp_token_ids:
+            algo_price_usd = await get_algo_price_usd()
+            lp_states_list = db.lp_states.get_many_by_query({'token_id': {'$in': list(lp_token_ids)}})
+            lp_states_dict = {s.token_id: s.to_info(algo_price_usd, current_time).to_dict() for s in lp_states_list}
+    except Exception as e:
+        logger.error(f'Failed to fetch LP states for enriched endpoint: {e}')
+
+    assets_dict = {a.id: a.to_details().to_dict() for a in assets_list}
+    prices_dict = {p.id: p.to_info(current_time).to_dict() for p in prices_list}
+
+    return {
+        'contracts': [serialize_contract_slim(c) for c in contracts],
+        'assets': assets_dict,
+        'prices': prices_dict,
+        'lp_states': lp_states_dict,
     }
