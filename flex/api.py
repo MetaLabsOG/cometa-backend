@@ -12,7 +12,7 @@ from flex import db
 from flex.blockchain.base import indexer_client, algod_client
 from flex.blockchain.info import ALGO_ASSET
 from flex.data.asset_prices import get_asset_price, get_all_asset_prices, get_asset_prices_by_query
-from flex.data.assets import get_all_asset_details, get_asset_details, get_asset_details_by_query
+from flex.data.assets import get_all_asset_details, get_asset_details, get_asset_details_by_query, get_full_asset
 from flex.data.stats import calculate_total_tvl_usd
 from flex.db.model.liquidity_pools import LpStateInfo
 from flex.migrations.contracts import all_contracts_to_pools
@@ -440,10 +440,33 @@ async def get_farm_enriched():
             if stake_token_meta:
                 lp_token_ids.add(int(stake_token_meta))
 
-    # Batch-fetch assets and prices from DB
+    # Batch-fetch assets from DB, auto-populate missing ones from algod
     current_time = datetime.now()
     assets_list = db.assets.get_many_by_query({'id': {'$in': list(asset_ids)}}) if asset_ids else []
-    prices_list = db.asset_prices.get_many_by_query({'id': {'$in': list(asset_ids | {0})}})
+    existing_asset_ids = {a.id for a in assets_list}
+    missing_asset_ids = asset_ids - existing_asset_ids
+    if missing_asset_ids:
+        logger.info(f'Auto-populating {len(missing_asset_ids)} missing assets from algod')
+        for aid in missing_asset_ids:
+            try:
+                asset = await get_full_asset(aid)
+                assets_list.append(asset)
+            except Exception as e:
+                logger.warning(f'Failed to fetch asset {aid}: {e}')
+
+    # Batch-fetch prices from DB, auto-populate missing ones from Vestige
+    all_price_ids = asset_ids | {0}
+    prices_list = db.asset_prices.get_many_by_query({'id': {'$in': list(all_price_ids)}})
+    existing_price_ids = {p.id for p in prices_list}
+    missing_price_ids = all_price_ids - existing_price_ids
+    if missing_price_ids:
+        logger.info(f'Auto-populating {len(missing_price_ids)} missing prices from Vestige')
+        for pid in missing_price_ids:
+            try:
+                price = await get_asset_price(pid)
+                prices_list.append(price)
+            except Exception as e:
+                logger.warning(f'Failed to fetch price for asset {pid}: {e}')
 
     # Batch-fetch LP states (isolated error handling — don't break assets/prices if LP fetch fails)
     lp_states_dict = {}
