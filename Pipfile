@@ -10,6 +10,7 @@ cachetools = "*"
 dataclasses-json = "*"
 discord-webhook = "*"
 fastapi = "*"
+httpx = "*"
 tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git"}
 pactsdk = "*"
 py-algorand-sdk = "*"
