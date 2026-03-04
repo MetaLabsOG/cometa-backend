@@ -2,7 +2,7 @@ import asyncio
 import logging
 import secrets
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import uvicorn
@@ -10,6 +10,7 @@ from algosdk import encoding
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 import dexes.humble as humble
 import flex.api
@@ -31,7 +32,7 @@ from blockchain.util import date_from_block
 from core.cometa import fetch_user_pools
 from core.db.cometa_users import get_address_pools
 from core.db.contracts import ContractInfo, get_contract, get_contracts_by_type, remove_contract, \
-    remove_contracts, update_contract, get_all_pool_contracts, insert_contract
+    remove_contracts, update_contract, get_all_pool_contracts, insert_contract, invalidate_contracts_cache
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
@@ -53,6 +54,7 @@ app = FastAPI(
     version=VERSION,
     description=f'Cometa API {VERSION}'
 )
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -66,6 +68,15 @@ logging.getLogger('base').setLevel(logging.INFO)
 
 
 def check_password(password: str) -> None:
+    """
+    Verify that the provided password matches the API password.
+
+    Args:
+        password: The password to check
+
+    Raises:
+        HTTPException: If the password is invalid
+    """
     if not secrets.compare_digest(settings.api_password, password):
         raise HTTPException(status_code=401, detail='Invalid password')
 
@@ -100,32 +111,48 @@ async def wallet_nfts(address: str) -> list[NftInfo]:
 
 @app.get('/wallet/{address}/pools', tags=['Wallet'])
 async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
-    user_pools_state = await get_sync_user_state_by_address(address)
-    user_state_by_pool_id = {state.pool_id: state for state in user_pools_state.pool_by_address.values()}
-    # TODO: use new API OPTIMIZE
-    user_cost = await calculate_user_pool_state_cost(user_pools_state)
-    user_pools = []
-    for pool_id, pool_cost in user_cost.pools_by_id.items():
-        user_state = user_state_by_pool_id[pool_id]
-        user_pools.append(UserPool(
-            pool_id=pool_id,
-            name=pool_cost.pool_info.description,
-            current_apr=0,  # TODO
-            staked_usd=pool_cost.staked_usd,
-            reward_usd=0,  # TODO
-            lock_timestamp=0,  # TODO
-            ended_duration=None,  # TODO
-            staked_token_id=pool_cost.pool_info.stake_token.id,
-            staked_tokens=user_state.staked_amount,
-            staked_microtokens=user_state.staked_amount_micros,
-            reward_token_id=pool_cost.pool_info.reward_token.id,
-            last_updated=user_pools_state.updated
-        ))
-    return user_pools
+    try:
+        user_pools_state = await get_sync_user_state_by_address(address)
+        if not user_pools_state or not user_pools_state.pool_by_address:
+            logger.info(f"No pools found for address {address}")
+            return []
+
+        user_state_by_pool_id = {state.pool_id: state for state in user_pools_state.pool_by_address.values()}
+        user_cost = await calculate_user_pool_state_cost(user_pools_state)
+
+        user_pools = []
+        for pool_id, pool_cost in user_cost.pools_by_id.items():
+            if pool_id not in user_state_by_pool_id:
+                logger.warning(f"Pool ID {pool_id} found in cost data but not in user state for {address}")
+                continue
+
+            user_state = user_state_by_pool_id[pool_id]
+            user_pools.append(UserPool(
+                pool_id=pool_id,
+                name=pool_cost.pool_info.description,
+                current_apr=pool_cost.pool_info.metadata.get('apr', 0) if pool_cost.pool_info.metadata else 0,
+                staked_usd=pool_cost.staked_usd,
+                reward_usd=pool_cost.reward_usd if hasattr(pool_cost, 'reward_usd') else 0,
+                lock_timestamp=user_state.lock_timestamp if hasattr(user_state, 'lock_timestamp') else 0,
+                ended_duration=user_state.ended_duration if hasattr(user_state, 'ended_duration') else None,
+                staked_token_id=pool_cost.pool_info.stake_token.id,
+                staked_tokens=user_state.staked_amount,
+                staked_microtokens=user_state.staked_amount_micros,
+                reward_token_id=pool_cost.pool_info.reward_token.id,
+                last_updated=user_pools_state.updated
+            ))
+        return user_pools
+    except Exception as e:
+        logger.error(f"Error retrieving pools for address {address}: {e}", exc_info=True)
+        return []
 
 
 @app.get('/wallet/{address}/pools/deprecated', tags=['Wallet'])
-async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
+async def wallet_pools_deprecated(address: str, cached: bool = True) -> list[UserPool]:
+    """
+    Deprecated endpoint for fetching user pools.
+    Use /wallet/{address}/pools instead.
+    """
     if cached:
         return await get_address_pools(address)
     else:
@@ -133,7 +160,7 @@ async def wallet_pools(address: str, cached: bool = True) -> list[UserPool]:
 
 
 @app.get('/wallet/{address}/lottery-draws', tags=['Wallet'])
-async def wallet_pools(address: str, win: Optional[bool] = None) -> list[LotteryDraw]:
+async def wallet_lottery_draws(address: str, win: Optional[bool] = None) -> list[LotteryDraw]:
     args = {'wallet': address}
     if win is not None:
         args['prize'] = {'$ne': None}
@@ -158,23 +185,49 @@ class ModifyContract(BaseModel):
 
 
 def parse_cache(cache: Optional[dict]) -> dict:
+    """
+    Parse contract cache data to extract block and date information.
+
+    Args:
+        cache: The contract cache data containing block information
+
+    Returns:
+        dict: Parsed cache data with begin/end blocks, dates, and lock length
+    """
     if cache is None:
         return {}
 
-    begin_block = parse_bignum(cache['initial']['beginBlock'])
-    end_block = parse_bignum(cache['initial']['endBlock'])
-    current_time = datetime.now()
-    current_block = get_current_round()
-    return {
-        'begin_block': begin_block,
-        'end_block': end_block,
-        'begin_date': date_from_block(begin_block, current_block, current_time),
-        'end_date': date_from_block(end_block, current_block, current_time),
-        'lock_length_blocks': parse_bignum(cache['initial']['lockLengthBlocks']),
-    }
+    try:
+        begin_block = parse_bignum(cache['initial']['beginBlock'])
+        end_block = parse_bignum(cache['initial']['endBlock'])
+        lock_length_blocks = parse_bignum(cache['initial']['lockLengthBlocks'])
+
+        current_time = datetime.now()
+        current_block = get_current_round()
+
+        return {
+            'begin_block': begin_block,
+            'end_block': end_block,
+            'begin_date': date_from_block(begin_block, current_block, current_time),
+            'end_date': date_from_block(end_block, current_block, current_time),
+            'lock_length_blocks': lock_length_blocks,
+        }
+    except (KeyError, TypeError) as e:
+        logger.error(f"Error parsing cache: {e}", exc_info=True)
+        return {}
 
 
 async def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractInfo:
+    """
+    Create a contract from AddContract model.
+
+    Args:
+        contract_info: Contract information from the AddContract model
+        new_metadata: Metadata to use for the contract
+
+    Returns:
+        ContractInfo: The created contract
+    """
     return await create_contract_with(
         type=contract_info.type,
         id=contract_info.id,
@@ -185,37 +238,79 @@ async def create_contract(contract_info: AddContract, new_metadata: dict) -> Con
 
 
 async def create_contract_with(type: str, id: int, version: str, description: str, metadata: dict) -> ContractInfo:
-    cache = metadata.get('cache')
-    metadata_fields = parse_cache(cache)
-    current_date = datetime.now()
-    if 'dex' in metadata:
-        metadata['dex'] = get_dex_tag_by_name(metadata['dex'])
+    """
+    Create a contract with the given parameters and initialize related pool data.
 
-    contract = ContractInfo(
-        type=type,
-        id=id,
-        version=version,
-        description=description,
-        deployed_timestamp=current_date.timestamp(),
-        deployed_date=current_date,
-        begin_date=metadata_fields.get('begin_date'),
-        end_date=metadata_fields.get('end_date'),
-        metadata=metadata
-    )
-    insert_contract(contract)
+    Args:
+        type: Contract type
+        id: Contract ID
+        version: Contract version
+        description: Contract description
+        metadata: Contract metadata
 
+    Returns:
+        ContractInfo: The created contract
+    """
     try:
-        pool_info = await create_pool_from_contract(contract)
-        if pool_info is not None and 'dex' in metadata:
-            _ = await create_lp_state_by_lp_token_id(pool_info.stake_token.id)
-        pool_state = await get_or_create_pool_state(pool_info.id)
-        _ = await update_pool_state(pool_state)
-        _ = await get_asset_price_not_cached(pool_info.stake_token.id)
-        _ = await get_asset_price_not_cached(pool_info.reward_token.id)
-    except Exception as e:
-        logger.error(f'Error creating pool from contract: {e}', exc_info=True)
+        # Parse cache and prepare metadata
+        cache = metadata.get('cache')
+        metadata_fields = parse_cache(cache)
+        current_date = datetime.now()
 
-    return contract
+        if 'dex' in metadata:
+            try:
+                metadata['dex'] = get_dex_tag_by_name(metadata['dex'])
+            except Exception as e:
+                logger.warning(f"Could not get DEX tag for {metadata['dex']}: {e}")
+
+        # Create and insert contract
+        contract = ContractInfo(
+            type=type,
+            id=id,
+            version=version,
+            description=description,
+            deployed_timestamp=current_date.timestamp(),
+            deployed_date=current_date,
+            begin_date=metadata_fields.get('begin_date'),
+            end_date=metadata_fields.get('end_date'),
+            metadata=metadata
+        )
+        insert_contract(contract)
+        invalidate_contracts_cache()
+
+        # Initialize pool data
+        try:
+            pool_info = await create_pool_from_contract(contract)
+            if pool_info is not None:
+                logger.info(f"Created pool info for contract {id}: {pool_info.id}")
+
+                if 'dex' in metadata:
+                    try:
+                        await create_lp_state_by_lp_token_id(pool_info.stake_token.id)
+                        logger.info(f"Created LP state for token {pool_info.stake_token.id}")
+                    except Exception as e:
+                        logger.error(f"Error creating LP state: {e}", exc_info=True)
+
+                try:
+                    pool_state = await get_or_create_pool_state(pool_info.id)
+                    await update_pool_state(pool_state)
+                    logger.info(f"Updated pool state for pool {pool_info.id}")
+                except Exception as e:
+                    logger.error(f"Error updating pool state: {e}", exc_info=True)
+
+                try:
+                    await get_asset_price_not_cached(pool_info.stake_token.id)
+                    await get_asset_price_not_cached(pool_info.reward_token.id)
+                    logger.info(f"Fetched asset prices for tokens {pool_info.stake_token.id} and {pool_info.reward_token.id}")
+                except Exception as e:
+                    logger.error(f"Error fetching asset prices: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f'Error creating pool from contract {id}: {e}', exc_info=True)
+
+        return contract
+    except Exception as e:
+        logger.error(f"Fatal error creating contract {id}: {e}", exc_info=True)
+        raise
 
 
 @app.post('/contract/add', tags=['Contracts'])
@@ -267,15 +362,16 @@ async def register_contract(contract: AddContract) -> ContractInfo:
         view = global_views[str(contract.id)]
 
         # Check that the contract's parameters are correct (beneficiary and creation fee are as we need them)
-        # Assuming that beneficiary address is our account stored in ALGO_MNEMONIC variable
-
-        target_beneficiary = 'METAFG5UBD74CKQFIIABWMMQXR45J7BAP3KV6BVR3V7LDPNAEKNEVLMBRE'  # cometa.algo
-        target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
-
-        contract_beneficiary = view['initial']['beneficiary']
-        if contract_beneficiary != target_beneficiary_hex:
-            raise HTTPException(status_code=403,
-                                detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary}")
+        # Get beneficiary address from settings
+        target_beneficiary = settings.beneficiary_address
+        if not target_beneficiary:
+            logger.warning("Beneficiary address not set in settings, skipping beneficiary check")
+        else:
+            target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
+            contract_beneficiary = view['initial']['beneficiary']
+            if contract_beneficiary != target_beneficiary_hex:
+                raise HTTPException(status_code=403,
+                                    detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary})")
 
         # Cache the contract's state right away so that user sees that it is displayed correctly right after
         # the contract is created even without connected wallet.
@@ -336,6 +432,7 @@ async def update(contract: ModifyContract, password: str) -> dict:
         raise HTTPException(status_code=404, detail="Contract not found")
 
     res = update_contract(contract.id, contract.description, contract.metadata)
+    invalidate_contracts_cache()
     return {'updated': res}
 
 
@@ -351,6 +448,7 @@ async def get_contract_by_id(contract_id: int) -> ContractInfo:
 async def remove_contract_by_id(contract_id: int, password: str) -> dict:
     check_password(password)
     cnt = remove_contract(contract_id=contract_id)
+    invalidate_contracts_cache()
     return {'deleted_count': cnt}
 
 
@@ -393,16 +491,21 @@ async def get_contracts(
         without_old_pools: bool = True,
         include_address_pools: Optional[str] = None
 ) -> List[ContractInfo]:
+    """
+    Get contracts filtered by type and other parameters.
+
+    Args:
+        type: Filter by contract type
+        max_count: Maximum number of contracts to return
+        new_first: Sort by newest first
+        without_old_pools: Exclude old pools
+        include_address_pools: Include only pools for this address
+    """
     contracts = get_contracts_by_type(type)
 
-    # TODO: rename api param
-    user_address = include_address_pools
-    if user_address == 'DLO6VI4XJJWZOYUHSEKP3MVQZXGEOKDJUTTL5NJIS7UMXAPETOYLX3KNVE' or user_address == 'native.algo':
-        # TODO: remove haard workaround
-        logger.info(f'NATIVE Including all pools for {user_address}')
-        return contracts
-    if user_address in settings.return_all_cometa_pools_to_addresses:
-        logger.info(f'Including all pools for {user_address}')
+    # Check if user address is in the special addresses list
+    if include_address_pools and (include_address_pools in settings.special_addresses or include_address_pools in settings.return_all_cometa_pools_to_addresses):
+        logger.info(f'Including all pools for special address {include_address_pools}')
         return contracts
 
     if new_first:
@@ -410,20 +513,20 @@ async def get_contracts(
 
     max_end_date = None
     if without_old_pools:
-        max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
+        max_end_date = datetime.now(timezone.utc) - timedelta(days=settings.old_pool_end_date_days_ago)
 
     address_app_ids = list(settings.always_return_pool_ids)
-    if settings.return_all_user_pools and user_address is not None:
+    if settings.return_all_user_pools and include_address_pools is not None:
         try:
-            user_state = await get_sync_user_state_by_address(user_address)
+            user_state = await get_sync_user_state_by_address(include_address_pools)
             if user_state is not None:
                 address_app_ids.extend([pool_state.pool_id for pool_state in user_state.pool_by_address.values()])
-                logger.info(f'User {user_address} has {len(address_app_ids)} pools in DB')
+                logger.info(f'User {include_address_pools} has {len(address_app_ids)} pools in DB')
             else:
-                address_app_ids.extend(get_address_app_ids(user_address, only_active=True))
+                address_app_ids.extend(get_address_app_ids(include_address_pools, only_active=True))
                 logger.info(f'No User Pools in DB, but {len(address_app_ids)} apps in network')
         except Exception as e:
-            logger.error(f'Error fetching app ids for {user_address}: {e}', exc_info=True)
+            logger.error(f'Error fetching app ids for {include_address_pools}: {e}', exc_info=True)
 
     # TODO: move as arg to DB query
     matching_pools = []
@@ -432,13 +535,8 @@ async def get_contracts(
             matching_pools.append(contract)
             continue
         if contract.end_date is None:
-            # TODO: move method to proper file from migrations
-            updated_contract = update_contract_start_end_dates(contract)
-            if updated_contract is None:
-                logger.warning(f'{contract.id} has no end date: {contract.format_str()}')
-                continue
-            contract = updated_contract
-            logger.info(f'Updated contract {contract.id} with end date {contract.end_date}')
+            logger.debug(f'{contract.id} has no end date, skipping from filtered results')
+            continue
         if without_old_pools and contract.end_date < max_end_date:
             continue
         matching_pools.append(contract)
@@ -453,6 +551,7 @@ async def get_contracts(
 async def remove_contracts_by_type(type: str, password: str) -> dict:
     check_password(password)
     cnt = remove_contracts(type=type)
+    invalidate_contracts_cache()
     return {'deleted_count': cnt}
 
 
@@ -479,21 +578,20 @@ async def verify_pool(pool_id: int, password: str) -> str:
         return 'Already verified!'
     new_metadata = {**contract.metadata, 'verified': True}
     update_contract(pool_id, metadata=new_metadata)
+    invalidate_contracts_cache()
     return 'Success!'
 
 
 @app.get('/pools/snapshot', tags=['Pools'])
 async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[int] = None) -> dict:
-    if password != 'YouShallNotPass':
-        raise HTTPException(status_code=403, detail="Wrong password bro.")
+    check_password(password)
     wallets = get_pool_snapshot(pool_id, max_round)
     return dict(sorted(wallets.items()))
 
 
 @app.get('/pools/snapshot_all', tags=['Pools'])
-async def make_pool_snapshot(password: str, max_round: Optional[int] = None) -> dict:
-    if password != 'YouShallNotPass':
-        raise HTTPException(status_code=403, detail="Wrong password bro.")
+async def make_all_pools_snapshot(password: str, max_round: Optional[int] = None) -> dict:
+    check_password(password)
     wallets = snapshot_all()
     return wallets
 
@@ -520,20 +618,55 @@ async def handle_pools_notify_social_channels(password: str, pool_id: int) -> No
 
 @app.get('/humble/pool/{pool_id}', tags=['Humble'])
 async def humble_pool_by_id(pool_id: int) -> Optional[humble.HumblePool]:
-    return humble.get_pool_by_id(pool_id)
+    """
+    Get Humble pool by ID.
+
+    Args:
+        pool_id: The ID of the pool to retrieve
+
+    Returns:
+        Optional[humble.HumblePool]: The Humble pool if found, None otherwise
+    """
+    try:
+        pool = humble.get_pool_by_id(pool_id)
+        if not pool:
+            logger.info(f"Humble pool with ID {pool_id} not found")
+        return pool
+    except Exception as e:
+        logger.error(f"Error fetching Humble pool {pool_id}: {e}", exc_info=True)
+        return None
 
 
 @app.get('/humble/pools', tags=['Humble'])
 async def humble_pools_by_assets(assetA: int, assetB: int) -> List[humble.HumblePool]:
-    # FIXME: just don't ask me please ever
-    if assetA == 796425061 and assetB == 1138500612:
-        return humble.get_pools_by_assets(assetB, assetA)
-    return humble.get_pools_by_assets(assetA, assetB)
+    """
+    Get Humble pools by asset pair.
+
+    This endpoint tries both asset orders to find pools.
+    """
+    # Try both asset orders to find pools
+    pools = humble.get_pools_by_assets(assetA, assetB)
+
+    # If no pools found with the original order, try the reverse order
+    if not pools:
+        pools = humble.get_pools_by_assets(assetB, assetA)
+
+    return pools
 
 
 @app.get('/humble/pools/all', tags=['Humble'])
 async def humble_pools_all() -> List[humble.HumblePool]:
-    return humble.get_pools({})
+    """
+    Get all Humble pools.
+
+    Returns:
+        List[humble.HumblePool]: List of all Humble pools
+    """
+    try:
+        return humble.get_pools({})
+    except Exception as e:
+        logger.error(f"Error fetching Humble pools: {e}", exc_info=True)
+        return []
 
 
 # LOTTERY
@@ -568,40 +701,79 @@ async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
 
 
 @app.patch('/lottery/claim', tags=['Lottery'])
-async def claim_prize_nft_for_swap(wallet: str) -> None:
+async def claim_prize_nft_for_swap(wallet: str) -> dict:
+    """
+    Claim a lottery prize NFT for the given wallet address.
+
+    Args:
+        wallet: The wallet address to claim the prize for
+
+    Returns:
+        dict: Status of the claim operation
+    """
     logger.info(f'Claiming lottery prize for {wallet}')
 
+    # Find unclaimed wins for the wallet
     wins = lottery_draws.get_many({'wallet': wallet, 'claimed': False, 'prize': {'$ne': None}})
-    logger.info(f'Lottery wins for {wallet}: {wins}')
+    logger.info(f'Found {len(wins)} unclaimed lottery wins for {wallet}')
 
     if len(wins) == 0:
-        raise HTTPException(status_code=404, detail=f'Lottery draws for {wallet} are not found')
+        raise HTTPException(status_code=404, detail=f'No unclaimed lottery prizes found for {wallet}')
+
+    # Get the most recent win
     lottery_draw = wins[-1]
+    logger.info(f'Processing lottery draw: {lottery_draw}')
+
+    result = {
+        'success': False,
+        'prize_id': lottery_draw.prize,
+        'draw_id': str(lottery_draw.id) if hasattr(lottery_draw, 'id') else None
+    }
 
     try:
+        # Wait for opt-in confirmation with timeout
         start_time = datetime.now()
-        while True:
+        opt_in_confirmed = False
+
+        while datetime.now() - start_time < timedelta(seconds=9):  # 3 blocks timeout
             if is_opted_in(wallet, lottery_draw.prize):
+                opt_in_confirmed = True
+                logger.info(f'Opt-in confirmed for {wallet} to asset {lottery_draw.prize}')
                 break
-            if datetime.now() - start_time > timedelta(seconds=9):  # 3 blocks
-                logger.error(f'Opt-in for {wallet} to {lottery_draw.prize} is not confirmed')
-                return None
             await asyncio.sleep(1)
 
-        send_nft(lottery_draw.wallet, lottery_draw.prize)
-        lottery_draw.claimed = True
+        if not opt_in_confirmed:
+            logger.error(f'Opt-in for {wallet} to asset {lottery_draw.prize} is not confirmed within timeout')
+            result['error'] = 'Opt-in not confirmed within timeout'
+            lottery_draw.send_error = 'Opt-in not confirmed within timeout'
+            lottery_draws.update(lottery_draw)
+            return result
 
+        # Send the NFT
+        send_nft(lottery_draw.wallet, lottery_draw.prize)
+        logger.info(f'NFT {lottery_draw.prize} sent to {wallet}')
+
+        # Mark as claimed
+        lottery_draw.claimed = True
+        result['success'] = True
+
+        # Remove from available NFTs in lotteries
         lotteries = nft_lotteries.get_all()
         for lottery in lotteries:
             if lottery_draw.prize in lottery.available_nfts:
                 lottery.available_nfts.remove(lottery_draw.prize)
                 nft_lotteries.update(lottery)
+                logger.info(f'Removed NFT {lottery_draw.prize} from available NFTs in lottery {lottery.name}')
 
     except Exception as e:
-        lottery_draw.send_error = str(e)
-        logger.error(f'Error sending NFT to {wallet}: {e}')
+        error_msg = f'Error sending NFT to {wallet}: {str(e)}'
+        lottery_draw.send_error = error_msg
+        logger.error(error_msg, exc_info=True)
+        result['error'] = str(e)
 
+    # Update the lottery draw record
     lottery_draws.update(lottery_draw)
+    return result
 
 
 @app.get('/lotteries/', tags=['Lottery'])
@@ -646,20 +818,68 @@ def setup_logging():
     logging.getLogger('pymongo.command').setLevel(logging.INFO)
 
 
+# Setup logging
 setup_logging()
 
-if __name__ == "__main__":
-    argv = sys.argv[1:]
-
+# Initialize the application
+def init_app():
+    """Initialize the application with migrations if needed"""
     if settings.migrate:
-        migrate_before_start()
+        logger.info("Running database migrations...")
+        try:
+            migrate_before_start()
+            logger.info("Database migrations completed successfully")
+        except Exception as e:
+            logger.error(f"Error during database migrations: {e}", exc_info=True)
+            raise
 
-    if settings.enable_js:
-        with start_js_interop_server():
+    # Ensure all contracts have start/end dates populated
+    try:
+        contracts = get_contracts_by_type(None)
+        for contract in contracts:
+            if contract.end_date is None or contract.begin_date is None:
+                update_contract_start_end_dates(contract)
+        logger.info("Contract date migration completed")
+    except Exception as e:
+        logger.error(f"Error during contract date migration: {e}", exc_info=True)
+
+# Start the application
+def start_app():
+    """Start the application with all required services"""
+    logger.info(f"Starting Cometa API v{VERSION} on port {settings.server_port} with {settings.workers_num} workers")
+
+    try:
+        if settings.enable_js:
+            logger.info("Starting with JS interop server enabled")
+            with start_js_interop_server():
+                with start_bg_tasks():
+                    with start_sync_proc():
+                        uvicorn.run(
+                            "app:app",
+                            host="0.0.0.0",
+                            port=settings.server_port,
+                            workers=settings.workers_num,
+                            log_level=settings.uvicorn_log_level
+                        )
+        else:
+            logger.info("Starting without JS interop server")
             with start_bg_tasks():
                 with start_sync_proc():
-                    uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
-    else:
-        with start_bg_tasks():
-            with start_sync_proc():
-                uvicorn.run("app:app", host="0.0.0.0", port=settings.server_port, workers=settings.workers_num)
+                    uvicorn.run(
+                        "app:app",
+                        host="0.0.0.0",
+                        port=settings.server_port,
+                        workers=settings.workers_num,
+                        log_level=settings.uvicorn_log_level
+                    )
+    except Exception as e:
+        logger.error(f"Error starting application: {e}", exc_info=True)
+        raise
+
+if __name__ == "__main__":
+    try:
+        init_app()
+        start_app()
+    except Exception as e:
+        logger.critical(f"Fatal error during application startup: {e}", exc_info=True)
+        sys.exit(1)
