@@ -1,11 +1,15 @@
 import time
 from typing import Optional
 
+from cachetools import cached, TTLCache
+
 from core.db.model import ContractInfo
 from core.db.mongodb import get_db_collection
 from env import settings
 
 collection = get_db_collection(settings.db_name, 'contract')
+
+_contracts_cache = TTLCache(maxsize=16, ttl=settings.contracts_cache_ttl)
 
 
 def add_contract(type: str, id: int, version: str, description: str, metadata: Optional[dict]) -> str:
@@ -50,10 +54,15 @@ def get_all_pool_contracts() -> list[ContractInfo]:
     return get_contracts({'type': {'$in': ['farm', 'distribution']}})
 
 
+@cached(cache=_contracts_cache)
 def get_contracts_by_type(type: Optional[str]) -> list[ContractInfo]:
     if type is None:
         return get_contracts({'type': {'$in': ['distribution', 'farm']}})
     return get_contracts({'type': type})
+
+
+def invalidate_contracts_cache():
+    _contracts_cache.clear()
 
 
 def get_contract(contract_id: int) -> Optional[ContractInfo]:
