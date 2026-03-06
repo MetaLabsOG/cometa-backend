@@ -213,3 +213,14 @@ temp_data/user_pools_snapshot.json
 temp_data/user_pools.json
 temp_data/user_txns_35720000_37530000.json
 .env
+
+# Analysis artifacts
+*.json.bak
+all_log_entries_*.json
+analysis_report_*.txt
+api_calls_*.json
+api_endpoints_*/
+contract_operations_*.json
+downloaded_logs/
+sample_jsons/
+test-results/
