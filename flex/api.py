@@ -376,8 +376,8 @@ def serialize_contract_slim(contract) -> dict:
         meta['reward_per_token'] = _parse_bignum_safe(global_state.get('rewardPerTokenStored'))
         meta['total_reward_amount'] = _parse_bignum_safe(initial.get('totalRewardAmount'))
         meta['total_algo_reward_amount'] = _parse_bignum_safe(initial.get('totalAlgoRewardAmount'))
-        meta['stake_token'] = _parse_bignum_safe(initial.get('stakeToken'))
-        meta['reward_token'] = _parse_bignum_safe(initial.get('rewardToken'))
+        meta['stake_token'] = _parse_bignum_safe(initial.get('stakeToken')) or _parse_bignum_safe(initial.get('token'))
+        meta['reward_token'] = _parse_bignum_safe(initial.get('rewardToken')) or _parse_bignum_safe(initial.get('token'))
         meta['last_update_block'] = _parse_bignum_safe(global_state.get('lastUpdateBlock'))
     return {
         'type': contract.type,
@@ -395,9 +395,12 @@ def serialize_contract_slim(contract) -> dict:
 @cached(ttl=30, namespace='farm_enriched', key_builder=lambda f, *args, **kwargs: f'farm_enriched:active={kwargs.get("active_only", args[0] if args else True)}')
 async def get_farm_enriched(active_only: bool = True):
     if active_only:
-        contracts = get_active_contracts('farm')
+        farm_contracts = get_active_contracts('farm')
+        distribution_contracts = get_active_contracts('distribution')
     else:
-        contracts = get_contracts_by_type('farm')
+        farm_contracts = get_contracts_by_type('farm')
+        distribution_contracts = get_contracts_by_type('distribution')
+    contracts = farm_contracts + distribution_contracts
 
     # Collect asset IDs and LP token IDs from ALL pool contracts (farm + distribution)
     # so that user's ended pools also have pre-populated data
@@ -416,7 +419,7 @@ async def get_farm_enriched(active_only: bool = True):
         cache = m.get('cache')
         if cache:
             initial = cache.get('initial', {})
-            for key in ('stakeToken', 'rewardToken'):
+            for key in ('stakeToken', 'rewardToken', 'token'):
                 val = _parse_bignum_safe(initial.get(key))
                 if val is not None:
                     asset_ids.add(val)
