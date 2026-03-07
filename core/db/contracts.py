@@ -64,12 +64,17 @@ def get_contracts_by_type(type: Optional[str]) -> list[ContractInfo]:
 
 def get_active_contracts(type: str) -> list[ContractInfo]:
     """Contracts that haven't ended (or have no end_date)."""
-    cutoff = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
+    cutoff_ts = (datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)).timestamp()
     all_contracts = get_contracts_by_type(type)
-    return [c for c in all_contracts
-            if c.end_date is None
-            or c.end_date > cutoff
-            or c.id in settings.always_return_pool_ids]
+    result = []
+    for c in all_contracts:
+        if c.end_date is None or c.id in settings.always_return_pool_ids:
+            result.append(c)
+            continue
+        end_ts = c.end_date.timestamp() if isinstance(c.end_date, datetime) else float(c.end_date)
+        if end_ts > cutoff_ts:
+            result.append(c)
+    return result
 
 
 def invalidate_contracts_cache():
