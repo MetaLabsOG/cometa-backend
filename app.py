@@ -1,13 +1,12 @@
 import asyncio
 import logging
-import secrets
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import uvicorn
 from algosdk import encoding
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -26,17 +25,18 @@ from api.swaps import SwapInfo, record_swap
 from api.notifications import notify_new_pool
 from api.wallet import send_nft
 from api.wallet_manager import AssetInfo, get_wallet_assets, TimedCost, get_wallet_total_cost, get_wallet_nfts, NftInfo
-from blockchain.indexer import get_address_app_ids
+from blockchain.indexer import get_address_app_ids, get_address_app_ids_async
 from blockchain.node import get_current_round
 from blockchain.util import date_from_block
 from core.cometa import fetch_user_pools
 from core.db.cometa_users import get_address_pools
-from core.db.contracts import ContractInfo, get_contract, get_contracts_by_type, remove_contract, \
+from core.db.contracts import ContractInfo, get_contract, get_contracts_by_type, get_active_contracts, remove_contract, \
     remove_contracts, update_contract, get_all_pool_contracts, insert_contract, invalidate_contracts_cache
 from core.db.model import PoolStatus, PoolType, UserPool, PoolInfo
 from core.db.pools import pools_db
 from core.js_interop import calljs, start_js_interop_server
 from core.util import parse_bignum, strip_version
+from core.auth import require_password
 from env import settings
 from flex.blockchain.info import is_opted_in
 from flex.data.asset_prices import get_asset_price_not_cached
@@ -65,20 +65,6 @@ app.add_middleware(
 app.include_router(flex.api.router)
 logger = logging.getLogger(__name__)
 logging.getLogger('base').setLevel(logging.INFO)
-
-
-def check_password(password: str) -> None:
-    """
-    Verify that the provided password matches the API password.
-
-    Args:
-        password: The password to check
-
-    Raises:
-        HTTPException: If the password is invalid
-    """
-    if not secrets.compare_digest(settings.api_password, password):
-        raise HTTPException(status_code=401, detail='Invalid password')
 
 
 # COMMON API
@@ -313,11 +299,10 @@ async def create_contract_with(type: str, id: int, version: str, description: st
         raise
 
 
-@app.post('/contract/add', tags=['Contracts'])
-async def add_new_contract(contract: AddContract, password: str) -> ContractInfo:
+@app.post('/contract/add', tags=['Contracts'], dependencies=[Depends(require_password)])
+async def add_single_contract(contract: AddContract) -> ContractInfo:
     logger.info(f'Adding a new contract {contract}')
 
-    check_password(password)
     if get_contract(contract.id) is not None:
         raise HTTPException(status_code=409, detail="Contract already exists")
 
@@ -325,10 +310,9 @@ async def add_new_contract(contract: AddContract, password: str) -> ContractInfo
     return created_contract
 
 
-@app.post('/contracts/add', tags=['Contracts'])
-async def add_new_contract(contracts: list[AddContract], password: str) -> list[ContractInfo]:
+@app.post('/contracts/add', tags=['Contracts'], dependencies=[Depends(require_password)])
+async def add_new_contracts(contracts: list[AddContract]) -> list[ContractInfo]:
     logger.info(f'Adding {len(contracts)} new contracts')
-    check_password(password)
 
     created_contracts = []
     for contract in contracts:
@@ -402,11 +386,9 @@ class DeployContract(BaseModel):
     description: Optional[str] = None
 
 
-@app.post('/contract/deploy', tags=['Contracts'])
-async def deploy_contract(password: str, parameters: DeployContract) -> ContractInfo:
+@app.post('/contract/deploy', tags=['Contracts'], dependencies=[Depends(require_password)])
+async def deploy_contract(parameters: DeployContract) -> ContractInfo:
     logger.info(f'Deploying a new contract {parameters}')
-
-    check_password(password)
     version = await calljs("contractVersion", contractType=parameters.type)
     contract_id = await calljs("deployContract", contractType=parameters.type, contractSettings=parameters.settings)
     created_contract = await create_contract_with(parameters.type, contract_id, version, parameters.description,
@@ -423,11 +405,9 @@ async def deploy_contract(password: str, parameters: DeployContract) -> Contract
     return created_contract
 
 
-@app.patch('/contract/update', tags=['Contracts'])
-async def update(contract: ModifyContract, password: str) -> dict:
+@app.patch('/contract/update', tags=['Contracts'], dependencies=[Depends(require_password)])
+async def update(contract: ModifyContract) -> dict:
     logger.info(f'Updating contract {contract}')
-
-    check_password(password)
     if get_contract(contract.id) is None:
         raise HTTPException(status_code=404, detail="Contract not found")
 
@@ -444,9 +424,8 @@ async def get_contract_by_id(contract_id: int) -> ContractInfo:
     return contract
 
 
-@app.delete('/contract/{contract_id}', tags=['Contracts'])
-async def remove_contract_by_id(contract_id: int, password: str) -> dict:
-    check_password(password)
+@app.delete('/contract/{contract_id}', tags=['Contracts'], dependencies=[Depends(require_password)])
+async def remove_contract_by_id(contract_id: int) -> dict:
     cnt = remove_contract(contract_id=contract_id)
     invalidate_contracts_cache()
     return {'deleted_count': cnt}
@@ -535,7 +514,7 @@ async def get_contracts(
             matching_pools.append(contract)
             continue
         if contract.end_date is None:
-            logger.debug(f'{contract.id} has no end date, skipping from filtered results')
+            matching_pools.append(contract)
             continue
         if without_old_pools and contract.end_date < max_end_date:
             continue
@@ -547,9 +526,24 @@ async def get_contracts(
     return matching_pools
 
 
-@app.delete('/contracts', tags=['Contracts'])
-async def remove_contracts_by_type(type: str, password: str) -> dict:
-    check_password(password)
+@app.get('/contracts/user/{address}', tags=['Contracts'])
+async def get_user_contracts(
+        address: str,
+        type: Optional[ContractType] = None,
+) -> List[ContractInfo]:
+    """Get all Cometa contracts where user has local state (active + ended)."""
+    user_app_ids = await get_address_app_ids_async(address, only_active=False)
+    user_app_ids_set = set(user_app_ids)
+
+    all_contracts = get_contracts_by_type(type) if type else get_contracts_by_type(None)
+    cometa_ids = {c.id for c in all_contracts}
+    user_cometa_ids = user_app_ids_set & cometa_ids
+
+    return [c for c in all_contracts if c.id in user_cometa_ids]
+
+
+@app.delete('/contracts', tags=['Contracts'], dependencies=[Depends(require_password)])
+async def remove_contracts_by_type(type: str) -> dict:
     cnt = remove_contracts(type=type)
     invalidate_contracts_cache()
     return {'deleted_count': cnt}
@@ -570,9 +564,8 @@ async def get_pools_by_type_or_status(
     return pools_db.get_many(args)
 
 
-@app.patch('/pools/verify', tags=['Pools'])
-async def verify_pool(pool_id: int, password: str) -> str:
-    check_password(password)
+@app.patch('/pools/verify', tags=['Pools'], dependencies=[Depends(require_password)])
+async def verify_pool(pool_id: int) -> str:
     contract = get_contract(pool_id)
     if contract.metadata.get('verified'):
         return 'Already verified!'
@@ -582,23 +575,20 @@ async def verify_pool(pool_id: int, password: str) -> str:
     return 'Success!'
 
 
-@app.get('/pools/snapshot', tags=['Pools'])
-async def make_pool_snapshot(password: str, pool_id: int, max_round: Optional[int] = None) -> dict:
-    check_password(password)
+@app.get('/pools/snapshot', tags=['Pools'], dependencies=[Depends(require_password)])
+async def make_pool_snapshot(pool_id: int, max_round: Optional[int] = None) -> dict:
     wallets = get_pool_snapshot(pool_id, max_round)
     return dict(sorted(wallets.items()))
 
 
-@app.get('/pools/snapshot_all', tags=['Pools'])
-async def make_all_pools_snapshot(password: str, max_round: Optional[int] = None) -> dict:
-    check_password(password)
+@app.get('/pools/snapshot_all', tags=['Pools'], dependencies=[Depends(require_password)])
+async def make_all_pools_snapshot(max_round: Optional[int] = None) -> dict:
     wallets = snapshot_all()
     return wallets
 
 
-@app.post('/pools/notify', tags=['Pools'])
-async def handle_pools_notify_social_channels(password: str, pool_id: int) -> None:
-    check_password(password)
+@app.post('/pools/notify', tags=['Pools'], dependencies=[Depends(require_password)])
+async def handle_pools_notify_social_channels(pool_id: int) -> None:
 
     contract = get_contract(pool_id)
     if contract is None:
@@ -684,17 +674,15 @@ async def nft_lottery_for_staking(address: str, pool_id: int) -> Optional[NftPri
     return await lottery_for_staking(pool_id, address)
 
 
-@app.post('/lottery/new', tags=['Lottery'])
-async def create_a_new_nft_lottery(lottery: NftLottery, password: str) -> None:
-    check_password(password)
+@app.post('/lottery/new', tags=['Lottery'], dependencies=[Depends(require_password)])
+async def create_a_new_nft_lottery(lottery: NftLottery) -> None:
     if nft_lotteries.get_by_primary_key(lottery.name) is not None:
         raise HTTPException(status_code=409, detail='Lottery with such name already exists')
     nft_lotteries.create(lottery)
 
 
-@app.post('/lottery/update', tags=['Lottery'])
-async def update_nft_lottery(lottery: NftLottery, password: str) -> None:
-    check_password(password)
+@app.post('/lottery/update', tags=['Lottery'], dependencies=[Depends(require_password)])
+async def update_nft_lottery(lottery: NftLottery) -> None:
     if nft_lotteries.get_by_primary_key(lottery.name) is None:
         raise HTTPException(status_code=404, detail=f'Lottery with name {lottery.name} not found')
     nft_lotteries.update(lottery)
@@ -776,15 +764,13 @@ async def claim_prize_nft_for_swap(wallet: str) -> dict:
     return result
 
 
-@app.get('/lotteries/', tags=['Lottery'])
-async def get_lotteries(password: str) -> List[NftLottery]:
-    check_password(password)
+@app.get('/lotteries/', tags=['Lottery'], dependencies=[Depends(require_password)])
+async def get_lotteries() -> List[NftLottery]:
     return nft_lotteries.get_all()
 
 
-@app.get('/lotteries/resend', tags=['Lottery'])
-async def resend_prizes(password: str) -> dict:
-    check_password(password)
+@app.get('/lotteries/resend', tags=['Lottery'], dependencies=[Depends(require_password)])
+async def resend_prizes() -> dict:
     return send_all_prizes()
 
 
@@ -795,9 +781,8 @@ async def tvl() -> dict:
     return stats.get_tvl()
 
 
-@app.get('/stats/app-ids', tags=['Stats'])
-async def handle_address_app_ids(password: str, address: str, only_active: bool = False) -> dict:
-    check_password(password)
+@app.get('/stats/app-ids', tags=['Stats'], dependencies=[Depends(require_password)])
+async def handle_address_app_ids(address: str, only_active: bool = False) -> dict:
     app_ids = get_address_app_ids(address, only_active)
     contracts = get_all_pool_contracts()
     user_pools = []
@@ -836,10 +821,48 @@ def init_app():
     # Ensure all contracts have start/end dates populated
     try:
         contracts = get_contracts_by_type(None)
-        for contract in contracts:
-            if contract.end_date is None or contract.begin_date is None:
-                update_contract_start_end_dates(contract)
-        logger.info("Contract date migration completed")
+        needs_update = [c for c in contracts if c.end_date is None or c.begin_date is None]
+        if needs_update:
+            current_block = get_current_round()
+            start_time = datetime.now()
+            logger.info(f"Populating start/end dates for {len(needs_update)} contracts (block={current_block})...")
+            for contract in needs_update:
+                try:
+                    metadata = contract.metadata
+                    if metadata is None:
+                        continue
+                    cache = metadata.get('cache')
+                    if cache is None:
+                        continue
+
+                    initial = cache.get('initial', {})
+                    if contract.end_date is None:
+                        end_block = metadata.get('end_block') or parse_bignum(initial.get('endBlock'))
+                        if end_block:
+                            metadata['end_block'] = end_block
+                            contract.end_date = date_from_block(end_block, current_block, start_time)
+                            metadata['end_date'] = contract.end_date
+
+                    if contract.begin_date is None:
+                        begin_block = metadata.get('begin_block') or parse_bignum(initial.get('beginBlock'))
+                        if begin_block:
+                            metadata['begin_block'] = begin_block
+                            contract.begin_date = date_from_block(begin_block, current_block, start_time)
+                            metadata['begin_date'] = contract.begin_date
+
+                    from core.db.contracts import update_contract_with
+                    update_contract_with(
+                        contract_id=contract.id,
+                        metadata=metadata,
+                        begin_date=contract.begin_date,
+                        end_date=contract.end_date
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update dates for contract {contract.id}: {e}")
+            invalidate_contracts_cache()
+            logger.info(f"Contract date migration completed for {len(needs_update)} contracts")
+        else:
+            logger.info("All contracts have start/end dates")
     except Exception as e:
         logger.error(f"Error during contract date migration: {e}", exc_info=True)
 

@@ -224,3 +224,8 @@ contract_operations_*.json
 downloaded_logs/
 sample_jsons/
 test-results/
+
+# Sensitive scripts with hardcoded keys
+test_refund.py
+check_vestige_hack.py
+sample.py
