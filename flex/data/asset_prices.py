@@ -26,9 +26,10 @@ def _upsert_asset_price(asset_price: AssetPrice):
     asset_price.updated = datetime.now()
     doc = asset_price.to_dict()
     doc.pop('_id', None)
+    created = doc.pop('created', asset_price.created)
     db.asset_prices.mongodb_collection.update_one(
         {'id': asset_price.id},
-        {'$set': doc, '$setOnInsert': {'created': asset_price.created}},
+        {'$set': doc, '$setOnInsert': {'created': created}},
         upsert=True,
     )
 
