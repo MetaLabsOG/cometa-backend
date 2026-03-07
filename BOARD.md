@@ -1,6 +1,6 @@
 # Cometa Backend — Task Board
 
-> Last updated: 2026-03-07
+> Last updated: 2026-03-08
 
 ## Conventions
 
@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `frontend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-049**
+- Next available ID: **CB-050**
 
 ---
 
@@ -31,6 +31,7 @@
 | CB-046 | Remove 600+ infinite CSS animations from pool components | done | high | frontend, perf | Removed subtle-glow, reward-glow, token-glow, amount-glow, textclip |
 | CB-047 | Replace `window.innerWidth` in render with `useWindowSize()` | done | high | frontend, perf | Farm.tsx, Stake.tsx — prevents layout thrashing |
 | CB-048 | Fix error handling: Vestige type, useEffect deps, unhandled rejections | done | high | frontend | coinPriceProvider, LaaS deps, Zap/Swap .catch() |
+| CB-049 | Fix enriched prices: 164 tokens getting META price, batch Vestige API | done | critical | backend, perf | Cache namespace collision, upsert race condition, unique index, distribution contracts, batch API, price validation. See `ENRICHED_PRICES_BUG.md` |
 
 ## Backlog
 
