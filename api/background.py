@@ -218,19 +218,10 @@ async def update_asset_prices_background():
     # Get current round with built-in fallback
     current_round = get_current_round()
     
-    # Get and prioritize assets
+    # Get all assets and shuffle for even distribution
     all_assets = db.assets.get_all()
-    prioritized_assets = list(settings.always_return_pool_ids)
-    
-    # Add remaining assets
-    for asset in all_assets:
-        if asset.id not in prioritized_assets:
-            prioritized_assets.append(asset.id)
-    
-    # Shuffle non-priority assets to distribute load
-    regular_assets = prioritized_assets[len(settings.always_return_pool_ids):]
-    random.shuffle(regular_assets)
-    prioritized_assets = prioritized_assets[:len(settings.always_return_pool_ids)] + regular_assets
+    prioritized_assets = [asset.id for asset in all_assets]
+    random.shuffle(prioritized_assets)
     
     total_updated = 0
     failures = 0
