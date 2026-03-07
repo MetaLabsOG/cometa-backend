@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     return_all_user_pools: bool = False
     # List of pool IDs that should always be returned
-    always_return_pool_ids: list[int] = [1705298492, 1713659453, 1846754940, 1911323813, 1911383471]
+    always_return_pool_ids: list[int] = [1705298492, 1713659453, 1846754940, 1911323813, 1911383471, 3470204961, 3470209137]
     return_all_cometa_pools_to_addresses: list[str] = []
 
     # Special addresses that should receive all pools
