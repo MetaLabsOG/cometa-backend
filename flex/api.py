@@ -11,7 +11,7 @@ from env import settings
 from flex import db
 from flex.blockchain.base import indexer_client, algod_client
 from flex.blockchain.info import ALGO_ASSET
-from flex.data.asset_prices import get_asset_price, get_all_asset_prices, get_asset_prices_by_query
+from flex.data.asset_prices import get_asset_price, get_all_asset_prices, get_asset_prices_by_query, create_asset_prices_batch
 from flex.data.assets import get_all_asset_details, get_asset_details, get_asset_details_by_query, get_full_asset
 from flex.data.stats import calculate_total_tvl_usd
 from flex.db.model.liquidity_pools import LpStateInfo
@@ -399,9 +399,9 @@ async def get_farm_enriched(active_only: bool = True):
     else:
         contracts = get_contracts_by_type('farm')
 
-    # Collect asset IDs and LP token IDs from ALL contracts (not just active)
+    # Collect asset IDs and LP token IDs from ALL pool contracts (farm + distribution)
     # so that user's ended pools also have pre-populated data
-    all_contracts = get_contracts_by_type('farm')
+    all_contracts = get_contracts_by_type(None)
 
     asset_ids = set()
     lp_token_ids = set()
@@ -447,19 +447,23 @@ async def get_farm_enriched(active_only: bool = True):
             except Exception as e:
                 logger.warning(f'Failed to fetch asset {aid}: {e}')
 
-    # Batch-fetch prices from DB, auto-populate missing ones from Vestige
+    # Batch-fetch prices from DB, auto-populate missing ones via batch Vestige API
     all_price_ids = asset_ids | {0}
     prices_list = db.asset_prices.get_many_by_query({'id': {'$in': list(all_price_ids)}})
     existing_price_ids = {p.id for p in prices_list}
     missing_price_ids = all_price_ids - existing_price_ids
     if missing_price_ids:
-        logger.info(f'Auto-populating {len(missing_price_ids)} missing prices from Vestige')
-        for pid in missing_price_ids:
-            try:
-                price = await get_asset_price(pid)
-                prices_list.append(price)
-            except Exception as e:
-                logger.warning(f'Failed to fetch price for asset {pid}: {e}')
+        logger.info(f'Auto-populating {len(missing_price_ids)} missing prices (batch)')
+        from flex.blockchain.info import get_current_round
+        try:
+            current_round = await get_current_round()
+            new_prices = await create_asset_prices_batch(
+                list(missing_price_ids), current_round
+            )
+            prices_list.extend(new_prices)
+            logger.info(f'Batch created {len(new_prices)}/{len(missing_price_ids)} prices')
+        except Exception as e:
+            logger.error(f'Batch price creation failed: {e}')
 
     # Batch-fetch ALL LP states (isolated error handling — don't break assets/prices if LP fetch fails)
     # Fetching all (~200) instead of filtering by $in because some token_ids are stored

@@ -129,9 +129,71 @@ async def vestige_full_asset_price_not_cached(asset_id: int) -> Price:
         raise MetaError(f'Invalid response from Vestige API: {e}')
 
 
-@cached(ttl=settings.asset_prices_ttl, namespace='full_asset', key_builder=build_key_str)
+@cached(ttl=settings.asset_prices_ttl, namespace='vestige_price', key_builder=build_key_str)
 async def vestige_full_asset_price(asset_id: int) -> Price:
     return await vestige_full_asset_price_not_cached(asset_id)
+
+
+async def _vestige_batch_chunk(chunk_ids: list[int]) -> dict[int, Price]:
+    """Fetch prices for a chunk of assets from Vestige."""
+    ids_str = ','.join(str(aid) for aid in chunk_ids)
+    url_algo = f'{BASE_URL}/assets/price?asset_ids={ids_str}&denominating_asset_id=0'
+    url_usd = f'{BASE_URL}/assets/price?asset_ids={ids_str}&denominating_asset_id={USDC_ASSET_ID}'
+
+    client = _get_client()
+    response_algo, response_usd = await asyncio.gather(
+        client.get(url_algo),
+        client.get(url_usd),
+    )
+    response_algo.raise_for_status()
+    response_usd.raise_for_status()
+
+    data_algo = response_algo.json()
+    data_usd = response_usd.json()
+
+    if not isinstance(data_algo, list) or not isinstance(data_usd, list):
+        logger.error(f"Vestige batch: unexpected response format. algo={type(data_algo)}, usd={type(data_usd)}")
+        return {}
+
+    usd_by_id = {}
+    for item in data_usd:
+        aid = item.get('asset_id')
+        if aid is not None:
+            usd_by_id[aid] = item.get('price', 0)
+
+    result = {}
+    for item in data_algo:
+        aid = item.get('asset_id')
+        if aid is None:
+            continue
+        price_algo = item.get('price', 0)
+        price_usd = usd_by_id.get(aid, 0)
+        result[aid] = Price(algo=price_algo, usd=price_usd)
+
+    return result
+
+
+VESTIGE_BATCH_CHUNK_SIZE = 100
+
+
+async def vestige_batch_prices(asset_ids: list[int]) -> dict[int, Price]:
+    """Fetch prices for multiple assets using Vestige batch API (chunked)."""
+    if not asset_ids:
+        return {}
+
+    result = {}
+    for i in range(0, len(asset_ids), VESTIGE_BATCH_CHUNK_SIZE):
+        chunk = asset_ids[i:i + VESTIGE_BATCH_CHUNK_SIZE]
+        try:
+            chunk_result = await _vestige_batch_chunk(chunk)
+            result.update(chunk_result)
+        except httpx.HTTPError as e:
+            logger.error(f"Vestige batch chunk failed ({len(chunk)} assets): {e}")
+        except Exception as e:
+            logger.error(f"Vestige batch chunk error: {e}")
+
+    logger.info(f'Vestige batch: fetched {len(result)} prices for {len(asset_ids)} requested assets')
+    return result
 
 
 async def fetch_lp_token(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:

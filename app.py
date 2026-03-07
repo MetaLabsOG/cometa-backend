@@ -820,6 +820,42 @@ def init_app():
             logger.error(f"Error during database migrations: {e}", exc_info=True)
             raise
 
+    # Ensure unique index on asset_prices.id and clean up corrupted data
+    try:
+        from flex import db as flex_db
+        asset_prices_col = flex_db.asset_prices.mongodb_collection
+
+        # Remove duplicates: keep only the latest (by _id) for each asset id
+        pipeline = [
+            {'$group': {'_id': '$id', 'count': {'$sum': 1}, 'keep': {'$last': '$_id'}, 'all_ids': {'$push': '$_id'}}},
+            {'$match': {'count': {'$gt': 1}}}
+        ]
+        duplicates = list(asset_prices_col.aggregate(pipeline))
+        if duplicates:
+            total_removed = 0
+            for doc in duplicates:
+                ids_to_remove = [oid for oid in doc['all_ids'] if oid != doc['keep']]
+                result = asset_prices_col.delete_many({'_id': {'$in': ids_to_remove}})
+                total_removed += result.deleted_count
+            logger.info(f"Removed {total_removed} duplicate asset_prices entries")
+
+        # Clean corrupted prices (META price on non-META tokens)
+        META_ASSET_ID = 923640017
+        META_PRICE = 0.0035137119865087697
+        # Use approximate match (within 1% of META price)
+        corrupted = asset_prices_col.delete_many({
+            'id': {'$ne': META_ASSET_ID},
+            'price_algo': {'$gte': META_PRICE * 0.99, '$lte': META_PRICE * 1.01}
+        })
+        if corrupted.deleted_count > 0:
+            logger.info(f"Cleaned {corrupted.deleted_count} corrupted asset prices (META price leak)")
+
+        # Create unique index on id field
+        asset_prices_col.create_index('id', unique=True, name='id_unique')
+        logger.info("Ensured unique index on asset_prices.id")
+    except Exception as e:
+        logger.error(f"Error during asset_prices index/cleanup: {e}", exc_info=True)
+
     # Ensure all contracts have start/end dates populated
     try:
         contracts = get_contracts_by_type(None)

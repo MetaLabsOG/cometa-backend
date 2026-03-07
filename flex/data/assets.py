@@ -19,7 +19,7 @@ async def create_asset(asset_id: int) -> Asset:
     return asset
 
 
-@cached(namespace='full_asset', key_builder=build_key_str)
+@cached(ttl=300, namespace='full_asset', key_builder=build_key_str)
 async def get_full_asset(asset_id: int) -> Asset:
     asset = db.assets.get_by_primary_key(asset_id, throw_ex=False)
     if asset is None:

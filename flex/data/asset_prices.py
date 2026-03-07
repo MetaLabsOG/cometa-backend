@@ -21,6 +21,94 @@ from flex.util import build_key_str
 logger = logging.getLogger(__name__)
 
 
+def _upsert_asset_price(asset_price: AssetPrice):
+    """Insert or update asset price by id (prevents duplicates)."""
+    existing = db.asset_prices.get_one(id=asset_price.id)
+    if existing is None:
+        db.asset_prices.create(asset_price)
+    else:
+        asset_price.created = existing.created
+        db.asset_prices.update(asset_price)
+
+
+async def create_asset_prices_batch(
+    asset_ids: list[int],
+    current_round: int,
+    algo_price_usd: float | None = None,
+) -> list[AssetPrice]:
+    """Create prices for multiple assets using Vestige batch API."""
+    from flex.providers.vestige import vestige_batch_prices
+
+    if not asset_ids:
+        return []
+
+    algo_price_usd = algo_price_usd or await get_algo_price_usd()
+
+    # Separate LP tokens from regular assets
+    lp_prices = []
+    regular_ids = []
+    for aid in asset_ids:
+        lp_token = await get_lp_token_by_id(aid)
+        if lp_token is not None:
+            try:
+                priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
+                asset_details = await get_asset_details(aid)
+                ap = AssetPrice(
+                    id=lp_token.id,
+                    name=asset_details.name,
+                    price_algo=priced_lp_state.token_price_algo,
+                    price_usd=priced_lp_state.token_price_algo * algo_price_usd,
+                    last_update_round=priced_lp_state.last_updated_round,
+                )
+                _upsert_asset_price(ap)
+                lp_prices.append(ap)
+            except Exception as e:
+                logger.warning(f'Failed to create LP price for {aid}: {e}')
+        else:
+            regular_ids.append(aid)
+
+    # Try Tinyman pools first for regular assets
+    tinyman_prices = []
+    vestige_ids = []
+    for aid in regular_ids:
+        tinyman_price = await get_simple_asset_price_from_pools(aid, algo_price_usd)
+        if tinyman_price is not None:
+            _upsert_asset_price(tinyman_price)
+            tinyman_prices.append(tinyman_price)
+        else:
+            vestige_ids.append(aid)
+
+    # Batch fetch remaining from Vestige
+    vestige_prices = []
+    if vestige_ids:
+        batch_result = await vestige_batch_prices(vestige_ids)
+        for aid in vestige_ids:
+            price = batch_result.get(aid)
+            if price is None or (price.algo <= 0 and price.usd <= 0):
+                logger.warning(f'No valid Vestige price for asset {aid}')
+                continue
+            try:
+                asset_details = await get_asset_details(aid)
+                ap = AssetPrice(
+                    id=aid,
+                    name=asset_details.name,
+                    price_algo=price.algo,
+                    price_usd=price.usd,
+                    last_update_round=current_round,
+                )
+                _upsert_asset_price(ap)
+                vestige_prices.append(ap)
+            except Exception as e:
+                logger.warning(f'Failed to store Vestige price for asset {aid}: {e}')
+
+    all_created = lp_prices + tinyman_prices + vestige_prices
+    logger.info(
+        f'Batch prices: {len(all_created)}/{len(asset_ids)} created '
+        f'(LP={len(lp_prices)}, Tinyman={len(tinyman_prices)}, Vestige={len(vestige_prices)})'
+    )
+    return all_created
+
+
 async def create_asset_price(asset_id: int, current_round: int, algo_price_usd: float | None = None) -> AssetPrice:
     try:
         asset_details = await get_asset_details(asset_id)
@@ -29,7 +117,6 @@ async def create_asset_price(asset_id: int, current_round: int, algo_price_usd: 
         algo_price_usd = algo_price_usd or await get_algo_price_usd()
         lp_token = await get_lp_token_by_id(asset_id)
         if lp_token is not None:
-            # TODO: optimize
             priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
             asset_price = AssetPrice(
                 id=lp_token.id,
@@ -43,6 +130,9 @@ async def create_asset_price(asset_id: int, current_round: int, algo_price_usd: 
             if asset_price is None:
                 try:
                     price = await vestige_full_asset_price(asset_id)
+                    if price.algo <= 0 and price.usd <= 0:
+                        logger.warning(f"Vestige returned zero/negative price for asset {asset_id} ({asset_details.name})")
+                        raise MetaError(f"Vestige returned invalid price for asset {asset_id}")
                     asset_price = AssetPrice(
                         id=asset_id,
                         name=asset_details.name,
@@ -50,12 +140,14 @@ async def create_asset_price(asset_id: int, current_round: int, algo_price_usd: 
                         price_usd=price.usd,
                         last_update_round=current_round
                     )
+                except MetaError:
+                    raise
                 except Exception as e:
                     logger.error(f"Failed to get price from Vestige for asset {asset_id}: {e}")
                     raise MetaError(f"Could not fetch price for asset {asset_id}")
-                
-        db.asset_prices.create(asset_price)
-        logger.info(f'\nNew Asset Price ${asset_price.name}: usd = {asset_price.price_usd}, algo = {asset_price.price_algo}\n')
+
+        _upsert_asset_price(asset_price)
+        logger.info(f'Asset Price {asset_price.name} (id={asset_price.id}): usd={asset_price.price_usd}, algo={asset_price.price_algo}')
         return asset_price
     except Exception as e:
         logger.error(f"Failed to create asset price for {asset_id}: {e}")
@@ -116,7 +208,7 @@ async def update_asset_price(asset_price: AssetPrice, current_round: int, algo_p
         asset_price.price_usd = old_price_usd
 
     asset_price.last_updated_round = current_round
-    db.asset_prices.update(asset_price)
+    _upsert_asset_price(asset_price)
 
     logger.debug(f'Fresh Asset Price id = {asset_price.id}, algo_price = {asset_price.price_algo}')
     return asset_price
