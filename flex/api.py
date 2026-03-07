@@ -399,9 +399,13 @@ async def get_farm_enriched(active_only: bool = True):
     else:
         contracts = get_contracts_by_type('farm')
 
-    # Collect unique asset IDs from all contracts
+    # Collect asset IDs and LP token IDs from ALL contracts (not just active)
+    # so that user's ended pools also have pre-populated data
+    all_contracts = get_contracts_by_type('farm')
+
     asset_ids = set()
-    for c in contracts:
+    lp_token_ids = set()
+    for c in all_contracts:
         m = c.metadata or {}
         for key in ('stake_token_id', 'reward_token_id', 'asset1_id', 'asset2_id'):
             val = m.get(key)
@@ -417,14 +421,8 @@ async def get_farm_enriched(active_only: bool = True):
                 if val is not None:
                     asset_ids.add(val)
 
-    asset_ids.discard(0)  # ALGO doesn't need lookup
-
-    # Collect LP token IDs from DEX contracts
-    lp_token_ids = set()
-    for c in contracts:
-        m = c.metadata or {}
+        # Collect LP token IDs from DEX contracts
         if m.get('dex'):
-            cache = m.get('cache')
             if cache:
                 stake_token = _parse_bignum_safe(cache.get('initial', {}).get('stakeToken'))
                 if stake_token:
@@ -432,6 +430,8 @@ async def get_farm_enriched(active_only: bool = True):
             stake_token_meta = m.get('stake_token_id')
             if stake_token_meta:
                 lp_token_ids.add(int(stake_token_meta))
+
+    asset_ids.discard(0)  # ALGO doesn't need lookup
 
     # Batch-fetch assets from DB, auto-populate missing ones from algod
     current_time = datetime.now()
