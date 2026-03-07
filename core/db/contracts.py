@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from cachetools import cached, TTLCache
@@ -59,6 +60,16 @@ def get_contracts_by_type(type: Optional[str]) -> list[ContractInfo]:
     if type is None:
         return get_contracts({'type': {'$in': ['distribution', 'farm']}})
     return get_contracts({'type': type})
+
+
+def get_active_contracts(type: str) -> list[ContractInfo]:
+    """Contracts that haven't ended (or have no end_date)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.old_pool_end_date_days_ago)
+    all_contracts = get_contracts_by_type(type)
+    return [c for c in all_contracts
+            if c.end_date is None
+            or c.end_date > cutoff
+            or c.id in settings.always_return_pool_ids]
 
 
 def invalidate_contracts_cache():

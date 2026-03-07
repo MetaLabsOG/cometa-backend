@@ -1,12 +1,12 @@
 import logging
-import secrets
 from datetime import datetime
 from enum import Enum
 
 from aiocache import cached
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from core.auth import require_password
 from env import settings
 from flex import db
 from flex.blockchain.base import indexer_client, algod_client
@@ -28,16 +28,11 @@ from flex.db.model.priced import UserCost, PoolStateCost, AssetPriceInfo
 from flex.providers.vestige import DexProvider, get_algo_price_usd
 from flex.sync_pools import get_sync_pool_state_by_id, get_sync_user_state_by_address
 from flex.tdr_stats import fetch_and_record_user_txns, fetch_and_record_pool_fees
-from core.db.contracts import get_contracts_by_type
+from core.db.contracts import get_contracts_by_type, get_active_contracts
 from core.util import parse_bignum
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-def check_password(password: str) -> None:
-    if not secrets.compare_digest(settings.api_password, password):
-        raise HTTPException(status_code=401, detail='Invalid password')
 
 
 # POOLS API
@@ -112,9 +107,8 @@ async def get_user_pool_states_cost_by_address(address: str) -> UserCost:
     return await calculate_user_pool_state_cost(user_state)
 
 
-@router.post('/pools/migrate', tags=['Pools 2.0'])
-async def migrate_pools_from_contracts(password: str) -> dict:
-    check_password(password)
+@router.post('/pools/migrate', tags=['Pools 2.0'], dependencies=[Depends(require_password)])
+async def migrate_pools_from_contracts() -> dict:
     return await all_contracts_to_pools()
 
 
@@ -323,12 +317,10 @@ class DbGetParams(BaseModel):
     sort_by: str | None = None
 
 
-@router.post('/db/find', tags=['DB'])
+@router.post('/db/find', tags=['DB'], dependencies=[Depends(require_password)])
 async def get_entities_by_dict_query(
-        password: str,
         params: DbGetParams
 ) -> list[dict]:
-    check_password(password)
     collection = db.get_collection_by_name(params.collection_name)
     if collection is None:
         raise HTTPException(status_code=404, detail=f'No such collection: {params.collection_name}!')
@@ -346,12 +338,10 @@ class DbCountParams(BaseModel):
     query: dict = {}
 
 
-@router.post('/db/count', tags=['DB'])
+@router.post('/db/count', tags=['DB'], dependencies=[Depends(require_password)])
 async def get_entity_count(
-        password: str,
         params: DbCountParams
 ) -> dict:
-    check_password(password)
     collection = db.get_collection_by_name(params.collection_name)
     if collection is None:
         raise HTTPException(status_code=404, detail=f'No such collection: {params.collection_name}!')
@@ -402,9 +392,12 @@ def serialize_contract_slim(contract) -> dict:
 
 
 @router.get('/contracts/farm/enriched', tags=['Contracts'])
-@cached(ttl=30, namespace='farm_enriched', key='farm_enriched')
-async def get_farm_enriched():
-    contracts = get_contracts_by_type('farm')
+@cached(ttl=30, namespace='farm_enriched', key_builder=lambda f, *args, **kwargs: f'farm_enriched:active={kwargs.get("active_only", args[0] if args else True)}')
+async def get_farm_enriched(active_only: bool = True):
+    if active_only:
+        contracts = get_active_contracts('farm')
+    else:
+        contracts = get_contracts_by_type('farm')
 
     # Collect unique asset IDs from all contracts
     asset_ids = set()
