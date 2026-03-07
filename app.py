@@ -516,8 +516,10 @@ async def get_contracts(
         if contract.end_date is None:
             matching_pools.append(contract)
             continue
-        if without_old_pools and contract.end_date < max_end_date:
-            continue
+        if without_old_pools:
+            end_ts = contract.end_date.timestamp() if isinstance(contract.end_date, datetime) else float(contract.end_date)
+            if end_ts < max_end_date.timestamp():
+                continue
         matching_pools.append(contract)
 
     if max_count is not None and len(matching_pools) > max_count:
