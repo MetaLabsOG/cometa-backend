@@ -461,13 +461,15 @@ async def get_farm_enriched(active_only: bool = True):
             except Exception as e:
                 logger.warning(f'Failed to fetch price for asset {pid}: {e}')
 
-    # Batch-fetch LP states (isolated error handling — don't break assets/prices if LP fetch fails)
+    # Batch-fetch ALL LP states (isolated error handling — don't break assets/prices if LP fetch fails)
+    # Fetching all (~200) instead of filtering by $in because some token_ids are stored
+    # as BSON Long in MongoDB and don't match Python int queries
     lp_states_dict = {}
     try:
-        if lp_token_ids:
-            algo_price_usd = await get_algo_price_usd()
-            lp_states_list = db.lp_states.get_many_by_query({'token_id': {'$in': list(lp_token_ids)}})
-            lp_states_dict = {s.token_id: s.to_info(algo_price_usd, current_time).to_dict() for s in lp_states_list}
+        algo_price_usd = await get_algo_price_usd()
+        lp_states_list = db.lp_states.get_all()
+        lp_states_dict = {s.token_id: s.to_info(algo_price_usd, current_time).to_dict() for s in lp_states_list}
+        logger.info(f'Enriched: returning {len(lp_states_dict)} LP states (from {len(lp_states_list)} in DB)')
     except Exception as e:
         logger.error(f'Failed to fetch LP states for enriched endpoint: {e}')
 
