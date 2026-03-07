@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from algosdk.v2client import indexer
@@ -80,6 +81,12 @@ def get_address_app_ids(address: str, only_active: bool = False) -> list[int]:
         app_ids.append(app['id'])
 
     return app_ids
+
+
+async def get_address_app_ids_async(address: str, only_active: bool = False) -> list[int]:
+    """Non-blocking version of get_address_app_ids for use in async handlers."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, get_address_app_ids, address, only_active)
 
 
 def get_asset_creator(asset_id: int) -> str:

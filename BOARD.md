@@ -1,6 +1,6 @@
 # Cometa Backend — Task Board
 
-> Last updated: 2026-03-06
+> Last updated: 2026-03-07
 
 ## Conventions
 
@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `frontend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-035**
+- Next available ID: **CB-049**
 
 ---
 
@@ -16,6 +16,21 @@
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
+| CB-001 | Rotate compromised keys from `test_refund.py` | in_progress | critical | security, backend | File gitignored. **Keys must be rotated manually** — mnemonic + Nodely token in git history |
+| CB-002 | Move `password` from query string to `X-API-Key` header | done | critical | security, backend | `core/auth.py` created, 18 endpoints migrated to `Depends(require_password)` |
+| CB-033 | Add MCP servers: Algorand, Vestige, MongoDB | done | high | dx | Added to `~/.claude/mcp.json` |
+| CB-035 | Fix cacheMigration stale wallet keys — users disconnected on every deploy | done | critical | frontend | `cacheMigration.ts` preserved wrong key names, bumped to v3 |
+| CB-036 | Fix ErrorBoundary preserving wrong wallet localStorage keys | done | critical | frontend | Was saving `walletType` instead of `connectedWalletType` |
+| CB-037 | Fix auto-reconnect blocked by `window.algorand` browser extension | done | high | frontend | `ConnectWallet.tsx:109` — removed `!window.algorand` condition |
+| CB-040 | Fix Rules of Hooks in `meteors-styled.tsx` — hooks after conditional return | done | critical | frontend | Moved hooks before conditional return, memoized meteor positions |
+| CB-041 | Fix `throw` in Effector `combine` (`Farm/store.ts:597`) | done | critical | frontend | Replaced with fallback sort by TVL |
+| CB-042 | Fix BigInt division by zero in `createAprs` | done | critical | frontend | Guard `totalBlocks === 0n` before division |
+| CB-043 | Fix `parseBignumState` throw in derived store | done | critical | frontend | Wrapped in try/catch, logs warning on parse failure |
+| CB-044 | Fix `useUnit()` inside JSX in `Farm.tsx` | done | critical | frontend | Moved to top level of render function |
+| CB-045 | Fix Immutable Map.set() in `loadAssetsFromLocalStorage` | done | critical | frontend | `assets = assets.set(...)` — result was being discarded |
+| CB-046 | Remove 600+ infinite CSS animations from pool components | done | high | frontend, perf | Removed subtle-glow, reward-glow, token-glow, amount-glow, textclip |
+| CB-047 | Replace `window.innerWidth` in render with `useWindowSize()` | done | high | frontend, perf | Farm.tsx, Stake.tsx — prevents layout thrashing |
+| CB-048 | Fix error handling: Vestige type, useEffect deps, unhandled rejections | done | high | frontend | coinPriceProvider, LaaS deps, Zap/Swap .catch() |
 
 ## Backlog
 
@@ -23,8 +38,6 @@
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
-| CB-001 | Rotate compromised keys from `test_refund.py` — mnemonic + Nodely API token leaked in repo | todo | critical | security, backend | `test_refund.py:34` — mnemonic hardcoded. Rotate immediately, delete file or gitignore |
-| CB-002 | Move `password` from query string to `Authorization` header across all protected endpoints | todo | critical | security, backend | `app.py:317`, `flex/api.py:116` — password in URL leaks to access logs. Implement FastAPI `Depends` auth |
 | CB-003 | Remove hardcoded API keys from frontend bundle (`logEvent.tsx`) | todo | critical | security, frontend | `logEvent.tsx:50,80` — Airtable PAT + Amplitude key in source. Move to `REACT_APP_*` env vars |
 | CB-004 | Fix query cache key to include `user_address` — prevents cross-wallet data leak | todo | critical | security, frontend | `src/index.tsx:125-126` — `useQuery(['contracts', 'farm'], ...)` ignores wallet address change |
 
