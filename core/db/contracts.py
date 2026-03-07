@@ -64,7 +64,7 @@ def get_contracts_by_type(type: Optional[str]) -> list[ContractInfo]:
 
 def get_active_contracts(type: str) -> list[ContractInfo]:
     """Contracts that haven't ended (or have no end_date)."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.old_pool_end_date_days_ago)
+    cutoff = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
     all_contracts = get_contracts_by_type(type)
     return [c for c in all_contracts
             if c.end_date is None

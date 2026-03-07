@@ -492,7 +492,7 @@ async def get_contracts(
 
     max_end_date = None
     if without_old_pools:
-        max_end_date = datetime.now(timezone.utc) - timedelta(days=settings.old_pool_end_date_days_ago)
+        max_end_date = datetime.now() - timedelta(days=settings.old_pool_end_date_days_ago)
 
     address_app_ids = list(settings.always_return_pool_ids)
     if settings.return_all_user_pools and include_address_pools is not None:
