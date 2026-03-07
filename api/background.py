@@ -166,12 +166,15 @@ async def update_all_user_pools():
 
 @repeat_every(settings.contracts_cache_ttl)
 async def update_contracts_worker():
-    # TODO: not call the top-level method at all
-    if settings.enable_js and settings.update_contract_caches:
-        logger.info('Updating contract caches...')
-        await update_contracts_cache('farm')
-        await update_contracts_cache('distribution')
-        logger.info('Contract caches updated.')
+    if not settings.enable_js:
+        return
+    if not settings.update_contract_caches:
+        logger.debug('Contract cache updates are disabled (UPDATE_CONTRACT_CACHES=false)')
+        return
+    logger.info('Updating contract caches...')
+    await update_contracts_cache('farm')
+    await update_contracts_cache('distribution')
+    logger.info('Contract caches updated.')
 
 
 @repeat_every(settings.contracts_cache_ttl)
@@ -286,7 +289,7 @@ def run_background():
                 )
             )
         
-        if settings.enable_js and settings.update_contract_caches:
+        if settings.enable_js:
             task_list.append(
                 asyncio.create_task(
                     safe_background_task(update_contracts_worker(), "update_contracts")

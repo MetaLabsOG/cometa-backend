@@ -449,6 +449,56 @@ async def get_contract_global_state(contract_id: int) -> dict:
     return global_views[str(contract.id)]
 
 
+@app.post('/contracts/refresh-cache', tags=['Contracts'], dependencies=[Depends(require_password)])
+async def refresh_contracts_cache(
+    contract_ids: Optional[List[int]] = None,
+    type: Optional[ContractType] = None,
+) -> dict:
+    """Manually refresh metadata.cache for contracts by fetching live state from Algorand.
+    If contract_ids provided — refresh only those. Otherwise refresh all of given type (or all)."""
+    if not settings.enable_js:
+        raise HTTPException(status_code=503, detail="JS interop is disabled")
+
+    if contract_ids:
+        contracts = [get_contract(cid) for cid in contract_ids]
+        contracts = [c for c in contracts if c is not None]
+    elif type:
+        contracts = get_contracts_by_type(type)
+    else:
+        contracts = get_contracts_by_type(None)
+
+    if not contracts:
+        return {'refreshed': 0, 'errors': 0}
+
+    # Group by type for JS calls
+    by_type = {}
+    for c in contracts:
+        by_type.setdefault(c.type, []).append(c)
+
+    refreshed = 0
+    errors = 0
+    for ctype, type_contracts in by_type.items():
+        ids_and_versions = [{'id': c.id, 'version': strip_version(c.version)} for c in type_contracts]
+        try:
+            states = await calljs("fetchContractsGlobalViews", contractType=ctype, idVersions=ids_and_versions)
+            for c in type_contracts:
+                s_id = str(c.id)
+                if s_id in states:
+                    old_metadata = c.metadata or {}
+                    new_metadata = {**old_metadata, "cache": states[s_id]}
+                    update_contract(c.id, metadata=new_metadata)
+                    refreshed += 1
+                else:
+                    logger.warning(f'refresh-cache: contract {c.id} not found in JS response')
+                    errors += 1
+        except Exception as e:
+            logger.error(f'refresh-cache: failed for type {ctype}: {e}', exc_info=True)
+            errors += len(type_contracts)
+
+    invalidate_contracts_cache()
+    return {'refreshed': refreshed, 'errors': errors}
+
+
 @app.get('/contracts/local_state', tags=['Contracts'])
 async def get_local_states(type: str, address: str) -> dict:
     contracts = get_contracts_by_type(type)
@@ -524,6 +574,15 @@ async def get_contracts(
 
     if max_count is not None and len(matching_pools) > max_count:
         matching_pools = matching_pools[:max_count]
+
+    # Log pools with missing or empty cache (helps diagnose $0 TVL on frontend)
+    empty_cache_ids = [
+        c.id for c in matching_pools
+        if c.metadata is None or c.metadata.get('cache') is None
+        or parse_bignum(c.metadata.get('cache', {}).get('global', {}).get('totalStaked', '0x0')) == 0
+    ]
+    if empty_cache_ids:
+        logger.warning(f'Returning {len(empty_cache_ids)} pools with empty/zero cache: {empty_cache_ids[:10]}')
 
     return matching_pools
 
