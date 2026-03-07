@@ -22,13 +22,15 @@ logger = logging.getLogger(__name__)
 
 
 def _upsert_asset_price(asset_price: AssetPrice):
-    """Insert or update asset price by id (prevents duplicates)."""
-    existing = db.asset_prices.get_one(id=asset_price.id)
-    if existing is None:
-        db.asset_prices.create(asset_price)
-    else:
-        asset_price.created = existing.created
-        db.asset_prices.update(asset_price)
+    """Atomic insert-or-update asset price by id (prevents duplicates)."""
+    asset_price.updated = datetime.now()
+    doc = asset_price.to_dict()
+    doc.pop('_id', None)
+    db.asset_prices.mongodb_collection.update_one(
+        {'id': asset_price.id},
+        {'$set': doc, '$setOnInsert': {'created': asset_price.created}},
+        upsert=True,
+    )
 
 
 async def create_asset_prices_batch(
@@ -207,7 +209,7 @@ async def update_asset_price(asset_price: AssetPrice, current_round: int, algo_p
         asset_price.price_algo = old_price_algo
         asset_price.price_usd = old_price_usd
 
-    asset_price.last_updated_round = current_round
+    asset_price.last_update_round = current_round
     _upsert_asset_price(asset_price)
 
     logger.debug(f'Fresh Asset Price id = {asset_price.id}, algo_price = {asset_price.price_algo}')
