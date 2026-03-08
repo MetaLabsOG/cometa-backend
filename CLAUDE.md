@@ -62,11 +62,15 @@ scripts/backup_db.sh     # backup MongoDB
 - MongoDB models in `api/db_model.py`
 - Asset prices cached with TTL (Redis) — see `dexes/` for price fetching
 
+## Cross-Project Sync
+
+The parent `~/dev/cometa/CLAUDE.md` is loaded automatically (Claude Code ancestor chain). It contains shared API contract, deploy state, and breaking changes log. Update it after any API or deploy change.
+
 ## Linked Projects
 
 ### Frontend: metafarm-frontend
 
-- **Path**: `~/cometa/dev/metafarm-frontend`
+- **Path**: `~/dev/cometa/metafarm-frontend`
 - **Repo**: `MetaLabsOG/metafarm-frontend`
 - **Stack**: React 18 + TypeScript, Effector (state), styled-components, react-query, CRA + custom webpack
 - **Connection**: Frontend connects via `REACT_APP_COMETA_API_URL` (prod: `https://api.cometa.farm/`)
@@ -75,25 +79,7 @@ Both projects are developed in parallel. **Any API change in the backend must be
 
 ### API Contract (frontend → backend)
 
-Routes in `app.py` + `flex.api.router`:
-
-| Frontend Provider | Backend Endpoint | Method |
-|-------------------|-----------------|--------|
-| `apiProvider.ts` | `/contracts` | GET |
-| `apiProvider.ts` | `/wallet/{addr}/assets` | GET |
-| `apiProvider.ts` | `/wallet/{addr}/total_cost/` | GET |
-| `apiProvider.ts` | `/wallet/{addr}/nfts` | GET |
-| `apiProvider.ts` | `/wallet/{addr}/pools` | GET |
-| `apiProvider.ts` | `/humble/pools/all` | GET |
-| `apiProvider.ts` | `/contract/register` | POST |
-| `apiProvider.ts` | `/lottery/swap` | POST |
-| `apiProvider.ts` | `/lottery/staking` | POST |
-| `apiProvider.ts` | `/lottery/claim` | PATCH |
-| `flexApiProvider.ts` | `/asset` (flex router) | POST |
-| `flexApiProvider.ts` | `/assets` (flex router) | POST |
-| `flexApiProvider.ts` | `/asset/price` (flex router) | POST |
-| `flexApiProvider.ts` | `/assets/price` (flex router) | POST |
-| `apiProvider.ts` | `/lp/state/priced` (flex router) | POST |
+See parent `~/dev/cometa/CLAUDE.md` for the canonical API contract table. That file is the single source of truth — update it there, not here.
 
 ### Cross-Project Workflow
 
@@ -101,6 +87,20 @@ Routes in `app.py` + `flex.api.router`:
 - **Changing response shape**: update backend model → update frontend types/effector store → verify UI
 - **Adding a new field to contracts**: update `ContractInfo` model → update frontend `ContractState` type
 - **Price/asset changes**: backend `flex/data/` → frontend `src/providers/` + `src/common/store/prices.ts`
+
+## Testing
+
+No test infrastructure yet (CB-034). When adding tests:
+
+```bash
+pipenv install --dev pytest pytest-asyncio httpx
+pipenv run pytest tests/ -v
+```
+
+- Use `pytest-asyncio` for async endpoint tests
+- Use `httpx.AsyncClient` with FastAPI's `TestClient` for integration tests
+- Priority: lottery claim atomicity, price fetching, contract CRUD
+- Mock MongoDB with `mongomock` or use a test database
 
 ## Commit Discipline
 

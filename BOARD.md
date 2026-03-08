@@ -16,7 +16,7 @@
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
-| CB-001 | Rotate compromised keys from `test_refund.py` | in_progress | critical | security, backend | File gitignored. **Keys must be rotated manually** — mnemonic + Nodely token in git history |
+| CB-001 | Rotate compromised keys from `test_refund.py` | done | critical | security, backend | File gitignored. Keys rotated manually (2026-03-09) |
 | CB-002 | Move `password` from query string to `X-API-Key` header | done | critical | security, backend | `core/auth.py` created, 18 endpoints migrated to `Depends(require_password)` |
 | CB-033 | Add MCP servers: Algorand, Vestige, MongoDB | done | high | dx | Added to `~/.claude/mcp.json` |
 | CB-035 | Fix cacheMigration stale wallet keys — users disconnected on every deploy | done | critical | frontend | `cacheMigration.ts` preserved wrong key names, bumped to v3 |
@@ -95,7 +95,7 @@
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
-| CB-033 | Add MCP servers: Algorand, Vestige, MongoDB | todo | high | dx | `@goplausible/algorand-mcp` (61 tools), `@goplausible/vestige-mcp`, `mongodb-mcp-server` — direct DeFi dev value |
+| ~~CB-033~~ | ~~Add MCP servers~~ | done | high | dx | Duplicate — see Active section line 21 |
 | CB-034 | Add pytest infrastructure + basic test coverage for critical paths | todo | high | backend | No tests at all. Start with: lottery claim, contract CRUD, price fetching |
 
 ## Done
