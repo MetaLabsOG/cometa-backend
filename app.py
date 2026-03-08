@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import sys
+import traceback
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import uvicorn
 from algosdk import encoding
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -63,6 +65,25 @@ app.add_middleware(
     allow_headers=['*'],
 )
 app.include_router(flex.api.router)
+
+
+# Catch-all exception handlers to ensure CORS headers are present on error responses.
+# Without these, unhandled exceptions bypass CORSMiddleware and browsers block the response.
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 logger = logging.getLogger(__name__)
 logging.getLogger('base').setLevel(logging.INFO)
 
