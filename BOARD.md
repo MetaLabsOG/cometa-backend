@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `frontend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-050**
+- Next available ID: **CB-051**
 
 ---
 
@@ -32,6 +32,7 @@
 | CB-047 | Replace `window.innerWidth` in render with `useWindowSize()` | done | high | frontend, perf | Farm.tsx, Stake.tsx — prevents layout thrashing |
 | CB-048 | Fix error handling: Vestige type, useEffect deps, unhandled rejections | done | high | frontend | coinPriceProvider, LaaS deps, Zap/Swap .catch() |
 | CB-049 | Fix enriched prices: 164 tokens getting META price, batch Vestige API | done | critical | backend, perf | Cache namespace collision, upsert race condition, unique index, distribution contracts, batch API, price validation. See `ENRICHED_PRICES_BUG.md` |
+| CB-050 | Fix LP/CORS/enriched: batch /lp/state/priced, CORS on errors, stabilize enriched | done | high | backend, perf | Batch LP endpoint (asyncio.gather), catch-all exception handlers for CORS, enriched TTL 60s + parallel asset fetch |
 
 ## Backlog
 
