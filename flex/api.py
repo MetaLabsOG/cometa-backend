@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 from enum import Enum
@@ -172,16 +173,41 @@ async def handle_update_all_lp_states() -> list:
     return price_diffs
 
 
-@cached(ttl=30)
+@cached(ttl=60)
 async def get_lp_state_info_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
     lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
     algo_price_usd = await get_algo_price_usd()
     return lp_state.to_info(algo_price_usd)
 
 
-@router.post('/lp/state/priced', tags=['LP', 'Deprecated'])
-async def handle_get_lp_state_by_lp_token_id_DEPRECATED(lp_token_id: int) -> LpStateInfo:
-    return await get_lp_state_info_by_lp_token_id(lp_token_id)
+class LpStatePricedRequest(BaseModel):
+    lp_token_id: int | None = None
+    lp_token_ids: list[int] | None = None
+
+
+@router.post('/lp/state/priced', tags=['LP'])
+async def handle_get_lp_state_priced(body: LpStatePricedRequest):
+    # Batch mode: return dict of results
+    if body.lp_token_ids is not None:
+        results = {}
+        tasks = {
+            token_id: get_lp_state_info_by_lp_token_id(token_id)
+            for token_id in body.lp_token_ids
+        }
+        settled = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        for token_id, result in zip(tasks.keys(), settled):
+            if isinstance(result, BaseException):
+                logger.warning(f'LP state fetch failed for {token_id}: {result}')
+                results[str(token_id)] = None
+            else:
+                results[str(token_id)] = result
+        return {"results": results}
+
+    # Single mode: backward compatible
+    if body.lp_token_id is not None:
+        return await get_lp_state_info_by_lp_token_id(body.lp_token_id)
+
+    raise HTTPException(status_code=400, detail="Provide lp_token_id or lp_token_ids")
 
 
 @router.post('/lp/states', tags=['LP'])
@@ -392,7 +418,7 @@ def serialize_contract_slim(contract) -> dict:
 
 
 @router.get('/contracts/farm/enriched', tags=['Contracts'])
-@cached(ttl=30, namespace='farm_enriched', key_builder=lambda f, *args, **kwargs: f'farm_enriched:active={kwargs.get("active_only", args[0] if args else True)}')
+@cached(ttl=60, namespace='farm_enriched', key_builder=lambda f, *args, **kwargs: f'farm_enriched:active={kwargs.get("active_only", args[0] if args else True)}')
 async def get_farm_enriched(active_only: bool = True):
     if active_only:
         farm_contracts = get_active_contracts('farm')
@@ -443,12 +469,16 @@ async def get_farm_enriched(active_only: bool = True):
     missing_asset_ids = asset_ids - existing_asset_ids
     if missing_asset_ids:
         logger.info(f'Auto-populating {len(missing_asset_ids)} missing assets from algod')
-        for aid in missing_asset_ids:
+
+        async def _fetch_asset_safe(aid):
             try:
-                asset = await get_full_asset(aid)
-                assets_list.append(asset)
+                return await get_full_asset(aid)
             except Exception as e:
                 logger.warning(f'Failed to fetch asset {aid}: {e}')
+                return None
+
+        fetched = await asyncio.gather(*[_fetch_asset_safe(aid) for aid in missing_asset_ids])
+        assets_list.extend(a for a in fetched if a is not None)
 
     # Batch-fetch prices from DB, auto-populate missing ones via batch Vestige API
     all_price_ids = asset_ids | {0}
