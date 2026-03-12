@@ -98,8 +98,7 @@ settings = Settings()
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
-
 print(f'Algo Network = {settings.algo_network}')
 print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')
-print(f'Alway Return Pool IDs = {settings.always_return_pool_ids}')
+print(f'Always Return Pool IDs = {settings.always_return_pool_ids}')
 print(f'Return All Cometa Pools to Addresses = {settings.return_all_cometa_pools_to_addresses}')
