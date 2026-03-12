@@ -85,7 +85,7 @@ def get_address_app_ids(address: str, only_active: bool = False) -> list[int]:
 
 async def get_address_app_ids_async(address: str, only_active: bool = False) -> list[int]:
     """Non-blocking version of get_address_app_ids for use in async handlers."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, get_address_app_ids, address, only_active)
 
 

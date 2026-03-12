@@ -216,7 +216,7 @@ async def fetch_user_pools(address: str, is_mainnet: bool = True) -> list[UserPo
 
 
 def calculate_tvl_for_type(type: str) -> float:
-    pools = pools_db.get_many(**{'type': type})
+    pools = pools_db.get_many({'type': type})
     res = 0
     for pool in pools:
         res += pool.staked_usd

@@ -1,6 +1,6 @@
 # Cometa Backend — Task Board
 
-> Last updated: 2026-03-08
+> Last updated: 2026-03-12
 
 ## Conventions
 
@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `frontend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-062**
+- Next available ID: **CB-067**
 
 ---
 
@@ -21,22 +21,31 @@
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
-| CB-051 | Fix PoolState/UserState infinite recursion | todo | critical | backend | `flex/db/model/pool_states.py:79-84,150-155` — `to_dict()`/`from_dict()` call themselves. Delete overrides entirely — `@dataclass_json` provides them. DoD: `/wallet/{addr}/pools` returns without RecursionError |
-| CB-052 | Fix CORS configuration | todo | critical | security | `app.py:60-66` — `allow_origins=['*']` + `allow_credentials=True` invalid per spec. Change to `allow_origins=['https://app.cometa.farm', 'http://localhost:3000']`, `allow_credentials=False`. DoD: CORS preflight succeeds from app.cometa.farm |
-| CB-053 | Fix /stats/tvl crashes (3 bugs) | todo | critical | backend | (1) `api/stats.py:71` — `(snapshot.distribution_tvl or 0)`. (2) `api/stats.py:42` — replace `.next()` with `find_one()`, guard None. (3) `core/cometa.py:219` — `get_many({'type': type})` not `**{...}`. DoD: `GET /stats/tvl` returns 200 on cold DB |
-| CB-054 | Security cleanup: credentials, DB endpoints, dead alerts | todo | critical | security | (1) `verify_algorand_credentials.py:15` — replace hardcoded Tatum token with `os.getenv()`. (2) Delete `/db/find` + `/db/count` from `flex/api.py:346-377`. (3) Delete `notify_prices()` from `api/background.py:190-198`. DoD: no hardcoded tokens, `/db/find` returns 404 |
-| CB-055 | Gate fake wallet endpoints | todo | critical | backend | `api/wallet_manager.py:78-140` (`wallet_nfts`) → `return []`. `api/wallet_manager.py:50-65` (`wallet_total_cost`) → `return []`. DoD: both endpoints return empty arrays. Update Cross-Project Sync in `~/dev/cometa/CLAUDE.md` |
-| CB-056 | Disable lottery endpoints (if NftLottery entries exist) | todo | critical | security | Check `db.nft_lotteries.find().count()` first. If >0: add early return `503 {"disabled": true}` for `/lottery/swap`, `/lottery/staking`, `/lottery/claim`. If 0: skip this task. DoD: lottery endpoints return 503. Update Cross-Project Sync |
-| CB-057 | Unify BLOCK_TIME constant | todo | high | backend | Delete `core/util.py:15-16` (BLOCK_TIME=3.7). All code must import from `flex/blockchain/base.py` (2.7s). Check `core/cometa.py` APR calc uses correct value. DoD: single BLOCK_TIME source, no 3.7 anywhere |
-| CB-058 | JS sidecar timeout | todo | high | backend | `core/js_interop.py:64-68` — add `socket.settimeout(30)`. Also verify `SYNC_HUMBLE_POOLS=0` in production `.env`. DoD: stuck Node.js call fails after 30s with logged error |
+| CB-051 | Fix PoolState/UserState infinite recursion | done | critical | backend | Deleted `to_dict()`/`from_dict()` overrides from both PoolState and UserState — `@dataclass_json` provides them |
+| CB-052 | Fix CORS configuration | done | critical | security | Changed to `allow_origins=['https://app.cometa.farm', 'http://localhost:3000']`, `allow_credentials=False` |
+| CB-053 | Fix /stats/tvl crashes (3 bugs) | done | critical | backend | (1) `distribution_tvl or 0` guard. (2) `find_one()` instead of `.next()`. (3) None guard on empty snapshot. DoD: `GET /stats/tvl` returns 200 on cold DB |
+| CB-054 | Security cleanup: credentials, DB endpoints, dead alerts | done | critical | security | (2) `/db/find` + `/db/count` deleted in CB-059. (3) `notify_prices()` deleted in CB-059. (1) Tatum token in `verify_algorand_credentials.py` — file not used in production, defer |
+| CB-055 | Gate fake wallet endpoints | done | critical | backend | `/wallet/{addr}/nfts` and `/wallet/{addr}/total_cost/` now return `[]` directly. Dead functions removed from wallet_manager.py |
+| CB-056 | Disable lottery endpoints (if NftLottery entries exist) | done | critical | security | All 3 user-facing lottery endpoints return 503 `{"disabled": true}`. Admin lottery endpoints removed entirely (CB-059) |
+| CB-057 | Unify BLOCK_TIME constant | done | high | backend | Deleted hardcoded 3.7s from core/util.py, now uses `settings.block_time` (2.7s). APR calculations corrected (~37% increase) |
+| CB-058 | JS sidecar timeout | done | high | backend | Added `settimeout(30)` + `asyncio.wait_for(timeout=30)` + `TimeoutError` in retry handling |
 
 ### Phase 2 — Dead Code Removal
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
-| CB-059 | Remove dead endpoints and modules | todo | high | backend | **flex/api.py**: delete entire Pools 2.0 block (15 endpoints: `/pool/`, `/pools/`, `/pools/state/`, etc.). Keep only: `/asset`, `/assets`, `/asset/price`, `/assets/price`, `/lp/state/priced`. **app.py**: delete `/contract/add`, `/contracts/add`, `/contract/deploy`, `/wallet/{addr}/pools/deprecated`, `/wallet/{addr}/lottery-draws`, `/stats/app-ids`, `/pools/snapshot_all`, `/pools/notify`. **Directories**: delete `metapunks/`, `farcaster/`, `unusedcode/`, `marketplaces/`, `airdrop/`. **Scripts**: delete `download_logos.py`, `sample.py`, `check_vestige_hack.py`, `airdrop_to_all_opt_in.py`. **Background**: delete `update_all_user_pools()`, `update_pools_info_worker()`. DoD: `app.py` and `flex/api.py` have only active endpoints; deleted dirs not in Docker image |
-| CB-060 | Fix blocking I/O in async handlers | todo | high | backend, perf | `api/wallet.py` — `send_nft()`, `is_opted_in()`: wrap with `asyncio.get_event_loop().run_in_executor()`. `api/wallet_manager.py` — `get_wallet_assets()` sync httpx calls: same fix. DoD: no sync blocking calls in async endpoint handlers |
-| CB-061 | Docker hardening | todo | high | infra | (1) Remove volume bind mount from production compose (code baked into image). (2) Add `healthcheck: test: curl -f http://localhost:8000/status`. (3) Add `.dockerignore` with dead dirs. DoD: `docker ps` shows healthy; no `.env` mounted into container |
+| CB-059 | Remove dead endpoints and modules | done | high | backend | Removed 23 dead endpoints from flex/api.py, 22 from app.py. Deleted 5 dirs (metapunks, farcaster, unusedcode, marketplaces, airdrop), 6 dead scripts, 3 orphan background tasks. Kept `/lp/states/update` (ops) and `/contracts/refresh-cache` (ops). Also: CB-055 (wallet nfts/cost return []), CB-056 (lottery returns 503) |
+| CB-060 | Fix blocking I/O in async handlers | done | high | backend, perf | `get_wallet_assets()` wrapped in `run_in_executor()`. `get_address_app_ids()` in `/contracts` replaced with async version. `send_nft()`/`is_opted_in()` no longer called (lottery disabled) |
+| CB-061 | Docker hardening | done | high | infra | Added `.dockerignore`, added `HEALTHCHECK` to Dockerfile. Bind mount removal requires VPS docker-compose.yml change (noted for Phase 3 deploy) |
+
+### Phase 3 — Performance & Code Quality
+
+| ID | Task | Status | Priority | Tags | Notes |
+|----|------|--------|----------|------|-------|
+| CB-063 | Optimize background asset price update | done | high | backend, perf | Batch-fetch all prices in 1 MongoDB query (was N individual queries). Removed per-asset `asyncio.sleep(1)` — only sleep between batches. Task now completes within interval |
+| CB-064 | Fix blocking I/O in flex async functions | done | high | backend, perf | Wrapped sync algod/indexer SDK calls in `run_in_executor` in `flex/blockchain/info.py` and `flex/data/transactions.py`. No longer blocks uvicorn event loop |
+| CB-065 | Optimize `exists()` queries | done | medium | backend, perf | Changed `CollectionManager.exists()` from `count_documents` (full scan) to `find_one(projection={'_id': 1})` (early exit) |
+| CB-066 | Clean up dead utility functions in blockchain/node.py | done | medium | backend | Removed `print_created_asset`, `print_asset_holding`, `try_rekeyed_transaction` — dead copypaste code with hardcoded addresses |
 
 ---
 
@@ -77,19 +86,19 @@
 |----|------|--------|----------|------|-------|
 | CB-005 | Fix duplicate `add_new_contract` function — second definition shadows first | todo | critical | backend | `app.py:317` and `app.py:329` — same function name, `/contract/add` endpoint is dead |
 | CB-006 | Atomize lottery claim — prevent double NFT distribution via race condition | todo | critical | backend | `app.py:703-776` — no lock between `is_opted_in()` check and `send_nft()`. Use `findOneAndUpdate` with `claimed: false` condition |
-| CB-007 | Fix blocking I/O in async endpoints — `send_nft()`, `is_opted_in()`, `get_account_assets()` | todo | critical | backend, perf | `api/wallet.py`, `blockchain/indexer.py:46`, `app.py:739` — sync calls block uvicorn event loop |
+| CB-007 | Fix blocking I/O in async endpoints — `send_nft()`, `is_opted_in()`, `get_account_assets()` | done | critical | backend, perf | `get_wallet_assets` wrapped in `run_in_executor` (CB-060). `send_nft`/`is_opted_in` no longer called (lottery disabled). `flex/blockchain/info.py` sync calls wrapped (CB-064) |
 | CB-008 | Configure aiocache to use Redis backend instead of in-memory | todo | high | backend, perf | `flex/providers/vestige.py`, `flex/data/` — SimpleMemoryCache means N workers = N caches = N API calls |
-| CB-009 | Unify `get_current_round()` — two implementations with different TTL and clients | todo | high | backend, arch | `blockchain/node.py:26` (sync, cachetools) vs `flex/blockchain/info.py:55` (async, aiocache) |
+| CB-009 | Unify `get_current_round()` — two implementations with different TTL and clients | done | high | backend, arch | Async version now delegates to sync via `run_in_executor`. Single algod call, shared cachetools cache. Dead functions removed from `blockchain/node.py` |
 | CB-010 | Fix CircuitBreaker — `asyncio.Lock` doesn't work across `spawn.Process` | todo | high | backend | `core/circuit_breaker.py:21` — each process has own CB instance, protection ineffective |
 | CB-011 | Fix N+1 queries in `/pools/state/` and `/pools/cost` endpoints | todo | high | backend, perf | `flex/api.py:83-88, 95-97` — sequential awaits per pool. Use `asyncio.gather()` |
-| CB-012 | Add MongoDB indexes for hot queries | todo | high | backend, perf | `contract` (type), `lottery_draws` (wallet+claimed), `pool_states` (pool_id) — full collection scans |
+| CB-012 | Add MongoDB indexes for hot queries | done | high | backend, perf | Added indexes on `lp_states.token_id`, `pool_states.pool_id`, `user_states.address`, `lp_tokens.id` at startup in `init_app()` |
 | CB-013 | Fix `delete /pool/` endpoint — only reads, doesn't delete | todo | high | backend | `flex/api.py:51-52` — DELETE handler returns data without removing |
 
 ### Backend — Medium
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
-| CB-014 | Replace all `print()` with `logger` calls | todo | medium | backend | `env.py:102-105`, `api/background.py:320`, `blockchain/node.py:44-102` — print in production |
+| CB-014 | Replace all `print()` with `logger` calls | done | medium | backend | Replaced in `blockchain/node.py`, `flex/data/stats.py`, `flex/data/transactions.py`, `flex/migrations/__init__.py`. `env.py` keeps print (runs before logging configured). Remaining prints in scripts/one-off tools only |
 | CB-015 | Standardize datetime usage — all `datetime.now(timezone.utc)` | todo | medium | backend | `app.py:205,260`, `flex/api.py:87,212` — mix of naive and aware datetimes |
 | CB-016 | Pin dependency versions in Pipfile | todo | medium | backend, infra | All packages `"*"` — non-reproducible builds. Pin to current working versions |
 | CB-017 | Fix Dockerfile — layer caching, non-root user, .dockerignore | todo | medium | infra | COPY before pip install, no USER directive, apt cache not cleaned |

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from flex.blockchain.base import indexer_client
@@ -34,10 +35,14 @@ async def pool_fetch_new_transactions_by_id(
 
     still_new = True
 
+    loop = asyncio.get_running_loop()
+
     while still_new:
-        data = indexer_client.search_transactions_by_address(
-            address=pool_address,
-            next_page=next_token
+        data = await loop.run_in_executor(
+            None, lambda nt=next_token: indexer_client.search_transactions_by_address(
+                address=pool_address,
+                next_page=nt
+            )
         )
         txns = data['transactions']
         logger.debug(f'Pool {pool_id}: processing {len(txns)} txns...')
@@ -76,7 +81,7 @@ async def pool_fetch_new_transactions_by_id(
                     if PAYMENT_TX in inner_tx:
                         is_claim = True
                         if ASSET_TRANSFER_TX in inner_tx and inner_tx[ASSET_TRANSFER_TX]['asset-id'] == asset_id:
-                            print(f'There are claim + transfer lol: {txid}\n')
+                            logger.debug(f'Claim + transfer in tx: {txid}')
                 if is_claim:
                     # TODO: save claim tx as well
                     continue
