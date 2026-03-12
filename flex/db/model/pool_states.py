@@ -76,15 +76,6 @@ class PoolState(BaseEntity['PoolState']):
             staked_micros_by_address=self.staked_micros_by_address
         )
 
-    def to_dict(self) -> dict:
-        return self.to_dict()
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        return cls.from_dict(data)
-
-
-
 @dataclass_json
 @dataclass
 class UserPoolStateInfo:
@@ -147,9 +138,3 @@ class UserState(BaseEntity['UserState']):
             since_update=format_timedelta(now - self.updated)
         )
 
-    def to_dict(self) -> dict:
-        return self.to_dict()
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        return cls.from_dict(data)

@@ -1,6 +1,10 @@
+import logging
+
 from flex import db
 from flex.data.asset_prices import get_asset_price
 from flex.db.model.pools import PoolType
+
+logger = logging.getLogger(__name__)
 
 
 async def calculate_total_tvl_usd_for_type(type: PoolType) -> float:
@@ -13,7 +17,7 @@ async def calculate_total_tvl_usd_for_type(type: PoolType) -> float:
         if pool_token_price_usd is None:
             pool_token_price_usd = (await get_asset_price(pool.stake_token.id)).price_usd
         if pool.total_staked < 0:
-            print(f'\nwtf negative bro\n\n{pool.pretty_str()}\n\n')
+            logger.warning(f'Negative total_staked in pool {pool.pool_id}: {pool.total_staked}')
         total_usd += pool.total_staked * pool_token_price_usd
     return total_usd
 

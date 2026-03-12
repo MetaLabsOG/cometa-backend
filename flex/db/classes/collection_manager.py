@@ -126,7 +126,7 @@ class CollectionManager(Generic[EntityT]):
         return self.mongodb_collection.count_documents(kwargs)
 
     def exists(self, **kwargs) -> bool:
-        return self.count(**kwargs) > 0
+        return self.mongodb_collection.find_one(kwargs, projection={'_id': 1}) is not None
 
     def item_from_dict(self, item_dict: dict) -> EntityT:
         return self.elem_type.from_dict(item_dict)
