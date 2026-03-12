@@ -35,7 +35,7 @@ def start_js_interop_server():
 
 
 async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     buf = b''
     while delimeter not in buf:
         chunk = await loop.sock_recv(s, buf_size)
@@ -54,7 +54,7 @@ async def calljs(cmd: str, **params):
         await asyncio.sleep(1)
 
     inp = json.dumps({"command": cmd, "body": params})
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     
     retry_count = 0
     max_retries = 3
@@ -62,10 +62,15 @@ async def calljs(cmd: str, **params):
     while retry_count < max_retries:
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(30)
+                client.setblocking(False)
                 await loop.sock_connect(client, COMETA_SOCK)
                 await loop.sock_sendall(client, inp.encode('utf-8'))
                 client.shutdown(socket.SHUT_WR)
-                outp = await recv_until_delimeter(client, '\n'.encode('utf-8'))
+                outp = await asyncio.wait_for(
+                    recv_until_delimeter(client, '\n'.encode('utf-8')),
+                    timeout=30
+                )
                 client.shutdown(socket.SHUT_RD)
             
             response = json.loads(outp.decode('utf-8'))
@@ -97,7 +102,7 @@ async def calljs(cmd: str, **params):
             
             return response["response"]
         
-        except (ConnectionRefusedError, FileNotFoundError, RuntimeError) as e:
+        except (ConnectionRefusedError, FileNotFoundError, RuntimeError, asyncio.TimeoutError) as e:
             retry_count += 1
             logger.warning(f"JS interop connection error (attempt {retry_count}/{max_retries}): {e}")
             if retry_count < max_retries:

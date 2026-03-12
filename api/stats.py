@@ -40,8 +40,8 @@ def save_snapshot(farm_tvl: float, distribution_tvl: float, staking_tvl: float) 
 
 
 def get_last_snapshot() -> Optional[CometaSnapshot]:
-    res = snapshots.find().limit(1).sort("$natural", -1).next()
-    return CometaSnapshot.from_dict(res) if res else res
+    res = snapshots.find_one(sort=[("$natural", -1)])
+    return CometaSnapshot.from_dict(res) if res else None
 
 
 @cached(cache=TTLCache(maxsize=1024, ttl=settings.asset_prices_ttl))
@@ -64,9 +64,14 @@ def get_asset_info(asset_id: int) -> dict:
 @cached(cache=TTLCache(maxsize=1, ttl=settings.total_tvl_ttl))
 def get_tvl() -> dict:
     snapshot = get_last_snapshot()
+    if snapshot is None:
+        return {'farm': 0, 'distribution': 0, 'staking': 0, 'total': 0}
+    farm = snapshot.farm_tvl or 0
+    distribution = snapshot.distribution_tvl or 0
+    staking = snapshot.staking_tvl or 0
     return {
-        'farm': snapshot.farm_tvl,
-        'distribution': snapshot.distribution_tvl,
-        'staking': snapshot.staking_tvl,
-        'total': snapshot.farm_tvl + snapshot.distribution_tvl + snapshot.staking_tvl
+        'farm': farm,
+        'distribution': distribution,
+        'staking': staking,
+        'total': farm + distribution + staking
     }

@@ -1,11 +1,14 @@
-from aiocache import cached
-from algosdk.error import AlgodHTTPError
+import asyncio
 import logging
 
-from flex.blockchain.base import indexer_client, algod_client
-from flex.db.model.blockchain import Asset, AssetInfo
+from aiocache import cached
 
-# TODO: make it better somehow I don't know I'm tired as fuck bro
+from blockchain.node import get_current_round as _sync_get_current_round
+from flex.blockchain.base import indexer_client, algod_client
+from flex.db.model.blockchain import Asset
+
+logger = logging.getLogger(__name__)
+
 ALGO_ASSET = Asset(
     id=0,
     decimals=6,
@@ -17,36 +20,36 @@ ALGO_ASSET = Asset(
 )
 
 
+async def _run_sync(func, *args):
+    """Run a sync function in executor to avoid blocking the event loop."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, func, *args)
+
+
 async def fetch_asset(asset_id: int) -> Asset:
     if asset_id == 0:
         return ALGO_ASSET
 
-    data = indexer_client.asset_info(asset_id)
+    data = await _run_sync(indexer_client.asset_info, asset_id)
     params = data['asset']['params']
-    asset_info = AssetInfo(
+    return Asset(
         id=asset_id,
         decimals=params['decimals'],
         name=params['name'],
-        unit_name=params['unit-name']
-    )
-    return Asset(
-        id=asset_id,
-        decimals=asset_info.decimals,
-        name=asset_info.name,
-        unit_name=asset_info.unit_name,
+        unit_name=params['unit-name'],
         creator=params['creator'],
         reserve=params['reserve'],
-        total_supply=asset_info.micros_to_amount(params['total'])
+        total_supply=params['total'] / (10 ** params['decimals'])
     )
 
 
 async def get_address_assets(address: str) -> dict:
-    data = indexer_client.lookup_account_assets(address=address)
+    data = await _run_sync(lambda: indexer_client.lookup_account_assets(address=address))
     return {asset['asset-id']: asset['amount'] for asset in data['assets']}
 
 
 async def get_address_assets_with_algo(address: str) -> dict:
-    data = indexer_client.account_info(address)
+    data = await _run_sync(indexer_client.account_info, address)
     asset_balances = {asset['asset-id']: asset['amount'] for asset in data['account']['assets']}
     asset_balances[0] = data['account']['amount']
     return asset_balances
@@ -54,34 +57,22 @@ async def get_address_assets_with_algo(address: str) -> dict:
 
 @cached(ttl=10, namespace='node', key='current_round')
 async def get_current_round():
-    try:
-        data = algod_client.status()
-        current_round = data['last-round']
-        # Store for fallback
-        get_current_round._last_known_round = current_round
-        return current_round
-    except AlgodHTTPError as e:
-        logging.error(f"Failed to get current round from Algod: {e}")
-        fallback = getattr(get_current_round, '_last_known_round', 0)
-        logging.warning(f"Using fallback round: {fallback}")
-        return fallback
-    except Exception as e:
-        logging.error(f"Unexpected error getting current round: {e}", exc_info=True)
-        return getattr(get_current_round, '_last_known_round', 0)
+    """Async wrapper around the sync get_current_round (single implementation, shared cache)."""
+    return await _run_sync(_sync_get_current_round)
 
 
 async def get_app_address(app_id: int) -> str:
-    data = indexer_client.application_logs(application_id=app_id, limit=10)
+    data = await _run_sync(lambda: indexer_client.application_logs(application_id=app_id, limit=10))
     log_data = data['log-data']
 
     txid = log_data[0]['txid']
-    data = indexer_client.transaction(txid=txid)
+    data = await _run_sync(lambda: indexer_client.transaction(txid=txid))
 
     return data['transaction']['inner-txns'][0]['sender']
 
 
 async def get_address_app_ids(address: str) -> list[int]:
-    data = indexer_client.account_info(address=address)
+    data = await _run_sync(lambda: indexer_client.account_info(address=address))
     return [app_state['id'] for app_state in data['account']['apps-local-state']]
 
 
