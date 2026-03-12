@@ -8,7 +8,35 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `frontend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-051**
+- Next available ID: **CB-062**
+
+---
+
+## Pre-Launch Sprint (March 17 Comeback)
+
+> Full context: `~/dev/cometa/cometa-strategy/research/pre-launch-final-plan.md`
+> Cross-project sync: `~/dev/cometa/CLAUDE.md` → "Pre-Launch Coordination" section
+
+### Phase 1 — Independent (no cross-project deps)
+
+| ID | Task | Status | Priority | Tags | Notes |
+|----|------|--------|----------|------|-------|
+| CB-051 | Fix PoolState/UserState infinite recursion | todo | critical | backend | `flex/db/model/pool_states.py:79-84,150-155` — `to_dict()`/`from_dict()` call themselves. Delete overrides entirely — `@dataclass_json` provides them. DoD: `/wallet/{addr}/pools` returns without RecursionError |
+| CB-052 | Fix CORS configuration | todo | critical | security | `app.py:60-66` — `allow_origins=['*']` + `allow_credentials=True` invalid per spec. Change to `allow_origins=['https://app.cometa.farm', 'http://localhost:3000']`, `allow_credentials=False`. DoD: CORS preflight succeeds from app.cometa.farm |
+| CB-053 | Fix /stats/tvl crashes (3 bugs) | todo | critical | backend | (1) `api/stats.py:71` — `(snapshot.distribution_tvl or 0)`. (2) `api/stats.py:42` — replace `.next()` with `find_one()`, guard None. (3) `core/cometa.py:219` — `get_many({'type': type})` not `**{...}`. DoD: `GET /stats/tvl` returns 200 on cold DB |
+| CB-054 | Security cleanup: credentials, DB endpoints, dead alerts | todo | critical | security | (1) `verify_algorand_credentials.py:15` — replace hardcoded Tatum token with `os.getenv()`. (2) Delete `/db/find` + `/db/count` from `flex/api.py:346-377`. (3) Delete `notify_prices()` from `api/background.py:190-198`. DoD: no hardcoded tokens, `/db/find` returns 404 |
+| CB-055 | Gate fake wallet endpoints | todo | critical | backend | `api/wallet_manager.py:78-140` (`wallet_nfts`) → `return []`. `api/wallet_manager.py:50-65` (`wallet_total_cost`) → `return []`. DoD: both endpoints return empty arrays. Update Cross-Project Sync in `~/dev/cometa/CLAUDE.md` |
+| CB-056 | Disable lottery endpoints (if NftLottery entries exist) | todo | critical | security | Check `db.nft_lotteries.find().count()` first. If >0: add early return `503 {"disabled": true}` for `/lottery/swap`, `/lottery/staking`, `/lottery/claim`. If 0: skip this task. DoD: lottery endpoints return 503. Update Cross-Project Sync |
+| CB-057 | Unify BLOCK_TIME constant | todo | high | backend | Delete `core/util.py:15-16` (BLOCK_TIME=3.7). All code must import from `flex/blockchain/base.py` (2.7s). Check `core/cometa.py` APR calc uses correct value. DoD: single BLOCK_TIME source, no 3.7 anywhere |
+| CB-058 | JS sidecar timeout | todo | high | backend | `core/js_interop.py:64-68` — add `socket.settimeout(30)`. Also verify `SYNC_HUMBLE_POOLS=0` in production `.env`. DoD: stuck Node.js call fails after 30s with logged error |
+
+### Phase 2 — Dead Code Removal
+
+| ID | Task | Status | Priority | Tags | Notes |
+|----|------|--------|----------|------|-------|
+| CB-059 | Remove dead endpoints and modules | todo | high | backend | **flex/api.py**: delete entire Pools 2.0 block (15 endpoints: `/pool/`, `/pools/`, `/pools/state/`, etc.). Keep only: `/asset`, `/assets`, `/asset/price`, `/assets/price`, `/lp/state/priced`. **app.py**: delete `/contract/add`, `/contracts/add`, `/contract/deploy`, `/wallet/{addr}/pools/deprecated`, `/wallet/{addr}/lottery-draws`, `/stats/app-ids`, `/pools/snapshot_all`, `/pools/notify`. **Directories**: delete `metapunks/`, `farcaster/`, `unusedcode/`, `marketplaces/`, `airdrop/`. **Scripts**: delete `download_logos.py`, `sample.py`, `check_vestige_hack.py`, `airdrop_to_all_opt_in.py`. **Background**: delete `update_all_user_pools()`, `update_pools_info_worker()`. DoD: `app.py` and `flex/api.py` have only active endpoints; deleted dirs not in Docker image |
+| CB-060 | Fix blocking I/O in async handlers | todo | high | backend, perf | `api/wallet.py` — `send_nft()`, `is_opted_in()`: wrap with `asyncio.get_event_loop().run_in_executor()`. `api/wallet_manager.py` — `get_wallet_assets()` sync httpx calls: same fix. DoD: no sync blocking calls in async endpoint handlers |
+| CB-061 | Docker hardening | todo | high | infra | (1) Remove volume bind mount from production compose (code baked into image). (2) Add `healthcheck: test: curl -f http://localhost:8000/status`. (3) Add `.dockerignore` with dead dirs. DoD: `docker ps` shows healthy; no `.env` mounted into container |
 
 ---
 

@@ -113,3 +113,10 @@ pipenv run pytest tests/ -v
 ## Task Board
 
 Tasks in `BOARD.md`. Format: pantheon.
+
+## Available MCP Tools
+
+- **MongoDB MCP** — direct database queries in Claude sessions. Use for debugging: `db.contracts.find({active: true})`, inspecting collections, verifying data integrity. Connection: `mongodb://localhost:27017/cometa`
+- **Algorand MCP** — on-chain state verification, account info, asset lookups on mainnet
+- **Vestige MCP** — DEX price data, pool states, trading pairs for Algorand DeFi
+- **Codex MCP** — second-opinion code review via GPT-5.x. Run `review` after writing significant code
