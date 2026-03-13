@@ -18,7 +18,7 @@ from core.constants import LOG_FORMAT, LOG_DATE_FORMAT
 from core.db.cometa_users import filter_compoundable_pools, filter_ended_pools, filter_no_action_pools, \
     cometa_users
 # TODO: move commands to separate files
-from core.js_interop import start_js_interop_server
+from core.js_interop import managed_js_interop_server
 
 
 async def start(update: Update, context: CallbackContext):
@@ -249,7 +249,7 @@ if __name__ == '__main__':
     atexit.register(tear_down)
 
     try:
-        with start_js_interop_server():
+        with managed_js_interop_server():
             with start_bg_tasks():
                 start_bot()
     except Exception as ex:
