@@ -102,7 +102,7 @@
 | CB-015 | Standardize datetime usage — all `datetime.now(timezone.utc)` | todo | medium | backend | `app.py:205,260`, `flex/api.py:87,212` — mix of naive and aware datetimes |
 | CB-016 | Pin dependency versions in Pipfile | todo | medium | backend, infra | All packages `"*"` — non-reproducible builds. Pin to current working versions |
 | CB-017 | Fix Dockerfile — layer caching, non-root user, .dockerignore | todo | medium | infra | COPY before pip install, no USER directive, apt cache not cleaned |
-| CB-018 | Fix JS interop zombie processes — `start_js_interop_server()` leaks Node.js processes | todo | medium | backend | `core/js_interop.py:18` — no cleanup on retry, zombies accumulate |
+| CB-018 | Fix JS interop zombie processes — `start_js_interop_server()` leaks Node.js processes | done | medium | backend | Fixed: global process tracking, kill-before-spawn, context manager, atexit cleanup, restart cooldown, run_in_executor for async context |
 | CB-019 | Fix `safe_async_method` — return value discarded, decorator order with `@repeat_every` | todo | medium | backend | `core/decorators.py:6-11` — swallows return values |
 | CB-020 | Clean up dead code — `unusedcode/`, `notify_prices`, `check_vestige_hack.py`, debug scripts | todo | medium | backend | `unusedcode/`, `api/background.py:187-195`, root-level temp scripts |
 | CB-021 | Deduplicate `check_password` function | todo | low | backend | `app.py:70` and `flex/api.py:38` — identical functions |

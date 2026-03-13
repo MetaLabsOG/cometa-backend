@@ -50,11 +50,14 @@ async def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolIn
         # Tinyman Pool class do that for some untangible issue reason
         asset1_id, asset2_id = asset2_id, asset1_id
 
-    # assets are already cached inside TinymanClient
-    asset1 = tinyman_client.fetch_asset(asset1_id)
-    asset2 = tinyman_client.fetch_asset(asset2_id)
+    import asyncio
+    loop = asyncio.get_running_loop()
 
-    pool = tinyman_client.fetch_pool(asset1, asset2)
+    # Tinyman SDK methods do blocking HTTP — run in executor to avoid blocking the event loop
+    asset1 = await loop.run_in_executor(None, tinyman_client.fetch_asset, asset1_id)
+    asset2 = await loop.run_in_executor(None, tinyman_client.fetch_asset, asset2_id)
+
+    pool = await loop.run_in_executor(None, tinyman_client.fetch_pool, asset1, asset2)
 
     logger.debug(f'Found pool for assets {asset1_id} and {asset2_id}: {pool}')
     if pool.asset_1_reserves is None or pool.asset_2_reserves is None or pool.issued_pool_tokens is None:
@@ -103,7 +106,7 @@ class TinymanAssetInfo:
 @cached(cache=TTLCache(maxsize=1, ttl=60 * 60 * 24))
 def get_tinyman_assets_details() -> dict[int, TinymanAssetInfo]:
     url = 'https://asa-list.tinyman.org/assets.json'
-    response = requests.get(url)
+    response = requests.get(url, timeout=30)
     data = response.json()
     assets_info = []
     for asa_id, asa_data in data.items():
