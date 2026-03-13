@@ -42,7 +42,10 @@ VERSION = '2.1.0'
 app = FastAPI(
     title='Cometa',
     version=VERSION,
-    description=f'Cometa API {VERSION}'
+    description=f'Cometa API {VERSION}',
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
