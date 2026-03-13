@@ -25,7 +25,7 @@ from blockchain.util import date_from_block
 from core.db.contracts import ContractInfo, get_contract, get_contracts_by_type, update_contract, \
     insert_contract, invalidate_contracts_cache
 from core.db.model import UserPool
-from core.js_interop import calljs, start_js_interop_server
+from core.js_interop import calljs, managed_js_interop_server
 from core.util import parse_bignum, strip_version
 from core.auth import require_password
 from env import settings
@@ -598,7 +598,7 @@ def start_app():
     try:
         if settings.enable_js:
             logger.info("Starting with JS interop server enabled")
-            with start_js_interop_server():
+            with managed_js_interop_server():
                 with start_bg_tasks():
                     with start_sync_proc():
                         uvicorn.run(

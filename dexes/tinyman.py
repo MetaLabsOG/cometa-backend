@@ -400,7 +400,7 @@ def get_zap_transactions(client, asset1_id, asset2_id, asset1_amount, swap_half,
 # TODO: move asset infos to DB
 @cached(cache=TTLCache(maxsize=1, ttl=settings.asset_prices_ttl))
 def get_all_assets():
-    with urllib.request.urlopen(ASSETS_PATH) as url:
+    with urllib.request.urlopen(ASSETS_PATH, timeout=30) as url:
         return json.loads(url.read().decode())
 
 
