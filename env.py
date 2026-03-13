@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     mongodb_host: str
     mongodb_port: int
+    mongodb_username: Optional[str] = None
+    mongodb_password: Optional[str] = None
     new_db_name: str = 'cometa-updated'
 
     redis_host: str
