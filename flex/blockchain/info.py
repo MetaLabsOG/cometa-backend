@@ -35,10 +35,10 @@ async def fetch_asset(asset_id: int) -> Asset:
     return Asset(
         id=asset_id,
         decimals=params['decimals'],
-        name=params['name'],
-        unit_name=params['unit-name'],
-        creator=params['creator'],
-        reserve=params['reserve'],
+        name=params.get('name', ''),
+        unit_name=params.get('unit-name', ''),
+        creator=params.get('creator', ''),
+        reserve=params.get('reserve', ''),
         total_supply=params['total'] / (10 ** params['decimals'])
     )
 
