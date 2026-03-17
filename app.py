@@ -57,6 +57,9 @@ app.add_middleware(
 )
 app.include_router(flex.api.router)
 
+logger = logging.getLogger(__name__)
+logging.getLogger('base').setLevel(logging.INFO)
+
 
 # Catch-all exception handlers to ensure CORS headers are present on error responses.
 # Without these, unhandled exceptions bypass CORSMiddleware and browsers block the response.
@@ -75,9 +78,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error"},
     )
-
-logger = logging.getLogger(__name__)
-logging.getLogger('base').setLevel(logging.INFO)
 
 
 # COMMON API
@@ -251,7 +251,7 @@ async def create_contract_with(type: str, id: int, version: str, description: st
         raise
 
 
-@app.post('/contract/register', tags=['Contracts'])
+@app.post('/contract/register', tags=['Contracts'], dependencies=[Depends(require_password)])
 async def register_contract(contract: AddContract) -> ContractInfo:
     logger.info(f'Registering a new contract {contract}')
 
@@ -523,15 +523,6 @@ def init_app():
                 result = asset_prices_col.delete_many({'_id': {'$in': ids_to_remove}})
                 total_removed += result.deleted_count
             logger.info(f"Removed {total_removed} duplicate asset_prices entries")
-
-        META_ASSET_ID = 923640017
-        META_PRICE = 0.0035137119865087697
-        corrupted = asset_prices_col.delete_many({
-            'id': {'$ne': META_ASSET_ID},
-            'price_algo': {'$gte': META_PRICE * 0.99, '$lte': META_PRICE * 1.01}
-        })
-        if corrupted.deleted_count > 0:
-            logger.info(f"Cleaned {corrupted.deleted_count} corrupted asset prices (META price leak)")
 
         asset_prices_col.create_index('id', unique=True, name='id_unique')
         logger.info("Ensured unique index on asset_prices.id")
