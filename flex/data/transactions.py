@@ -74,7 +74,9 @@ async def pool_fetch_new_transactions_by_id(
                 new_transactions.append(pool_tx)
 
             elif APPLICATION_CALL_TX in tx:
-                inner_txns = tx['inner-txns']
+                inner_txns = tx.get('inner-txns', [])
+                if not inner_txns:
+                    continue
 
                 is_claim = False
                 for inner_tx in inner_txns:
