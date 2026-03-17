@@ -98,6 +98,9 @@ def managed_js_interop_server():
 atexit.register(_kill_js_process)
 
 
+MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
 async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
     loop = asyncio.get_running_loop()
     buf = b''
@@ -106,6 +109,8 @@ async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int
         if not chunk:
             raise RuntimeError("socket closed during recv")
         buf += chunk
+        if len(buf) > MAX_RESPONSE_SIZE:
+            raise RuntimeError(f"JS interop response exceeded {MAX_RESPONSE_SIZE} bytes limit")
     res, _, _ = buf.partition(delimeter)
     return res
 
