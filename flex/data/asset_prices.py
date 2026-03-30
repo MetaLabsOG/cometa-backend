@@ -9,12 +9,8 @@ from env import settings
 from flex import db
 from flex.blockchain.info import get_current_round
 from flex.data.assets import get_asset_details
-from flex.data.lp_states import get_tinyman_pool_lp_state_by_asset_id, \
-    get_lp_state_by_lp_token_id
-from flex.data.lp_tokens import get_lp_token_by_id
-from flex.data.tinyman_lps import calculate_price_algo_from_tiny_algo_pool
 from flex.db.model.priced import AssetPrice, AssetPriceInfo
-from flex.providers.vestige import vestige_full_asset_price, get_algo_price_usd, DexProvider
+from flex.providers.vestige import vestige_full_asset_price, get_algo_price_usd
 from flex.meta_error import MetaError
 from flex.util import build_key_str
 
@@ -39,7 +35,11 @@ async def create_asset_prices_batch(
     current_round: int,
     algo_price_usd: float | None = None,
 ) -> list[AssetPrice]:
-    """Create prices for multiple assets using Vestige batch API."""
+    """Create prices for multiple assets using Vestige batch API.
+
+    LP token prices are handled by the background worker (lp_prices.py),
+    not by this function.
+    """
     from flex.providers.vestige import vestige_batch_prices
 
     if not asset_ids:
@@ -47,69 +47,30 @@ async def create_asset_prices_batch(
 
     algo_price_usd = algo_price_usd or await get_algo_price_usd()
 
-    # Separate LP tokens from regular assets
-    lp_prices = []
-    regular_ids = []
-    for aid in asset_ids:
-        lp_token = await get_lp_token_by_id(aid)
-        if lp_token is not None:
-            try:
-                priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
-                asset_details = await get_asset_details(aid)
-                ap = AssetPrice(
-                    id=lp_token.id,
-                    name=asset_details.name,
-                    price_algo=priced_lp_state.token_price_algo,
-                    price_usd=priced_lp_state.token_price_algo * algo_price_usd,
-                    last_update_round=priced_lp_state.last_updated_round,
-                )
-                _upsert_asset_price(ap)
-                lp_prices.append(ap)
-            except Exception as e:
-                logger.warning(f'Failed to create LP price for {aid}: {e}')
-        else:
-            regular_ids.append(aid)
-
-    # Try Tinyman pools first for regular assets
-    tinyman_prices = []
-    vestige_ids = []
-    for aid in regular_ids:
-        tinyman_price = await get_simple_asset_price_from_pools(aid, algo_price_usd)
-        if tinyman_price is not None:
-            _upsert_asset_price(tinyman_price)
-            tinyman_prices.append(tinyman_price)
-        else:
-            vestige_ids.append(aid)
-
-    # Batch fetch remaining from Vestige
+    # Batch fetch from Vestige
     vestige_prices = []
-    if vestige_ids:
-        batch_result = await vestige_batch_prices(vestige_ids)
-        for aid in vestige_ids:
-            price = batch_result.get(aid)
-            if price is None or (price.algo <= 0 and price.usd <= 0):
-                logger.warning(f'No valid Vestige price for asset {aid}')
-                continue
-            try:
-                asset_details = await get_asset_details(aid)
-                ap = AssetPrice(
-                    id=aid,
-                    name=asset_details.name,
-                    price_algo=price.algo,
-                    price_usd=price.usd,
-                    last_update_round=current_round,
-                )
-                _upsert_asset_price(ap)
-                vestige_prices.append(ap)
-            except Exception as e:
-                logger.warning(f'Failed to store Vestige price for asset {aid}: {e}')
+    batch_result = await vestige_batch_prices(asset_ids)
+    for aid in asset_ids:
+        price = batch_result.get(aid)
+        if price is None or (price.algo <= 0 and price.usd <= 0):
+            logger.warning(f'No valid Vestige price for asset {aid}')
+            continue
+        try:
+            asset_details = await get_asset_details(aid)
+            ap = AssetPrice(
+                id=aid,
+                name=asset_details.name,
+                price_algo=price.algo,
+                price_usd=price.usd,
+                last_update_round=current_round,
+            )
+            _upsert_asset_price(ap)
+            vestige_prices.append(ap)
+        except Exception as e:
+            logger.warning(f'Failed to store Vestige price for asset {aid}: {e}')
 
-    all_created = lp_prices + tinyman_prices + vestige_prices
-    logger.info(
-        f'Batch prices: {len(all_created)}/{len(asset_ids)} created '
-        f'(LP={len(lp_prices)}, Tinyman={len(tinyman_prices)}, Vestige={len(vestige_prices)})'
-    )
-    return all_created
+    logger.info(f'Batch prices: {len(vestige_prices)}/{len(asset_ids)} created')
+    return vestige_prices
 
 
 async def create_asset_price(asset_id: int, current_round: int, algo_price_usd: float | None = None) -> AssetPrice:
@@ -118,36 +79,24 @@ async def create_asset_price(asset_id: int, current_round: int, algo_price_usd: 
         logger.debug(f'Creating asset price {asset_id} = {asset_details.name}')
 
         algo_price_usd = algo_price_usd or await get_algo_price_usd()
-        lp_token = await get_lp_token_by_id(asset_id)
-        if lp_token is not None:
-            priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
+
+        try:
+            price = await vestige_full_asset_price(asset_id)
+            if price.algo <= 0 and price.usd <= 0:
+                logger.warning(f"Vestige returned zero/negative price for asset {asset_id} ({asset_details.name})")
+                raise MetaError(f"Vestige returned invalid price for asset {asset_id}")
             asset_price = AssetPrice(
-                id=lp_token.id,
+                id=asset_id,
                 name=asset_details.name,
-                price_algo=priced_lp_state.token_price_algo,
-                price_usd=priced_lp_state.token_price_algo * algo_price_usd,
-                last_update_round=priced_lp_state.last_updated_round
+                price_algo=price.algo,
+                price_usd=price.usd,
+                last_update_round=current_round
             )
-        else:
-            asset_price = await get_simple_asset_price_from_pools(asset_id, algo_price_usd)
-            if asset_price is None:
-                try:
-                    price = await vestige_full_asset_price(asset_id)
-                    if price.algo <= 0 and price.usd <= 0:
-                        logger.warning(f"Vestige returned zero/negative price for asset {asset_id} ({asset_details.name})")
-                        raise MetaError(f"Vestige returned invalid price for asset {asset_id}")
-                    asset_price = AssetPrice(
-                        id=asset_id,
-                        name=asset_details.name,
-                        price_algo=price.algo,
-                        price_usd=price.usd,
-                        last_update_round=current_round
-                    )
-                except MetaError:
-                    raise
-                except Exception as e:
-                    logger.error(f"Failed to get price from Vestige for asset {asset_id}: {e}")
-                    raise MetaError(f"Could not fetch price for asset {asset_id}")
+        except MetaError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get price from Vestige for asset {asset_id}: {e}")
+            raise MetaError(f"Could not fetch price for asset {asset_id}")
 
         _upsert_asset_price(asset_price)
         logger.info(f'Asset Price {asset_price.name} (id={asset_price.id}): usd={asset_price.price_usd}, algo={asset_price.price_algo}')
@@ -157,56 +106,19 @@ async def create_asset_price(asset_id: int, current_round: int, algo_price_usd: 
         raise
 
 
-async def get_simple_asset_price_from_pools(asset_id: int, algo_price_usd: float | None = None) -> AssetPrice | None:
-    tiny_lp_state = await get_tinyman_pool_lp_state_by_asset_id(asset_id)
-    if tiny_lp_state is None:
-        return None
-
-    price_algo = await calculate_price_algo_from_tiny_algo_pool(tiny_lp_state)
-    algo_price_usd = algo_price_usd or (await get_algo_price_usd())
-    asset_price = AssetPrice(
-        id=asset_id,
-        name=(await get_asset_details(asset_id)).name,
-        price_algo=price_algo,
-        price_usd=price_algo * algo_price_usd,
-        last_update_round=tiny_lp_state.last_updated_round,
-        tinyman_algo_pool_id=tiny_lp_state.id
-    )
-    return asset_price
-
 
 async def update_asset_price(asset_price: AssetPrice, current_round: int, algo_price_usd: float | None = None) -> AssetPrice:
     logger.debug(f'Updating Asset Price id = {asset_price.id}, algo_price = {asset_price.price_algo}')
     old_price_algo = asset_price.price_algo
     old_price_usd = asset_price.price_usd
 
-    lp_token = await get_lp_token_by_id(asset_price.id)
-    algo_price_usd = algo_price_usd or (await get_algo_price_usd())
-    
     try:
-        if lp_token is not None:
-            priced_lp_state = await get_lp_state_by_lp_token_id(lp_token.id)
-            asset_price.price_algo = priced_lp_state.token_price_algo
-            asset_price.price_usd = priced_lp_state.token_price_algo * algo_price_usd
-
-        elif asset_price.tinyman_algo_pool_id is not None:
-            lp_state = db.lp_states.get_one(id=asset_price.tinyman_algo_pool_id)
-            # TODO: simplify the condition or extract to method
-            if lp_state is not None and lp_state.dex_provider == DexProvider.TINYMAN_V2 and lp_state.is_algo_pool:
-                asset_price.price_algo = await calculate_price_algo_from_tiny_algo_pool(lp_state)
-                asset_price.price_usd = asset_price.price_algo * algo_price_usd
-            else:
-                price = await vestige_full_asset_price(asset_id=asset_price.id)
-                asset_price.price_algo = price.algo
-                asset_price.price_usd = price.usd
-        else:
-            price = await vestige_full_asset_price(asset_id=asset_price.id)
-            asset_price.price_algo = price.algo
-            asset_price.price_usd = price.usd
+        price = await vestige_full_asset_price(asset_id=asset_price.id)
+        asset_price.price_algo = price.algo
+        asset_price.price_usd = price.usd
     except Exception as e:
         logger.error(f"Failed to update price for asset {asset_price.id}: {e}")
         logger.info(f"Keeping old price values for asset {asset_price.id}")
-        # Keep the old values on error
         asset_price.price_algo = old_price_algo
         asset_price.price_usd = old_price_usd
 

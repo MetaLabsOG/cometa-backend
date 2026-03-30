@@ -30,7 +30,6 @@ from core.util import parse_bignum, strip_version
 from core.auth import require_password
 from env import settings
 from flex.data.asset_prices import get_asset_price_not_cached
-from flex.data.lp_states import create_lp_state_by_lp_token_id
 from flex.data.pool_state import get_or_create_pool_state, update_pool_state
 from flex.data.pool_state_priced import calculate_user_pool_state_cost
 from flex.migrations import migrate_before_start
@@ -221,13 +220,6 @@ async def create_contract_with(type: str, id: int, version: str, description: st
             pool_info = await create_pool_from_contract(contract)
             if pool_info is not None:
                 logger.info(f"Created pool info for contract {id}: {pool_info.id}")
-
-                if 'dex' in metadata:
-                    try:
-                        await create_lp_state_by_lp_token_id(pool_info.stake_token.id)
-                        logger.info(f"Created LP state for token {pool_info.stake_token.id}")
-                    except Exception as e:
-                        logger.error(f"Error creating LP state: {e}", exc_info=True)
 
                 try:
                     pool_state = await get_or_create_pool_state(pool_info.id)

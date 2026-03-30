@@ -19,6 +19,7 @@ from flex import db
 from flex.migrations import migrate_background
 from flex.sync_pools import sync_pools_loop
 from flex.data.asset_prices import get_asset_price_not_cached
+from flex.data.lp_prices import update_lp_token_prices
 
 spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
@@ -172,6 +173,12 @@ async def update_asset_prices_background():
             await asyncio.sleep(delay)
 
     logger.info(f'Asset price update completed: {total_updated} updated, {skipped} skipped, {failures} failed')
+
+    # LP token prices: calculate from on-chain reserves
+    try:
+        await update_lp_token_prices(current_round)
+    except Exception as e:
+        logger.error(f'LP token price update failed: {e}')
 
 
 def run_background():
