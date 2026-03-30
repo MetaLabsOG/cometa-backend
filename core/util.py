@@ -23,9 +23,16 @@ def get_second_arg(*args, **kwargs):
     return args[1]
 
 
-def parse_bignum(obj: dict) -> int:
-    assert 'type' in obj and 'hex' in obj and obj['type'] == 'BigNumber'
-    return int(obj['hex'], 16)
+def parse_bignum(obj) -> int:
+    if obj is None:
+        return 0
+    if isinstance(obj, str):
+        return int(obj, 16) if obj.startswith('0x') else int(obj)
+    if isinstance(obj, int):
+        return obj
+    if isinstance(obj, dict) and obj.get('type') == 'BigNumber' and 'hex' in obj:
+        return int(obj['hex'], 16)
+    raise ValueError(f'Cannot parse as BigNumber: {obj!r}')
 
 
 def parse_datetime(date_obj: Any) -> Optional[datetime]:
