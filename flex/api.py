@@ -3,18 +3,13 @@ import logging
 from datetime import datetime
 
 from aiocache import cached
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-
-from core.auth import require_password
 from flex import db
 from flex.data.asset_prices import get_asset_price, get_all_asset_prices, get_asset_prices_by_query, create_asset_prices_batch
 from flex.data.assets import get_all_asset_details, get_asset_details, get_asset_details_by_query, get_full_asset
 from flex.db.model.blockchain import AssetDetails
-from flex.db.model.liquidity_pools import LpStateInfo
 from flex.db.model.priced import AssetPriceInfo
-from flex.data.lp_states import get_lp_state_by_lp_token_id, update_lp_state
-from flex.providers.vestige import get_algo_price_usd
 from core.db.contracts import get_contracts_by_type, get_active_contracts
 
 router = APIRouter()
@@ -22,34 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 # LP API
-
-@router.post('/lp/states/update', tags=['LP'], dependencies=[Depends(require_password)])
-async def handle_update_all_lp_states() -> list:
-    all_lp_states = db.lp_states.get_all()
-    logger.info(f'Updating {len(all_lp_states)} LP states')
-
-    price_diffs = []
-    for i, lp_state in enumerate(all_lp_states):
-        logger.info(f'Updating LP state {i + 1}/{len(all_lp_states)}: id = {lp_state.token_id}')
-        lp_state = await get_lp_state_by_lp_token_id(lp_state.token_id)
-        updated_lp_state = await update_lp_state(lp_state)
-        db.lp_states.update(updated_lp_state)
-        if lp_state.token_price_algo != updated_lp_state.token_price_algo:
-            price_diffs.append({
-                'lp_token_id': lp_state.token_id,
-                'initial': lp_state.token_price_algo,
-                'updated': updated_lp_state.token_price_algo,
-                'ratio': updated_lp_state.token_price_algo / lp_state.token_price_algo if lp_state.token_price_algo != 0 else 0
-            })
-
-    return price_diffs
-
-
-@cached(ttl=60)
-async def get_lp_state_info_by_lp_token_id(lp_token_id: int) -> LpStateInfo:
-    lp_state = await get_lp_state_by_lp_token_id(lp_token_id)
-    algo_price_usd = await get_algo_price_usd()
-    return lp_state.to_info(algo_price_usd)
 
 
 class LpStatePricedRequest(BaseModel):
@@ -59,27 +26,20 @@ class LpStatePricedRequest(BaseModel):
 
 @router.post('/lp/state/priced', tags=['LP'])
 async def handle_get_lp_state_priced(body: LpStatePricedRequest):
-    # Batch mode: return dict of results
+    """Return LP token prices from asset_prices collection."""
+    token_ids = body.lp_token_ids or ([body.lp_token_id] if body.lp_token_id else None)
+    if not token_ids:
+        raise HTTPException(status_code=400, detail="Provide lp_token_id or lp_token_ids")
+
+    results = {}
+    for tid in token_ids:
+        price = db.asset_prices.get_one(id=tid)
+        results[str(tid)] = {'token_id': tid, 'token_price_algo': price.price_algo, 'token_price_usd': price.price_usd} if price else None
+
     if body.lp_token_ids is not None:
-        results = {}
-        tasks = {
-            token_id: get_lp_state_info_by_lp_token_id(token_id)
-            for token_id in body.lp_token_ids
-        }
-        settled = await asyncio.gather(*tasks.values(), return_exceptions=True)
-        for token_id, result in zip(tasks.keys(), settled):
-            if isinstance(result, BaseException):
-                logger.warning(f'LP state fetch failed for {token_id}: {result}')
-                results[str(token_id)] = None
-            else:
-                results[str(token_id)] = result
         return {"results": results}
-
     # Single mode: backward compatible
-    if body.lp_token_id is not None:
-        return await get_lp_state_info_by_lp_token_id(body.lp_token_id)
-
-    raise HTTPException(status_code=400, detail="Provide lp_token_id or lp_token_ids")
+    return results.get(str(body.lp_token_id))
 
 
 # ASSETS API
@@ -185,7 +145,6 @@ async def get_farm_enriched(active_only: bool = True):
     all_contracts = get_contracts_by_type(None)
 
     asset_ids = set()
-    lp_token_ids = set()
     for c in all_contracts:
         m = c.metadata or {}
         for key in ('stake_token_id', 'reward_token_id', 'asset1_id', 'asset2_id'):
@@ -200,15 +159,6 @@ async def get_farm_enriched(active_only: bool = True):
                 val = _parse_bignum_safe(initial.get(key))
                 if val is not None:
                     asset_ids.add(val)
-
-        if m.get('dex'):
-            if cache:
-                stake_token = _parse_bignum_safe(cache.get('initial', {}).get('stakeToken'))
-                if stake_token:
-                    lp_token_ids.add(stake_token)
-            stake_token_meta = m.get('stake_token_id')
-            if stake_token_meta:
-                lp_token_ids.add(int(stake_token_meta))
 
     asset_ids.discard(0)  # ALGO doesn't need lookup
 
@@ -248,17 +198,9 @@ async def get_farm_enriched(active_only: bool = True):
         except Exception as e:
             logger.error(f'Batch price creation failed: {e}')
 
-    # Batch-fetch ALL LP states (isolated error handling — don't break assets/prices if LP fetch fails)
-    # Fetching all (~200) instead of filtering by $in because some token_ids are stored
-    # as BSON Long in MongoDB and don't match Python int queries
+    # LP prices are now in asset_prices collection (populated by background worker).
+    # Keep lp_states key as empty dict for frontend compatibility.
     lp_states_dict = {}
-    try:
-        algo_price_usd = await get_algo_price_usd()
-        lp_states_list = db.lp_states.get_all()
-        lp_states_dict = {s.token_id: s.to_info(algo_price_usd, current_time).to_dict() for s in lp_states_list}
-        logger.info(f'Enriched: returning {len(lp_states_dict)} LP states (from {len(lp_states_list)} in DB)')
-    except Exception as e:
-        logger.error(f'Failed to fetch LP states for enriched endpoint: {e}')
 
     assets_dict = {a.id: a.to_details().to_dict() for a in assets_list}
     prices_dict = {p.id: p.to_info(current_time).to_dict() for p in prices_list}
