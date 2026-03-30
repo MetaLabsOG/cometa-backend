@@ -142,12 +142,26 @@ async def get_lp_token_definitions() -> list[dict]:
     return result
 
 
+def _get_pool_address(asset_info: dict) -> str:
+    """Get the pool address for an LP token.
+
+    Tinyman V2 stores the pool address in 'reserve' (creator is the factory).
+    Other DEXes use 'creator' as the pool address directly.
+    """
+    params = asset_info['params']
+    reserve = params.get('reserve')
+    creator = params['creator']
+    if reserve and reserve != creator:
+        return reserve
+    return creator
+
+
 async def _discover_lp_tokens_onchain(lp_token_ids: list[int]) -> list[dict]:
     """Discover LP token pool composition from on-chain data.
 
-    For each token: get asset_info (creator = pool address),
+    For each token: get asset_info → pool address (reserve for Tinyman V2, creator for others),
     then pool account balances to identify the underlying pair.
-    Only returns results that look like valid AMM pool tokens.
+    Only returns results that look like valid AMM pool tokens (exactly 2 non-LP assets).
     """
     semaphore = asyncio.Semaphore(LP_CONCURRENCY)
 
@@ -155,7 +169,7 @@ async def _discover_lp_tokens_onchain(lp_token_ids: list[int]) -> list[dict]:
         async with semaphore:
             try:
                 asset_info = await _run_sync(algod_client.asset_info, lp_token_id)
-                pool_address = asset_info['params']['creator']
+                pool_address = _get_pool_address(asset_info)
 
                 account_info = await _run_sync(algod_client.account_info, pool_address)
                 held_assets = {}
@@ -173,6 +187,11 @@ async def _discover_lp_tokens_onchain(lp_token_ids: list[int]) -> list[dict]:
 
                 if len(pool_assets) < 2:
                     logger.debug(f'LP {lp_token_id}: pool has <2 assets, skipping')
+                    return None
+
+                # AMM pools should have exactly 2 assets; skip if too many (likely not a pool)
+                if len(pool_assets) > 5:
+                    logger.debug(f'LP {lp_token_id}: pool has {len(pool_assets)} assets, skipping (likely not a pool)')
                     return None
 
                 # Sort: non-ALGO first (higher ID = asset1), ALGO/lower = asset2
@@ -205,9 +224,9 @@ async def calculate_lp_token_price_algo(lp_def: dict) -> float | None:
     lp_token_id = lp_def['lp_token_id']
     asset1_id = lp_def['asset1_id']
 
-    # 1. Get LP token info (creator = pool address, total supply)
+    # 1. Get LP token info (pool address + total supply)
     asset_info = await _run_sync(algod_client.asset_info, lp_token_id)
-    pool_address = asset_info['params']['creator']
+    pool_address = _get_pool_address(asset_info)
     total_supply_micros = asset_info['params']['total']
 
     # 2. Get pool account balances
