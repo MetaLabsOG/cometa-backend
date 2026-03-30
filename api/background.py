@@ -20,7 +20,7 @@ from flex import db
 from flex.migrations import migrate_background
 from flex.sync_pools import sync_pools_loop
 from flex.data.asset_prices import get_asset_price_not_cached
-from flex.data.lp_prices import update_lp_token_prices
+from flex.data.lp_prices import update_lp_token_prices, get_lp_token_definitions
 
 spawn = multiprocessing.get_context('spawn')
 logger = logging.getLogger(__name__)
@@ -149,7 +149,15 @@ async def update_asset_prices_background():
     current_round = get_current_round()
 
     all_assets = db.assets.get_all()
-    prioritized_assets = [asset.id for asset in all_assets]
+
+    # Exclude LP tokens — they are priced separately by update_lp_token_prices()
+    try:
+        lp_defs = await get_lp_token_definitions()
+        lp_token_ids = {d['lp_token_id'] for d in lp_defs}
+    except Exception:
+        lp_token_ids = set()
+
+    prioritized_assets = [asset.id for asset in all_assets if asset.id not in lp_token_ids]
     random.shuffle(prioritized_assets)
 
     # Pre-fetch all existing prices in one MongoDB query (instead of N individual queries)
