@@ -89,6 +89,13 @@ async def update_contracts_cache(type: str) -> None:
             if old_metadata is None:
                 old_metadata = {}
 
+            # Don't overwrite good cache with empty initial data
+            new_initial = state.get('initial', {})
+            old_cache = old_metadata.get('cache', {})
+            old_initial = old_cache.get('initial', {})
+            if not new_initial and old_initial:
+                continue
+
             new_metadata = {**old_metadata, "cache": state}
             update_contract(id, metadata=new_metadata)
 
