@@ -110,8 +110,6 @@ async def record_contracts_stats() -> None:
 
 @repeat_every(settings.contracts_cache_ttl)
 async def update_contracts_worker():
-    if not settings.enable_js:
-        return
     if not settings.update_contract_caches:
         logger.debug('Contract cache updates are disabled (UPDATE_CONTRACT_CACHES=false)')
         return
@@ -206,7 +204,7 @@ def run_background():
                 )
             )
 
-        if settings.enable_js:
+        if settings.update_contract_caches:
             task_list.append(
                 asyncio.create_task(
                     safe_background_task(update_contracts_worker(), "update_contracts")
