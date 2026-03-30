@@ -26,7 +26,9 @@ ADDRESS_KEYS = {'beneficiary'}
 
 
 def _decode_state_key(key_b64: str) -> str:
-    return base64.b64decode(key_b64).decode('utf-8', errors='replace')
+    raw = base64.b64decode(key_b64)
+    # Reach compiler pads keys with null bytes — strip them for MongoDB compatibility
+    return raw.replace(b'\x00', b'').decode('utf-8', errors='replace')
 
 
 def _to_bignum(value: int) -> dict:
