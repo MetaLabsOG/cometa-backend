@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `frontend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-067**
+- Next available ID: **CB-071**
 
 ---
 
@@ -34,7 +34,7 @@
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
-| CB-059 | Remove dead endpoints and modules | done | high | backend | Removed 23 dead endpoints from flex/api.py, 22 from app.py. Deleted 5 dirs (metapunks, farcaster, unusedcode, marketplaces, airdrop), 6 dead scripts, 3 orphan background tasks. Kept `/lp/states/update` (ops) and `/contracts/refresh-cache` (ops). Also: CB-055 (wallet nfts/cost return []), CB-056 (lottery returns 503) |
+| CB-059 | Remove dead endpoints and modules | done | high | backend | Removed 23 dead endpoints from flex/api.py, 22 from app.py. Deleted 5 dirs (metapunks, farcaster, unusedcode, marketplaces, airdrop), 6 dead scripts, 3 orphan background tasks. Kept `/contracts/refresh-cache` (ops). `/lp/states/update` removed in CB-070. Also: CB-055 (wallet nfts/cost return []), CB-056 (lottery returns 503) |
 | CB-060 | Fix blocking I/O in async handlers | done | high | backend, perf | `get_wallet_assets()` wrapped in `run_in_executor()`. `get_address_app_ids()` in `/contracts` replaced with async version. `send_nft()`/`is_opted_in()` no longer called (lottery disabled) |
 | CB-061 | Docker hardening | done | high | infra | Added `.dockerignore`, added `HEALTHCHECK` to Dockerfile. Bind mount removal requires VPS docker-compose.yml change (noted for Phase 3 deploy) |
 
@@ -53,6 +53,7 @@
 
 | ID | Task | Status | Priority | Tags | Notes |
 |----|------|--------|----------|------|-------|
+| CB-070 | LP token pricing via background worker | done | high | backend | LP prices calculated from on-chain reserves in `update_asset_prices_background`, written to `asset_prices`. Broken lp_states/lp_tokens/sync_pools pipeline bypassed. 3/3 LP tokens verified on prod. Phase 2 cleanup (delete old modules) deferred |
 | CB-001 | Rotate compromised keys from `test_refund.py` | done | critical | security, backend | File gitignored. Keys rotated manually (2026-03-09) |
 | CB-002 | Move `password` from query string to `X-API-Key` header | done | critical | security, backend | `core/auth.py` created, 18 endpoints migrated to `Depends(require_password)` |
 | CB-033 | Add MCP servers: Algorand, Vestige, MongoDB | done | high | dx | Added to `~/.claude/mcp.json` |
