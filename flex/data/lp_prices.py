@@ -17,43 +17,183 @@ logger = logging.getLogger(__name__)
 LP_CONCURRENCY = 4
 
 
+def _extract_stake_token_id(contract) -> int | None:
+    """Extract stake token ID from contract metadata or cache."""
+    meta = contract.metadata or {}
+    stid = meta.get('stake_token_id')
+    if stid is not None:
+        return int(stid)
+
+    cache = meta.get('cache', {})
+    initial = cache.get('initial', {})
+    raw = initial.get('stakeToken') or initial.get('token')
+    if raw is None:
+        return None
+    if isinstance(raw, dict) and raw.get('type') == 'BigNumber' and 'hex' in raw:
+        return int(raw['hex'], 16)
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return None
+
+
 @cached(ttl=300, namespace='lp_token_defs')
 async def get_lp_token_definitions() -> list[dict]:
-    """Build LP token registry from active farm contract metadata.
+    """Build LP token registry from multiple data sources.
+
+    Sources (in priority order):
+    1. lp_tokens collection (has verified asset1_id, asset2_id, dex_provider)
+    2. farming_pools collection (has first_token, second_token, dex_name)
+    3. Contract metadata (asset1_id, dex fields)
+    4. On-chain auto-discovery via algod for remaining tokens
 
     Returns list of dicts with lp_token_id, asset1_id, asset2_id, dex.
     """
     contracts = get_contracts_by_type('farm')
-    lp_defs = []
+
+    # Collect all stake token IDs from farm contracts
+    stake_token_ids = set()
+    for c in contracts:
+        stid = _extract_stake_token_id(c)
+        if stid:
+            stake_token_ids.add(stid)
+
+    if not stake_token_ids:
+        logger.warning('No stake tokens found in farm contracts')
+        return []
+
+    lp_defs_by_id: dict[int, dict] = {}
+    from_lp_tokens = 0
+    from_farming_pools = 0
+    from_metadata = 0
+
+    # Source 1: lp_tokens collection (best quality — has verified pool data)
+    try:
+        lp_tokens_list = db.lp_tokens.get_many_by_query(
+            {'id': {'$in': list(stake_token_ids)}}
+        )
+        for lt in lp_tokens_list:
+            lp_defs_by_id[lt.id] = {
+                'lp_token_id': lt.id,
+                'asset1_id': lt.asset1_id,
+                'asset2_id': lt.asset2_id,
+                'dex': lt.dex_provider,
+            }
+            from_lp_tokens += 1
+    except Exception as e:
+        logger.error(f'Failed to query lp_tokens: {e}')
+
+    # Source 2: farming_pools collection
+    try:
+        farming_pools_list = db.farming_pools.get_all()
+        for fp in farming_pools_list:
+            stid = fp.stake_token.id
+            if stid not in stake_token_ids or stid in lp_defs_by_id:
+                continue
+            asset1_id = fp.first_token.id
+            asset2_id = fp.second_token.id
+            # Normalize: non-ALGO token as asset1 (matches lp_tokens convention)
+            if asset1_id == 0:
+                asset1_id, asset2_id = asset2_id, asset1_id
+            lp_defs_by_id[stid] = {
+                'lp_token_id': stid,
+                'asset1_id': asset1_id,
+                'asset2_id': asset2_id,
+                'dex': fp.dex_name,
+            }
+            from_farming_pools += 1
+    except Exception as e:
+        logger.error(f'Failed to query farming_pools: {e}')
+
+    # Source 3: contract metadata
     for c in contracts:
         meta = c.metadata or {}
-        stake_token_id = meta.get('stake_token_id')
-        if stake_token_id is None:
-            cache = meta.get('cache', {})
-            initial = cache.get('initial', {})
-            raw = initial.get('stakeToken')
-            if isinstance(raw, dict) and raw.get('type') == 'BigNumber' and 'hex' in raw:
-                stake_token_id = int(raw['hex'], 16)
-            elif raw is not None:
-                stake_token_id = int(raw)
-
+        stid = _extract_stake_token_id(c)
+        if not stid or stid in lp_defs_by_id:
+            continue
         asset1_id = meta.get('asset1_id')
         dex = meta.get('dex')
-        if stake_token_id and asset1_id and dex:
-            lp_defs.append({
-                'lp_token_id': int(stake_token_id),
+        if asset1_id is not None and dex:
+            lp_defs_by_id[stid] = {
+                'lp_token_id': stid,
                 'asset1_id': int(asset1_id),
                 'asset2_id': int(meta.get('asset2_id', 0)),
                 'dex': dex,
-            })
+            }
+            from_metadata += 1
 
-    seen = set()
-    unique = []
-    for d in lp_defs:
-        if d['lp_token_id'] not in seen:
-            seen.add(d['lp_token_id'])
-            unique.append(d)
-    return unique
+    # Source 4: on-chain auto-discovery for LP tokens still missing
+    missing_ids = [stid for stid in stake_token_ids if stid not in lp_defs_by_id]
+    from_onchain = 0
+    if missing_ids:
+        logger.info(f'Auto-discovering {len(missing_ids)} LP tokens from on-chain')
+        discovered = await _discover_lp_tokens_onchain(missing_ids)
+        for d in discovered:
+            lp_defs_by_id[d['lp_token_id']] = d
+            from_onchain += 1
+
+    result = list(lp_defs_by_id.values())
+    logger.info(
+        f'LP token definitions: {len(result)}/{len(stake_token_ids)} '
+        f'(lp_tokens={from_lp_tokens}, farming_pools={from_farming_pools}, '
+        f'metadata={from_metadata}, on-chain={from_onchain}, '
+        f'unresolved={len(stake_token_ids) - len(result)})'
+    )
+    return result
+
+
+async def _discover_lp_tokens_onchain(lp_token_ids: list[int]) -> list[dict]:
+    """Discover LP token pool composition from on-chain data.
+
+    For each token: get asset_info (creator = pool address),
+    then pool account balances to identify the underlying pair.
+    Only returns results that look like valid AMM pool tokens.
+    """
+    semaphore = asyncio.Semaphore(LP_CONCURRENCY)
+
+    async def _discover_one(lp_token_id: int) -> dict | None:
+        async with semaphore:
+            try:
+                asset_info = await _run_sync(algod_client.asset_info, lp_token_id)
+                pool_address = asset_info['params']['creator']
+
+                account_info = await _run_sync(algod_client.account_info, pool_address)
+                held_assets = {}
+                for a in account_info.get('assets', []):
+                    held_assets[a['asset-id']] = a['amount']
+                algo_balance = account_info.get('amount', 0)
+                if algo_balance > 0:
+                    held_assets[0] = algo_balance
+
+                # Remove LP token itself; remaining should be the pool pair
+                held_assets.pop(lp_token_id, None)
+
+                # Filter to assets with non-zero balance (ignore dust opt-ins)
+                pool_assets = [aid for aid, bal in held_assets.items() if bal > 0]
+
+                if len(pool_assets) < 2:
+                    logger.debug(f'LP {lp_token_id}: pool has <2 assets, skipping')
+                    return None
+
+                # Sort: non-ALGO first (higher ID = asset1), ALGO/lower = asset2
+                pool_assets.sort(reverse=True)
+                asset1_id = pool_assets[0]
+                asset2_id = pool_assets[1]
+
+                return {
+                    'lp_token_id': lp_token_id,
+                    'asset1_id': asset1_id,
+                    'asset2_id': asset2_id,
+                    'dex': 'auto',
+                }
+            except Exception as e:
+                logger.debug(f'On-chain discovery failed for {lp_token_id}: {e}')
+                return None
+
+    results = await asyncio.gather(*[_discover_one(tid) for tid in lp_token_ids])
+    discovered = [r for r in results if r is not None]
+    logger.info(f'On-chain discovery: {len(discovered)}/{len(lp_token_ids)} resolved')
+    return discovered
 
 
 async def calculate_lp_token_price_algo(lp_def: dict) -> float | None:
