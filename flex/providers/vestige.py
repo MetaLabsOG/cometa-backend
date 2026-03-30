@@ -14,8 +14,24 @@ from flex.util import build_key_str
 BASE_URL = 'https://api.vestigelabs.org'
 USDC_ASSET_ID = 31566704
 
+# HTTP status codes that indicate Vestige is unavailable (not a data error)
+_UNAVAILABLE_STATUSES = {403, 429, 502, 503, 504}
 
 logger = logging.getLogger(__name__)
+
+
+class VestigeUnavailableError(Exception):
+    """Raised when Vestige API is unreachable (403/429/5xx)."""
+    pass
+
+
+def _check_response(response: httpx.Response) -> None:
+    """Raise VestigeUnavailableError for 403/429/5xx, raise_for_status for other errors."""
+    if response.status_code in _UNAVAILABLE_STATUSES:
+        raise VestigeUnavailableError(
+            f'Vestige API returned {response.status_code}: {response.text[:200]}'
+        )
+    response.raise_for_status()
 
 _http_client: httpx.AsyncClient | None = None
 
@@ -67,7 +83,7 @@ async def get_algo_price_usd() -> float:
     url = f'{BASE_URL}/assets/price?asset_ids=0&denominating_asset_id={USDC_ASSET_ID}'
     client = _get_client()
     response = await client.get(url)
-    response.raise_for_status()
+    _check_response(response)
     data = response.json()
     if isinstance(data, list) and len(data) > 0:
         return data[0]['price']
@@ -86,7 +102,7 @@ async def get_asset_price_usd_not_cached(asset_id: int) -> float:
     url = f'{BASE_URL}/assets/price?asset_ids={asset_id}&denominating_asset_id={USDC_ASSET_ID}'
     client = _get_client()
     response = await client.get(url)
-    response.raise_for_status()
+    _check_response(response)
     data = response.json()
 
     if isinstance(data, list) and len(data) > 0:
@@ -108,8 +124,8 @@ async def vestige_full_asset_price_not_cached(asset_id: int) -> Price:
             client.get(url_usd),
             client.get(url_algo),
         )
-        response_usd.raise_for_status()
-        response_algo.raise_for_status()
+        _check_response(response_usd)
+        _check_response(response_algo)
         data = response_usd.json()
 
         if not isinstance(data, list) or len(data) == 0:
@@ -121,6 +137,8 @@ async def vestige_full_asset_price_not_cached(asset_id: int) -> Price:
         price_algo = data_algo[0]['price'] if isinstance(data_algo, list) and len(data_algo) > 0 else 0
 
         return Price(algo=price_algo, usd=price_usd)
+    except VestigeUnavailableError:
+        raise
     except httpx.HTTPError as e:
         logger.error(f"Vestige API request failed for asset {asset_id}: {e}")
         raise MetaError(f'Failed to fetch price from Vestige API: {e}')
@@ -145,8 +163,8 @@ async def _vestige_batch_chunk(chunk_ids: list[int]) -> dict[int, Price]:
         client.get(url_algo),
         client.get(url_usd),
     )
-    response_algo.raise_for_status()
-    response_usd.raise_for_status()
+    _check_response(response_algo)
+    _check_response(response_usd)
 
     data_algo = response_algo.json()
     data_usd = response_usd.json()
@@ -201,7 +219,7 @@ async def fetch_lp_token(lp_token_id: int, asset1_id: int, asset2_id: int, dex_p
     url = f'{BASE_URL}/pools?asset_1_id={ref_id}&limit=100'
     client = _get_client()
     response = await client.get(url)
-    response.raise_for_status()
+    _check_response(response)
     data = response.json()
     results = data.get('results', data) if isinstance(data, dict) else data
     for token_data in results:
