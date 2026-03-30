@@ -10,9 +10,11 @@ from flex.data.assets import micros_to_amount, get_asset_details
 from flex.data.asset_prices import _upsert_asset_price
 from flex import db
 from flex.db.model.priced import AssetPrice
-from flex.providers.vestige import vestige_full_asset_price, get_algo_price_usd
+from flex.providers import price_router
 
 logger = logging.getLogger(__name__)
+
+LP_CONCURRENCY = 4
 
 
 @cached(ttl=300, namespace='lp_token_defs')
@@ -91,12 +93,13 @@ async def calculate_lp_token_price_algo(lp_def: dict) -> float | None:
         logger.warning(f'LP {lp_token_id}: invalid reserves (asset1={asset1_reserve}, circ={circulating_supply})')
         return None
 
-    # 5. Get asset1 price in ALGO (prefer DB, fall back to Vestige)
-    asset1_price_record = db.asset_prices.get_one(id=asset1_id)
-    if asset1_price_record is not None and asset1_price_record.price_algo > 0:
-        asset1_price_algo = asset1_price_record.price_algo
-    else:
-        asset1_price_algo = (await vestige_full_asset_price(asset1_id)).algo
+    # 5. Get asset1 price in ALGO via price_router (DB → Vestige → Tinyman)
+    try:
+        asset1_price = await price_router.get_asset_price(asset1_id)
+        asset1_price_algo = asset1_price.algo
+    except Exception as e:
+        logger.warning(f'LP {lp_token_id}: failed to get price for asset1 {asset1_id}: {e}')
+        return None
 
     if asset1_price_algo <= 0:
         logger.warning(f'LP {lp_token_id}: asset1 {asset1_id} has zero price')
@@ -106,34 +109,50 @@ async def calculate_lp_token_price_algo(lp_def: dict) -> float | None:
     return asset1_price_algo * asset1_reserve * 2 / circulating_supply
 
 
+async def _update_single_lp(lp_def: dict, algo_price_usd: float, current_round: int) -> bool:
+    """Calculate and persist a single LP token price. Returns True on success."""
+    try:
+        price_algo = await calculate_lp_token_price_algo(lp_def)
+        if price_algo is not None and price_algo > 0:
+            asset_details = await get_asset_details(lp_def['lp_token_id'])
+            ap = AssetPrice(
+                id=lp_def['lp_token_id'],
+                name=asset_details.name,
+                price_algo=price_algo,
+                price_usd=price_algo * algo_price_usd,
+                last_update_round=current_round,
+            )
+            _upsert_asset_price(ap)
+            return True
+    except Exception as e:
+        logger.warning(f'Failed LP price for token {lp_def["lp_token_id"]}: {e}')
+    return False
+
+
 async def update_lp_token_prices(current_round: int) -> None:
     """Calculate and persist LP token prices into asset_prices collection.
 
     Called by the background worker after regular asset price updates.
+    Uses price_router for ALGO/USD with full fallback chain.
+    Parallelizes LP calculations with a concurrency semaphore.
     """
     lp_defs = await get_lp_token_definitions()
     if not lp_defs:
         return
 
-    algo_price_usd = await get_algo_price_usd()
-    lp_updated = 0
+    try:
+        algo_price_usd = await price_router.get_algo_price_usd()
+    except Exception as e:
+        logger.error(f'All ALGO price providers failed, skipping LP update: {e}')
+        return
 
-    for lp_def in lp_defs:
-        try:
-            price_algo = await calculate_lp_token_price_algo(lp_def)
-            if price_algo is not None and price_algo > 0:
-                asset_details = await get_asset_details(lp_def['lp_token_id'])
-                ap = AssetPrice(
-                    id=lp_def['lp_token_id'],
-                    name=asset_details.name,
-                    price_algo=price_algo,
-                    price_usd=price_algo * algo_price_usd,
-                    last_update_round=current_round,
-                )
-                _upsert_asset_price(ap)
-                lp_updated += 1
-            await asyncio.sleep(0.5)
-        except Exception as e:
-            logger.warning(f'Failed LP price for token {lp_def["lp_token_id"]}: {e}')
+    semaphore = asyncio.Semaphore(LP_CONCURRENCY)
+
+    async def _bounded(lp_def: dict) -> bool:
+        async with semaphore:
+            return await _update_single_lp(lp_def, algo_price_usd, current_round)
+
+    results = await asyncio.gather(*[_bounded(d) for d in lp_defs])
+    lp_updated = sum(1 for r in results if r)
 
     logger.info(f'LP token prices: {lp_updated}/{len(lp_defs)} updated')
