@@ -6,6 +6,14 @@ require("dotenv").config({
   path: path.resolve(__dirname, `../.env`),
 });
 
+// Enable HTTP_PROXY/HTTPS_PROXY support for all Node.js HTTP requests
+if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) {
+  process.env.GLOBAL_AGENT_HTTP_PROXY = process.env.HTTP_PROXY || '';
+  process.env.GLOBAL_AGENT_HTTPS_PROXY = process.env.HTTPS_PROXY || '';
+  process.env.GLOBAL_AGENT_NO_PROXY = process.env.NO_PROXY || '';
+  require("global-agent/bootstrap");
+}
+
 // This is background worker on the JS side. Currently it is only used for updating
 // the MongoDB cache with Humble pools information.
 const BACKGROUND_PROMISE = process.env.SYNC_HUMBLE_POOLS === "1" ? import("./background.mjs") : null;
