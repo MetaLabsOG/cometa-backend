@@ -13,6 +13,7 @@ from core.db.model import PoolType
 from core.decorators import safe_async_method, repeat_every
 from core.js_interop import calljs
 from core.util import strip_version, parse_bignum, with_exponential_backoff
+from flex.blockchain.contract_state import fetch_contracts_views_batch
 from core.circuit_breaker import get_circuit_breaker
 from env import settings
 from flex import db
@@ -66,8 +67,21 @@ async def update_contracts_cache(type: str) -> None:
     start_index = 0
 
     while start_index < len(ids_and_versions):
-        states = await calljs("fetchContractsGlobalViews", contractType=type,
-                              idVersions=ids_and_versions[start_index:start_index + chunk_size])
+        chunk = ids_and_versions[start_index:start_index + chunk_size]
+
+        # Try JS interop first, fall back to algod on failure
+        states = {}
+        if settings.enable_js:
+            try:
+                states = await calljs("fetchContractsGlobalViews", contractType=type, idVersions=chunk)
+            except Exception as e:
+                logger.warning(f'JS interop failed for cache update ({type}), trying algod fallback: {e}')
+
+        if not states:
+            try:
+                states = await fetch_contracts_views_batch(chunk)
+            except Exception as e:
+                logger.error(f'Algod fallback also failed for cache update ({type}): {e}')
 
         for s_id, state in states.items():
             id = int(s_id)
