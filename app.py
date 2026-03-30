@@ -26,6 +26,7 @@ from core.db.contracts import ContractInfo, get_contract, get_contracts_by_type,
     insert_contract, invalidate_contracts_cache
 from core.db.model import UserPool
 from core.js_interop import calljs, managed_js_interop_server
+from flex.blockchain.contract_state import fetch_contract_views
 from core.util import parse_bignum, strip_version
 from core.auth import require_password
 from env import settings
@@ -243,6 +244,44 @@ async def create_contract_with(type: str, id: int, version: str, description: st
         raise
 
 
+async def _fetch_contract_view_with_fallback(contract_id: int, contract_type: str, version: str) -> dict:
+    """Try JS interop first, fall back to algod direct read on failure."""
+    # 1. Try JS interop (Reach stdlib)
+    if settings.enable_js:
+        try:
+            global_views = await calljs(
+                "fetchContractsGlobalViews",
+                contractType=contract_type,
+                idVersions=[{'id': contract_id, 'version': strip_version(version)}],
+            )
+            if str(contract_id) in global_views:
+                view = global_views[str(contract_id)]
+                if view.get('initial'):
+                    logger.info(f'Contract {contract_id}: views fetched via JS interop')
+                    return view
+        except Exception as e:
+            logger.warning(f'JS interop failed for contract {contract_id}: {e}')
+
+    # 2. Fallback: read on-chain state via algosdk
+    try:
+        view = await fetch_contract_views(contract_id)
+        if not view.get('initial'):
+            raise HTTPException(
+                status_code=409,
+                detail="Contract with given ID is not present in the network or does not match the given type",
+            )
+        logger.info(f'Contract {contract_id}: views fetched via algod fallback')
+        return view
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f'Algod fallback also failed for contract {contract_id}: {e}')
+        raise HTTPException(
+            status_code=409,
+            detail="Contract with given ID is not present in the network or does not match the given type",
+        )
+
+
 @app.post('/contract/register', tags=['Contracts'], dependencies=[Depends(require_password)])
 async def register_contract(contract: AddContract) -> ContractInfo:
     logger.info(f'Registering a new contract {contract}')
@@ -253,20 +292,14 @@ async def register_contract(contract: AddContract) -> ContractInfo:
     cache_metadata = {}
 
     if contract.type in ('farm', 'distribution'):
-        global_views = await calljs("fetchContractsGlobalViews", contractType=contract.type,
-                                    idVersions=[{'id': contract.id, 'version': strip_version(contract.version)}])
-        if str(contract.id) not in global_views:
-            raise HTTPException(status_code=409,
-                                detail="Contract with given ID is not present in the network or does not match the given type")
-
-        view = global_views[str(contract.id)]
+        view = await _fetch_contract_view_with_fallback(contract.id, contract.type, contract.version)
 
         target_beneficiary = settings.beneficiary_address
         if not target_beneficiary:
             logger.warning("Beneficiary address not set in settings, skipping beneficiary check")
         else:
             target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
-            contract_beneficiary = view['initial']['beneficiary']
+            contract_beneficiary = view['initial'].get('beneficiary')
             if contract_beneficiary != target_beneficiary_hex:
                 raise HTTPException(status_code=403,
                                     detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary})")
@@ -297,9 +330,6 @@ async def refresh_contracts_cache(
     type: Optional[ContractType] = None,
 ) -> dict:
     """Manually refresh metadata.cache for contracts by fetching live state from Algorand."""
-    if not settings.enable_js:
-        raise HTTPException(status_code=503, detail="JS interop is disabled")
-
     if contract_ids:
         contracts = [get_contract(cid) for cid in contract_ids]
         contracts = [c for c in contracts if c is not None]
@@ -319,21 +349,33 @@ async def refresh_contracts_cache(
     errors = 0
     for ctype, type_contracts in by_type.items():
         ids_and_versions = [{'id': c.id, 'version': strip_version(c.version)} for c in type_contracts]
-        try:
-            states = await calljs("fetchContractsGlobalViews", contractType=ctype, idVersions=ids_and_versions)
-            for c in type_contracts:
-                s_id = str(c.id)
-                if s_id in states:
-                    old_metadata = c.metadata or {}
-                    new_metadata = {**old_metadata, "cache": states[s_id]}
-                    update_contract(c.id, metadata=new_metadata)
-                    refreshed += 1
-                else:
-                    logger.warning(f'refresh-cache: contract {c.id} not found in JS response')
-                    errors += 1
-        except Exception as e:
-            logger.error(f'refresh-cache: failed for type {ctype}: {e}', exc_info=True)
-            errors += len(type_contracts)
+        # Try JS interop first, fall back to algod
+        states = {}
+        if settings.enable_js:
+            try:
+                states = await calljs("fetchContractsGlobalViews", contractType=ctype, idVersions=ids_and_versions)
+            except Exception as e:
+                logger.warning(f'refresh-cache: JS interop failed for type {ctype}: {e}')
+
+        if not states:
+            try:
+                from flex.blockchain.contract_state import fetch_contracts_views_batch
+                states = await fetch_contracts_views_batch(ids_and_versions)
+            except Exception as e:
+                logger.error(f'refresh-cache: algod fallback also failed for type {ctype}: {e}', exc_info=True)
+                errors += len(type_contracts)
+                continue
+
+        for c in type_contracts:
+            s_id = str(c.id)
+            if s_id in states:
+                old_metadata = c.metadata or {}
+                new_metadata = {**old_metadata, "cache": states[s_id]}
+                update_contract(c.id, metadata=new_metadata)
+                refreshed += 1
+            else:
+                logger.warning(f'refresh-cache: contract {c.id} not found in response')
+                errors += 1
 
     invalidate_contracts_cache()
     return {'refreshed': refreshed, 'errors': errors}
