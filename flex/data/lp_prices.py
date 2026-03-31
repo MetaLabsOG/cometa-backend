@@ -3,7 +3,9 @@ import logging
 
 from aiocache import cached
 
+from blockchain.node import get_current_round
 from core.db.contracts import get_contracts_by_type
+from core.util import parse_bignum
 from flex.blockchain.base import algod_client
 from flex.blockchain.info import _run_sync
 from flex.data.assets import micros_to_amount, get_asset_details
@@ -14,7 +16,8 @@ from flex.providers import price_router
 
 logger = logging.getLogger(__name__)
 
-LP_CONCURRENCY = 4
+LP_CONCURRENCY = 2
+LP_REQUEST_DELAY = 1.0  # seconds between algod calls per slot
 
 
 def _extract_stake_token_id(contract) -> int | None:
@@ -37,15 +40,52 @@ def _extract_stake_token_id(contract) -> int | None:
         return None
 
 
+def _get_active_stake_token_ids() -> set[int]:
+    """Return stake token IDs for farm contracts that are still active or have stake.
+
+    A contract is active if:
+    - endBlock >= current_round (rewards not expired), OR
+    - totalStaked > 1 (users still have tokens staked)
+
+    Mirrors the filter in update_contracts_cache() (api/background.py).
+    """
+    contracts = get_contracts_by_type('farm')
+    current_round = get_current_round()
+    active_ids = set()
+    total = 0
+
+    for c in contracts:
+        stid = _extract_stake_token_id(c)
+        if not stid:
+            continue
+        total += 1
+
+        meta = c.metadata or {}
+        cache = meta.get('cache')
+        if not cache:
+            active_ids.add(stid)  # no cache = can't determine, assume active
+            continue
+
+        try:
+            end_block = parse_bignum(cache.get('initial', {}).get('endBlock'))
+            total_staked = parse_bignum(cache.get('global', {}).get('totalStaked'))
+            if end_block >= current_round or total_staked > 1:
+                active_ids.add(stid)
+        except (ValueError, TypeError):
+            active_ids.add(stid)  # parse error = assume active
+
+    logger.info(f'Active LP tokens: {len(active_ids)}/{total} farm contracts')
+    return active_ids
+
+
 @cached(ttl=300, namespace='lp_token_defs')
 async def get_lp_token_definitions() -> list[dict]:
-    """Build LP token registry from multiple data sources.
+    """Build LP token registry from DB sources (no algod calls).
 
     Sources (in priority order):
     1. lp_tokens collection (has verified asset1_id, asset2_id, dex_provider)
     2. farming_pools collection (has first_token, second_token, dex_name)
     3. Contract metadata (asset1_id, dex fields)
-    4. On-chain auto-discovery via algod for remaining tokens
 
     Returns list of dicts with lp_token_id, asset1_id, asset2_id, dex.
     """
@@ -122,21 +162,11 @@ async def get_lp_token_definitions() -> list[dict]:
             }
             from_metadata += 1
 
-    # Source 4: on-chain auto-discovery for LP tokens still missing
-    missing_ids = [stid for stid in stake_token_ids if stid not in lp_defs_by_id]
-    from_onchain = 0
-    if missing_ids:
-        logger.info(f'Auto-discovering {len(missing_ids)} LP tokens from on-chain')
-        discovered = await _discover_lp_tokens_onchain(missing_ids)
-        for d in discovered:
-            lp_defs_by_id[d['lp_token_id']] = d
-            from_onchain += 1
-
     result = list(lp_defs_by_id.values())
     logger.info(
         f'LP token definitions: {len(result)}/{len(stake_token_ids)} '
         f'(lp_tokens={from_lp_tokens}, farming_pools={from_farming_pools}, '
-        f'metadata={from_metadata}, on-chain={from_onchain}, '
+        f'metadata={from_metadata}, '
         f'unresolved={len(stake_token_ids) - len(result)})'
     )
     return result
@@ -154,65 +184,6 @@ def _get_pool_address(asset_info: dict) -> str:
     if reserve and reserve != creator:
         return reserve
     return creator
-
-
-async def _discover_lp_tokens_onchain(lp_token_ids: list[int]) -> list[dict]:
-    """Discover LP token pool composition from on-chain data.
-
-    For each token: get asset_info → pool address (reserve for Tinyman V2, creator for others),
-    then pool account balances to identify the underlying pair.
-    Only returns results that look like valid AMM pool tokens (exactly 2 non-LP assets).
-    """
-    semaphore = asyncio.Semaphore(LP_CONCURRENCY)
-
-    async def _discover_one(lp_token_id: int) -> dict | None:
-        async with semaphore:
-            try:
-                asset_info = await _run_sync(algod_client.asset_info, lp_token_id)
-                pool_address = _get_pool_address(asset_info)
-
-                account_info = await _run_sync(algod_client.account_info, pool_address)
-                held_assets = {}
-                for a in account_info.get('assets', []):
-                    held_assets[a['asset-id']] = a['amount']
-                algo_balance = account_info.get('amount', 0)
-                if algo_balance > 0:
-                    held_assets[0] = algo_balance
-
-                # Remove LP token itself; remaining should be the pool pair
-                held_assets.pop(lp_token_id, None)
-
-                # Filter to assets with non-zero balance (ignore dust opt-ins)
-                pool_assets = [aid for aid, bal in held_assets.items() if bal > 0]
-
-                if len(pool_assets) < 2:
-                    logger.debug(f'LP {lp_token_id}: pool has <2 assets, skipping')
-                    return None
-
-                # AMM pools should have exactly 2 assets; skip if too many (likely not a pool)
-                if len(pool_assets) > 5:
-                    logger.debug(f'LP {lp_token_id}: pool has {len(pool_assets)} assets, skipping (likely not a pool)')
-                    return None
-
-                # Sort: non-ALGO first (higher ID = asset1), ALGO/lower = asset2
-                pool_assets.sort(reverse=True)
-                asset1_id = pool_assets[0]
-                asset2_id = pool_assets[1]
-
-                return {
-                    'lp_token_id': lp_token_id,
-                    'asset1_id': asset1_id,
-                    'asset2_id': asset2_id,
-                    'dex': 'auto',
-                }
-            except Exception as e:
-                logger.debug(f'On-chain discovery failed for {lp_token_id}: {e}')
-                return None
-
-    results = await asyncio.gather(*[_discover_one(tid) for tid in lp_token_ids])
-    discovered = [r for r in results if r is not None]
-    logger.info(f'On-chain discovery: {len(discovered)}/{len(lp_token_ids)} resolved')
-    return discovered
 
 
 async def calculate_lp_token_price_algo(lp_def: dict) -> float | None:
@@ -292,11 +263,11 @@ _last_lp_update_round: int = 0
 
 
 async def update_lp_token_prices(current_round: int) -> None:
-    """Calculate and persist LP token prices into asset_prices collection.
+    """Calculate and persist LP token prices for active farm contracts only.
 
-    Called by the background worker after regular asset price updates.
-    Skips if fewer than lp_prices_update_interval seconds have elapsed
-    (estimated from round delta × block_time) to limit algod load.
+    Skips if fewer than lp_prices_update_interval seconds have elapsed.
+    Only prices LP tokens from farms that are still active or have stake,
+    dramatically reducing algod calls (from ~160 to ~10-20 tokens).
     """
     global _last_lp_update_round
     from env import settings as _settings
@@ -306,6 +277,15 @@ async def update_lp_token_prices(current_round: int) -> None:
 
     lp_defs = await get_lp_token_definitions()
     if not lp_defs:
+        return
+
+    # Only price LP tokens from active farms (endBlock not passed or still has stake)
+    active_ids = _get_active_stake_token_ids()
+    active_defs = [d for d in lp_defs if d['lp_token_id'] in active_ids]
+    logger.info(f'LP pricing: {len(active_defs)} active out of {len(lp_defs)} total definitions')
+
+    if not active_defs:
+        _last_lp_update_round = current_round
         return
 
     try:
@@ -318,10 +298,12 @@ async def update_lp_token_prices(current_round: int) -> None:
 
     async def _bounded(lp_def: dict) -> bool:
         async with semaphore:
-            return await _update_single_lp(lp_def, algo_price_usd, current_round)
+            result = await _update_single_lp(lp_def, algo_price_usd, current_round)
+            await asyncio.sleep(LP_REQUEST_DELAY)
+            return result
 
-    results = await asyncio.gather(*[_bounded(d) for d in lp_defs])
+    results = await asyncio.gather(*[_bounded(d) for d in active_defs])
     lp_updated = sum(1 for r in results if r)
     _last_lp_update_round = current_round
 
-    logger.info(f'LP token prices: {lp_updated}/{len(lp_defs)} updated')
+    logger.info(f'LP token prices: {lp_updated}/{len(active_defs)} updated')
