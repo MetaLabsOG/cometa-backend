@@ -47,11 +47,13 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None,
 )
+ALLOWED_ORIGINS = {'https://app.cometa.farm', 'http://localhost:3000'}
+
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=False,
-    allow_origins=['https://app.cometa.farm', 'http://localhost:3000'],
+    allow_origins=list(ALLOWED_ORIGINS),
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -61,13 +63,20 @@ logger = logging.getLogger(__name__)
 logging.getLogger('base').setLevel(logging.INFO)
 
 
-# Catch-all exception handlers to ensure CORS headers are present on error responses.
-# Without these, unhandled exceptions bypass CORSMiddleware and browsers block the response.
+def _cors_headers(request: Request) -> dict[str, str]:
+    """Build CORS headers for error responses based on request Origin."""
+    origin = request.headers.get("origin")
+    if origin and origin in ALLOWED_ORIGINS:
+        return {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+    return {}
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
+        headers=_cors_headers(request),
     )
 
 
@@ -77,6 +86,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
+        headers=_cors_headers(request),
     )
 
 
