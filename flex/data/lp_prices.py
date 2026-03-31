@@ -41,13 +41,10 @@ def _extract_stake_token_id(contract) -> int | None:
 
 
 def _get_active_stake_token_ids() -> set[int]:
-    """Return stake token IDs for farm contracts that are still active or have stake.
+    """Return stake token IDs for farm contracts where rewards are still active.
 
-    A contract is active if:
-    - endBlock >= current_round (rewards not expired), OR
-    - totalStaked > 1 (users still have tokens staked)
-
-    Mirrors the filter in update_contracts_cache() (api/background.py).
+    Only includes contracts where endBlock >= current_round (reward period not expired).
+    Ended farms have static LP reserves — their prices don't need frequent updates.
     """
     contracts = get_contracts_by_type('farm')
     current_round = get_current_round()
@@ -63,16 +60,14 @@ def _get_active_stake_token_ids() -> set[int]:
         meta = c.metadata or {}
         cache = meta.get('cache')
         if not cache:
-            active_ids.add(stid)  # no cache = can't determine, assume active
-            continue
+            continue  # no cache = can't determine endBlock, skip
 
         try:
             end_block = parse_bignum(cache.get('initial', {}).get('endBlock'))
-            total_staked = parse_bignum(cache.get('global', {}).get('totalStaked'))
-            if end_block >= current_round or total_staked > 1:
+            if end_block >= current_round:
                 active_ids.add(stid)
         except (ValueError, TypeError):
-            active_ids.add(stid)  # parse error = assume active
+            continue
 
     logger.info(f'Active LP tokens: {len(active_ids)}/{total} farm contracts')
     return active_ids
