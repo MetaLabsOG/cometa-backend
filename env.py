@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     algo_price_ttl: int = 3
     asset_prices_ttl: int = 120  # 120 seconds (2 minutes)
     asset_prices_update_interval: int = 60  # Run the background update every 60 seconds
+    lp_prices_update_interval: int = 300  # LP pricing via algod every 5 minutes
     lp_token_prices_ttl: int = 30
     total_tvl_ttl: int = 30
 

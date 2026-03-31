@@ -288,13 +288,22 @@ async def _update_single_lp(lp_def: dict, algo_price_usd: float, current_round: 
     return False
 
 
+_last_lp_update_round: int = 0
+
+
 async def update_lp_token_prices(current_round: int) -> None:
     """Calculate and persist LP token prices into asset_prices collection.
 
     Called by the background worker after regular asset price updates.
-    Uses price_router for ALGO/USD with full fallback chain.
-    Parallelizes LP calculations with a concurrency semaphore.
+    Skips if fewer than lp_prices_update_interval seconds have elapsed
+    (estimated from round delta × block_time) to limit algod load.
     """
+    global _last_lp_update_round
+    from env import settings as _settings
+    min_round_gap = int(_settings.lp_prices_update_interval / _settings.block_time)
+    if _last_lp_update_round and (current_round - _last_lp_update_round) < min_round_gap:
+        return
+
     lp_defs = await get_lp_token_definitions()
     if not lp_defs:
         return
@@ -313,5 +322,6 @@ async def update_lp_token_prices(current_round: int) -> None:
 
     results = await asyncio.gather(*[_bounded(d) for d in lp_defs])
     lp_updated = sum(1 for r in results if r)
+    _last_lp_update_round = current_round
 
     logger.info(f'LP token prices: {lp_updated}/{len(lp_defs)} updated')
