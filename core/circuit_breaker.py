@@ -1,76 +1,136 @@
-import time
-import logging
+"""Process-local async circuit breaker with deterministic recovery probes."""
+
 import asyncio
-from enum import Enum
+import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from enum import StrEnum
+from time import monotonic
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-class CircuitState(Enum):
-    CLOSED = "CLOSED"        # Normal operation
-    OPEN = "OPEN"            # Circuit tripped, requests fail fast
-    HALF_OPEN = "HALF_OPEN"  # Testing if service recovered
 
-class CircuitBreaker:
-    def __init__(self, name, failure_threshold=5, recovery_timeout=60):
+class CircuitState(StrEnum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+
+class CircuitOpenError(RuntimeError):
+    """Raised when a dependency is unavailable and calls must fail fast."""
+
+    def __init__(self, name: str, retry_after: float) -> None:
         self.name = name
-        self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout
-        self.state = CircuitState.CLOSED
-        self.failure_count = 0
-        self.last_failure_time = 0
-        self._lock = asyncio.Lock()
-    
-    async def execute(self, func, *args, **kwargs):
-        """Execute function with circuit breaker protection"""
-        async with self._lock:
-            # Check if we should transition from OPEN to HALF_OPEN
-            if (self.state == CircuitState.OPEN and 
-                time.time() - self.last_failure_time > self.recovery_timeout):
-                logger.info(f"Circuit '{self.name}' state: OPEN → HALF_OPEN")
-                self.state = CircuitState.HALF_OPEN
-            
-            # Fast fail if circuit is open
-            if self.state == CircuitState.OPEN:
-                remaining = self.recovery_timeout - (time.time() - self.last_failure_time)
-                logger.warning(f"Circuit '{self.name}' is OPEN. Retry after {max(0, remaining):.1f}s")
-                raise Exception(f"Circuit '{self.name}' is open. Service unavailable.")
-        
+        self.retry_after = max(0.0, retry_after)
+        super().__init__(f"Circuit '{name}' is open; retry after {self.retry_after:.1f}s")
+
+
+@dataclass(slots=True)
+class CircuitBreaker:
+    """Protect one process from repeatedly calling a failing dependency."""
+
+    name: str
+    failure_threshold: int = 5
+    recovery_timeout: float = 60.0
+    clock: Callable[[], float] = field(default=monotonic, repr=False)
+    state: CircuitState = field(default=CircuitState.CLOSED, init=False)
+    failure_count: int = field(default=0, init=False)
+    last_failure_time: float | None = field(default=None, init=False)
+    _probe_in_flight: bool = field(default=False, init=False, repr=False)
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("circuit breaker name must not be empty")
+        if self.failure_threshold < 1:
+            raise ValueError("failure_threshold must be at least 1")
+        if self.recovery_timeout < 0:
+            raise ValueError("recovery_timeout must be non-negative")
+
+    async def execute[T](
+        self,
+        func: Callable[..., Awaitable[T]],
+        *args: Any,
+        record_failure: Callable[[Exception], bool] | None = None,
+        **kwargs: Any,
+    ) -> T:
+        await self._before_call()
         try:
             result = await func(*args, **kwargs)
-            
-            # Success - reset circuit if needed
-            async with self._lock:
-                if self.state == CircuitState.HALF_OPEN:
-                    logger.info(f"Circuit '{self.name}' state: HALF_OPEN → CLOSED")
-                    self.state = CircuitState.CLOSED
-                    self.failure_count = 0
-                elif self.state == CircuitState.CLOSED:
-                    # Reset count on success
-                    self.failure_count = 0
-            
-            return result
-            
-        except Exception as e:
-            # Failure - potentially trip circuit
-            async with self._lock:
-                self.failure_count += 1
-                self.last_failure_time = time.time()
-                
-                if ((self.state == CircuitState.CLOSED and 
-                     self.failure_count >= self.failure_threshold) or
-                    self.state == CircuitState.HALF_OPEN):
-                    if self.state != CircuitState.OPEN:
-                        logger.warning(f"Circuit '{self.name}' tripped to OPEN: {str(e)}")
-                        self.state = CircuitState.OPEN
-            
-            # Re-raise the original exception
+        except asyncio.CancelledError:
+            await self._record_cancellation()
             raise
+        except Exception as exc:
+            if record_failure is None or record_failure(exc):
+                await self._record_failure()
+            else:
+                await self._record_success()
+            raise
+        await self._record_success()
+        return result
 
-# Registry to store circuit breakers
-_circuit_breakers = {}
+    async def _before_call(self) -> None:
+        async with self._lock:
+            now = self.clock()
+            if self.state is CircuitState.OPEN:
+                retry_after = self._retry_after(now)
+                if retry_after > 0:
+                    raise CircuitOpenError(self.name, retry_after)
+                self.state = CircuitState.HALF_OPEN
+                logger.info("Circuit '%s' state: open -> half_open", self.name)
 
-def get_circuit_breaker(name, failure_threshold=5, recovery_timeout=60):
-    """Get or create a circuit breaker by name"""
+            if self.state is CircuitState.HALF_OPEN:
+                if self._probe_in_flight:
+                    raise CircuitOpenError(self.name, 0)
+                self._probe_in_flight = True
+
+    def _retry_after(self, now: float) -> float:
+        if self.last_failure_time is None:
+            return self.recovery_timeout
+        elapsed = max(0.0, now - self.last_failure_time)
+        return max(0.0, self.recovery_timeout - elapsed)
+
+    async def _record_success(self) -> None:
+        async with self._lock:
+            self.failure_count = 0
+            if self.state is CircuitState.HALF_OPEN:
+                logger.info("Circuit '%s' state: half_open -> closed", self.name)
+                self.state = CircuitState.CLOSED
+            self._probe_in_flight = False
+
+    async def _record_failure(self) -> None:
+        async with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = self.clock()
+            should_open = self.state is CircuitState.HALF_OPEN or self.failure_count >= self.failure_threshold
+            if should_open:
+                if self.state is not CircuitState.OPEN:
+                    logger.warning("Circuit '%s' state: %s -> open", self.name, self.state)
+                self.state = CircuitState.OPEN
+            self._probe_in_flight = False
+
+    async def _record_cancellation(self) -> None:
+        async with self._lock:
+            if self.state is CircuitState.HALF_OPEN:
+                self.state = CircuitState.OPEN
+            self._probe_in_flight = False
+
+
+_circuit_breakers: dict[str, CircuitBreaker] = {}
+
+
+def get_circuit_breaker(
+    name: str,
+    failure_threshold: int = 5,
+    recovery_timeout: float = 60.0,
+) -> CircuitBreaker:
+    """Return the process-local circuit breaker registered for ``name``."""
+
     if name not in _circuit_breakers:
-        _circuit_breakers[name] = CircuitBreaker(name, failure_threshold, recovery_timeout)
-    return _circuit_breakers[name] 
+        _circuit_breakers[name] = CircuitBreaker(
+            name=name,
+            failure_threshold=failure_threshold,
+            recovery_timeout=recovery_timeout,
+        )
+    return _circuit_breakers[name]

@@ -33,6 +33,7 @@ from env import settings
 from flex.data.asset_prices import get_asset_price_not_cached
 from flex.data.pool_state import get_or_create_pool_state, update_pool_state
 from flex.data.pool_state_priced import calculate_user_pool_state_cost
+from flex.db.indexes import ensure_database_indexes
 from flex.migrations import migrate_before_start
 from flex.migrations.contracts import create_pool_from_contract
 from flex.providers.vestige import get_dex_tag_by_name
@@ -550,35 +551,14 @@ def init_app():
             logger.error(f"Error during database migrations: {e}", exc_info=True)
             raise
 
-    # Ensure unique index on asset_prices.id and clean up corrupted data
+    # These indexes enforce idempotent event and price projections.
     try:
         from flex import db as flex_db
-        asset_prices_col = flex_db.asset_prices.mongodb_collection
 
-        pipeline = [
-            {'$group': {'_id': '$id', 'count': {'$sum': 1}, 'keep': {'$last': '$_id'}, 'all_ids': {'$push': '$_id'}}},
-            {'$match': {'count': {'$gt': 1}}}
-        ]
-        duplicates = list(asset_prices_col.aggregate(pipeline))
-        if duplicates:
-            total_removed = 0
-            for doc in duplicates:
-                ids_to_remove = [oid for oid in doc['all_ids'] if oid != doc['keep']]
-                result = asset_prices_col.delete_many({'_id': {'$in': ids_to_remove}})
-                total_removed += result.deleted_count
-            logger.info(f"Removed {total_removed} duplicate asset_prices entries")
-
-        asset_prices_col.create_index('id', unique=True, name='id_unique')
-        logger.info("Ensured unique index on asset_prices.id")
-
-        # Add indexes for hot query patterns
-        flex_db.lp_states.mongodb_collection.create_index('token_id', name='token_id_idx')
-        flex_db.pool_states.mongodb_collection.create_index('pool_id', name='pool_id_idx')
-        flex_db.user_states.mongodb_collection.create_index('address', name='address_idx')
-        flex_db.lp_tokens.mongodb_collection.create_index('id', name='lp_token_id_idx')
-        logger.info("Ensured indexes on lp_states.token_id, pool_states.pool_id, user_states.address, lp_tokens.id")
+        ensure_database_indexes(flex_db)
     except Exception as e:
         logger.error(f"Error during database index setup: {e}", exc_info=True)
+        raise
 
     # Ensure all contracts have start/end dates populated
     try:

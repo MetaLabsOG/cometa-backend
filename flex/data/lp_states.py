@@ -5,13 +5,14 @@ from aiocache import cached
 from env import settings
 from flex import db
 from flex.blockchain.info import get_address_assets, get_address_assets_with_algo, get_current_round
-from flex.data.assets import micros_to_amount, get_asset_total_supply
+from flex.data.assets import get_asset_total_supply, micros_to_amount
 from flex.data.lp_tokens import get_lp_token_by_id, lp_token_from_tinyman_pool
 from flex.db.model.blockchain import LpToken
+from flex.db.model.liquidity_pools import LpState, LpTransaction
+from flex.domain.transactions import event_id_aliases
 from flex.meta_error import MetaError
 from flex.providers.tinyman import fetch_algo_tinyman_pool_by_asset_id
 from flex.providers.vestige import vestige_full_asset_price
-from flex.db.model.liquidity_pools import LpState, LpTransaction
 from flex.util import build_key_str
 
 logger = logging.getLogger(__name__)
@@ -46,18 +47,18 @@ async def recalculate_lp_state_price_algo_with_micros(lp_state: LpState) -> LpSt
 async def create_lp_state_by_lp_token_id(lp_token_id: int, current_round: int | None = None) -> LpState:
     lp_token = await get_lp_token_by_id(lp_token_id)
     if lp_token is None:
-        raise MetaError(f'LP token not found for ID {lp_token_id}')
+        raise MetaError(f"LP token not found for ID {lp_token_id}")
 
     return await create_lp_state_by_lp_token(lp_token, current_round)
 
 
 async def create_lp_state_by_lp_token(lp_token: LpToken, current_round: int | None = None) -> LpState:
     if db.lp_states.exists(token_id=lp_token.id):
-        raise MetaError(f'LP state already exists for LP token ID {lp_token.id}')
+        raise MetaError(f"LP state already exists for LP token ID {lp_token.id}")
 
     # TODO: remove after test
     if lp_token.asset1_id == 0:
-        raise MetaError(f'ALGO LP token asset1 ID = 0, not id2: {lp_token}')
+        raise MetaError(f"ALGO LP token asset1 ID = 0, not id2: {lp_token}")
 
     if lp_token.asset2_id == 0:
         balances = await get_address_assets_with_algo(lp_token.address)
@@ -94,10 +95,10 @@ async def create_lp_state_by_lp_token(lp_token: LpToken, current_round: int | No
         total_tokens=issued_tokens,
         token_price_algo=lp_token_price_algo,
         last_updated_round=current_round,
-        is_algo_pool=lp_token.asset2_id == 0
+        is_algo_pool=lp_token.asset2_id == 0,
     )
     if lp_state.is_algo_pool:
-        logger.info(f'Created new LP state for ALGO pool, asa_id={lp_token.asset1_id}:\n{lp_state.pretty_str()}')
+        logger.info(f"Created new LP state for ALGO pool, asa_id={lp_token.asset1_id}:\n{lp_state.pretty_str()}")
 
     db.lp_states.create(lp_state)
     return lp_state
@@ -135,21 +136,21 @@ async def create_lp_states_from_all_pools() -> list[LpState]:
             lp_state = await create_lp_state_by_lp_token_id(farming_pool.stake_token.id)
             new_lp_states.append(lp_state)
         except Exception as e:
-            logger.error(f'Failed to create LP state: {e}\n{farming_pool.pretty_str()}', exc_info=True)
+            logger.error(f"Failed to create LP state: {e}\n{farming_pool.pretty_str()}", exc_info=True)
 
     return new_lp_states
 
 
-async def update_lp_states_with_transactions(
-        transactions: list[LpTransaction]
-) -> list[LpState]:
+async def update_lp_states_with_transactions(transactions: list[LpTransaction]) -> list[LpState]:
     if len(transactions) == 0:
         return []
 
     updated_lp_states = {}
+    applied_transactions = []
+    seen_event_ids: set[str] = set()
     for tx in transactions:
-        if db.lp_transactions.exists(id=tx.id):
-            logger.debug(f'Transaction {tx.id} already recorded in DB')
+        if tx.id in seen_event_ids or any(db.lp_transactions.exists(id=alias) for alias in event_id_aliases(tx.id)):
+            logger.debug(f"Transaction {tx.id} already recorded in DB")
             continue
 
         lp_state = updated_lp_states.get(tx.pool_address)
@@ -157,7 +158,7 @@ async def update_lp_states_with_transactions(
             # TODO: cache
             lp_state = db.lp_states.get_one(address=tx.pool_address)
             if lp_state is None:
-                logger.error(f'LP state not found for address {tx.pool_address}')
+                logger.error(f"LP state not found for address {tx.pool_address}")
                 continue
             updated_lp_states[tx.pool_address] = lp_state
 
@@ -168,10 +169,12 @@ async def update_lp_states_with_transactions(
         elif tx.asa_id == lp_state.asset2_id:
             lp_state.asset2_reserve_micros += tx.delta_amount_micros
         else:
-            logger.error(f'Invalid tx {tx.id} ASA ID {tx.asa_id} for LP state {lp_state.id}')
+            logger.error(f"Invalid tx {tx.id} ASA ID {tx.asa_id} for LP state {lp_state.id}")
             continue
 
         lp_state.last_updated_round = tx.confirmed_round
+        applied_transactions.append(tx)
+        seen_event_ids.add(tx.id)
 
     lp_states = []
     for lp_state in updated_lp_states.values():
@@ -180,15 +183,16 @@ async def update_lp_states_with_transactions(
         db.lp_states.update(lp_state)
         lp_states.append(lp_state)
 
-    db.lp_transactions.create_many(transactions)
+    if applied_transactions:
+        db.lp_transactions.create_many(applied_transactions)
 
-    logger.info(f'Updated {len(lp_states)} LP states with {len(transactions)} transactions')
+    logger.info(f"Updated {len(lp_states)} LP states with {len(applied_transactions)} transactions")
     return lp_states
 
 
 async def update_all_lp_states_linear() -> list[LpState]:
     lp_states = db.lp_states.get_all()
-    logger.debug(f'Updating {len(lp_states)} LP states...')
+    logger.debug(f"Updating {len(lp_states)} LP states...")
 
     updated_lp_states = []
     for lp_state in lp_states:
@@ -196,13 +200,13 @@ async def update_all_lp_states_linear() -> list[LpState]:
             updated_lp_state = await update_lp_state(lp_state)
             updated_lp_states.append(updated_lp_state)
         except Exception as e:
-            logger.error(f'Error updating state of LP {lp_state.id}: {e}', exc_info=True)
+            logger.error(f"Error updating state of LP {lp_state.id}: {e}", exc_info=True)
 
-    logger.debug(f'Updated {len(updated_lp_states)} LP states')
+    logger.debug(f"Updated {len(updated_lp_states)} LP states")
     return updated_lp_states
 
 
-@cached(ttl=settings.lp_token_prices_ttl, namespace='lp_state_by_id', key_builder=build_key_str)
+@cached(ttl=settings.lp_token_prices_ttl, namespace="lp_state_by_id", key_builder=build_key_str)
 async def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     lp_state = db.lp_states.get_one(token_id=lp_token_id)
     if lp_state is None:
@@ -213,12 +217,12 @@ async def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     return lp_state
 
 
-@cached(ttl=60, namespace='lp_state_by_address', key_builder=build_key_str)
+@cached(ttl=60, namespace="lp_state_by_address", key_builder=build_key_str)
 async def get_lp_state_by_address(address: str) -> LpState:
     return db.lp_states.get_one(address=address)
 
 
-@cached(ttl=120, namespace='tinyman_lp_state', key_builder=build_key_str)
+@cached(ttl=120, namespace="tinyman_lp_state", key_builder=build_key_str)
 async def get_tinyman_pool_lp_state_by_asset_id(asset_id: int) -> LpState | None:
     tiny_lp_state = db.lp_states.get_one(asset1_id=asset_id, asset2_id=0)
     if tiny_lp_state is not None:
@@ -226,7 +230,7 @@ async def get_tinyman_pool_lp_state_by_asset_id(asset_id: int) -> LpState | None
 
     tinyman_pool = await fetch_algo_tinyman_pool_by_asset_id(asset_id)
     if tinyman_pool is None or tinyman_pool.lp_token_id is None:
-        logger.debug(f'Tinyman pool for asset {asset_id} not found')
+        logger.debug(f"Tinyman pool for asset {asset_id} not found")
         return None
 
     lp_token = db.lp_tokens.get_by_primary_key(tinyman_pool.lp_token_id, throw_ex=False)

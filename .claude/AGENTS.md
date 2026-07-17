@@ -1,55 +1,52 @@
-# Backend Agent Briefing — Pre-Launch Sprint
+# Backend Agent Briefing
 
-Read this at session start before touching any code.
+Read this file and the root `AGENTS.md` before changing code. `BOARD.md` records
+work status; it does not override repository safety rules or the current user request.
 
-## Context
+## Working Order
 
-Cometa is relaunching after 8 months of shutdown. Comeback tweet: March 17, 2026. Your task board: `BOARD.md` → "Pre-Launch Sprint" section (CB-051 to CB-061).
+1. Inspect the relevant implementation and its tests.
+2. Check frontend consumers in `~/dev/cometa/metafarm-frontend/src/providers/`
+   before changing an endpoint or response shape.
+3. Preserve external behavior unless the task explicitly authorizes a contract change.
+4. Add or update a regression test with the implementation.
+5. Run the narrow checks while iterating, then the complete quality gate.
 
-## Phase 0 (developer does manually on VPS)
+## Architecture Boundaries
 
-You don't do these — the developer handles ops:
-- SSL renewal, algod sync, MongoDB `sync_state.last_round` update, cache warmup
-- Check if `db.nft_lotteries.find().count() > 0` → determines if CB-056 is needed
+- `app.py` owns application assembly, route registration, and process orchestration.
+- Pure pricing and transaction invariants belong in `flex/domain/`.
+- MongoDB and provider adapters stay outside domain modules.
+- Synchronous SDK or HTTP work must not block an async request path.
+- Financial amounts remain integer base units or `Decimal` until an explicit
+  compatibility boundary.
+- Circuit breakers are process-local resilience controls, not cross-process coordination.
 
-## Phase 1 (do first — data bugs, then security)
+## Safety Boundaries
 
-Order matters:
-1. **CB-051** — PoolState recursion (crashes everything)
-2. **CB-052** — CORS fix (unblocks frontend testing)
-3. **CB-053** — TVL crash fixes (3 separate 1-line bugs)
-4. **CB-054** — Security: credentials + dead DB endpoints + notify_prices
-5. **CB-055** — Gate fake wallet endpoints (returns `[]`)
-6. **CB-056** — Disable lottery (only if developer confirms NftLottery entries exist)
-7. **CB-057** — BLOCK_TIME unification
-8. **CB-058** — JS sidecar timeout
+- Never expose or commit mnemonics, tokens, private keys, `.env`, recovery data,
+  or full sensitive payloads.
+- Do not execute signing, refunds, deployments, database migrations, or production
+  scripts unless the user explicitly requests that external action.
+- Validate on-chain and provider payloads before persistence.
+- Preserve idempotency for transaction replay and financial background jobs.
+- Do not silently substitute zero for unavailable chain state or price data.
 
-## Phase 2 (dead code removal + hardening)
+## Quality Gate
 
-- **CB-059** — Remove 39 dead endpoints + 7 dead directories. This is the biggest task. See the full dead endpoint list in `~/dev/cometa/cometa-strategy/research/pre-launch-final-plan.md`.
-- **CB-060** — Blocking I/O → `run_in_executor`
-- **CB-061** — Docker hardening
+```bash
+pipenv verify
+pipenv sync --dev
+make quality
+```
 
-## Cross-project awareness
+CI validates Compose but does not certify the image as immutable-deploy ready:
+the private Node sidecar package-auth blocker is documented in `README.md`. Keep the
+focused lint, type, and coverage ratchets honest.
 
-- Your CB-052 (CORS) unblocks the frontend agent. Prioritize it early.
-- Your CB-055 + CB-056 have frontend counterparts (MF-046, MF-048). Update Cross-Project Task Sync in `~/dev/cometa/CLAUDE.md` when done.
-- After removing endpoints in CB-059, update the API Contract table in `~/dev/cometa/CLAUDE.md`.
+## Cross-Project Changes
 
-## Do NOT touch
-
-- Reach JS sidecar contract logic in `js/contracts/`
-- Algorand transaction signing paths
-- Wallet mnemonic handling
-- `telegram_bot.py` (separate process)
-- Any dependency version upgrades (risky 4 days before launch)
-
-## Important: 8-month gap
-
-- algod may be syncing when you start. `get_current_round()` returns 0 or stale.
-- All caches are empty. First requests will be slow.
-- Don't panic about stale data — Phase 0 ops handles the warm-up.
-
-## When done
-
-Update task status in `BOARD.md`. For CB-055, CB-056: also update Cross-Project Task Sync in `~/dev/cometa/CLAUDE.md`.
+The canonical API contract and deploy-state log live in `~/dev/cometa/CLAUDE.md`.
+For an API change, update the backend, frontend provider/types, tests, and canonical
+contract as one logical unit. Record completed scoped work in `BOARD.md` without
+rewriting unrelated user changes.

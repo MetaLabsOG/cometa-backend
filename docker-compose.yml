@@ -1,47 +1,70 @@
-version: '3.9'
-
 services:
-    app:
-        build: .
-        restart: always
-        entrypoint: scripts/run.sh
-        env_file:
-            - .env
-        volumes:
-            - ".:/app"
-            - "/tmp/cometa-${ALGO_NETWORK}:/tmp"
-        ports:
-            - "${SERVER_PORT}:${SERVER_PORT}"
-        expose:
-            - "${SERVER_PORT}"
-        depends_on:
-            - mongodb
-            - algod
-        logging:
-            driver: json-file
-            options:
-                max-size: "5m"
-                max-file: "20"
+  app:
+    build:
+      context: .
+    image: "cometa-backend:${COMETA_IMAGE_TAG:-local}"
+    init: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Legacy VPS compatibility: installing the locked Reach sidecar dependencies
+    # in a clean image still requires authenticated GitHub Packages access.
+    volumes:
+      - .:/app
+    ports:
+      - "${SERVER_PORT:-8000}:${SERVER_PORT:-8000}"
+    expose:
+      - "${SERVER_PORT:-8000}"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      algod:
+        condition: service_started
+    tmpfs:
+      - /tmp:rw,nosuid,size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "20"
 
-    mongodb:
-        image: mongo
-        restart: always
-        command: mongod --port ${MONGODB_PORT}
-        volumes:
-            - "/var/lib/mongodb-${ALGO_NETWORK}:/data/db"
+  mongodb:
+    # Set MONGODB_IMAGE to the exact version already validated against the
+    # existing data directory before changing it in production.
+    image: "${MONGODB_IMAGE:-mongo}"
+    restart: unless-stopped
+    command: mongod --port ${MONGODB_PORT:-27017}
+    volumes:
+      - "/var/lib/mongodb-${ALGO_NETWORK:-mainnet}:/data/db"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--port",
+          "${MONGODB_PORT:-27017}",
+          "--eval",
+          "quit(db.adminCommand('ping').ok ? 0 : 2)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
-    algod:
-        image: algorand/algod:latest
-        container_name: algod-node
-        restart: unless-stopped
-        environment:
-            - NETWORK=mainnet
-            - FAST_CATCHUP=1           # snapshot-based fast sync
-            - TOKEN=${ALGOD_TOKEN}     # 64+ char API key for REST
-        volumes:
-            - algod-data:/algod/data   # persists ~20 GB ledger
-        ports:
-            - "127.0.0.1:4190:8080"    # bind REST API to localhost
+  algod:
+    image: "${ALGOD_IMAGE:-algorand/algod:latest}"
+    restart: unless-stopped
+    environment:
+      NETWORK: "${ALGO_NETWORK:-mainnet}"
+      FAST_CATCHUP: "1"
+      TOKEN: "${ALGOD_TOKEN}"
+    volumes:
+      - algod-data:/algod/data
+    ports:
+      - "127.0.0.1:4190:8080"
 
 volumes:
   algod-data:

@@ -4,34 +4,33 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-aiocache = "*"
-arweave-python-client = "*"
-cachetools = "*"
-dataclasses-json = "*"
-discord-webhook = "*"
-fastapi = "*"
-httpx = "*"
-tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git"}
-pactsdk = "*"
-py-algorand-sdk = "*"
-pyairtable = "*"
-pydantic = "*"
-pydantic-settings = "*"
-pymongo = "*"
-python-dotenv = "*"
-python-telegram-bot = "*"
-redis = "*"
-requests = "*"
-schedule = "*"
-uvicorn = "*"
+aiocache = "==0.12.3"
+arweave-python-client = "==1.0.19"
+cachetools = "==7.0.2"
+dataclasses-json = "==0.6.7"
+discord-webhook = "==1.4.1"
+fastapi = "==0.135.1"
+httpx = "==0.28.1"
+tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git", ref = "ed5b1b4dea8716bc02f8e8c422224d26606a5f72"}
+pactsdk = "==0.7.1"
+py-algorand-sdk = "==2.11.1"
+pyairtable = "==3.3.0"
+pydantic = "==2.13.4"
+pydantic-settings = "==2.13.1"
+pymongo = "==4.16.0"
+python-dotenv = "==1.2.2"
+python-telegram-bot = "==22.6"
+redis = "==7.2.1"
+requests = "==2.32.5"
+schedule = "==1.2.2"
+uvicorn = "==0.41.0"
 
 [dev-packages]
+mypy = "==1.19.1"
 pytest = "==9.1.1"
+pytest-asyncio = "==1.4.0"
 pytest-cov = "==7.1.0"
 ruff = "==0.15.22"
 
 [requires]
 python_version = "3.12"
-
-[pipenv]
-allow_prereleases = true
