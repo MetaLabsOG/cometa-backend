@@ -1,6 +1,6 @@
 # Cometa Backend — Task Board
 
-> Last updated: 2026-07-17
+> Last updated: 2026-07-18
 
 ## Conventions
 
@@ -29,7 +29,8 @@
 | Provider resilience | done | Typed fallback errors, bounded stale data, retry classification, circuit breaker |
 | Replay identity | done | Deterministic nested event IDs and collection-level uniqueness constraints |
 | Container baseline | done | Digest-pinned base, unprivileged user, healthcheck, bounded logs, Docker exclusions |
-| API hardening | done | Header-based API authentication, production CORS allowlist, bounded LP requests |
+| API hardening | done | Fail-closed header authentication, trusted hosts, explicit CORS policy, bounded LP/asset/wallet requests |
+| Sidecar least privilege | done | Keyless view account, read-only command allowlist, user-only socket, bounded frames and timeouts |
 
 ## Working agreement
 
