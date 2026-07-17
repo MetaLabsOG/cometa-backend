@@ -225,6 +225,9 @@ downloaded_logs/
 sample_jsons/
 test-results/
 
+# Local agent/tool configuration
+.mcp.json
+
 # Sensitive scripts with hardcoded keys
 test_refund.py
 check_vestige_hack.py
