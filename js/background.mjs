@@ -86,7 +86,7 @@ try {
 } catch (e) {
     console.error('BACKGROUND HUMBLE FETCHER ERROR', e);
 } finally {
-    console.log('Fuck Humble ok?');
+    console.log('JS: stopping Humble pool background sync');
     await client.close();
-    console.log('Didnt even wanted it so much');
+    console.log('JS: Mongo connection closed');
 }

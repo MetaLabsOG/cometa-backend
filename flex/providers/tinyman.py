@@ -47,7 +47,7 @@ def get_amount(micros: int, asset: Asset) -> float:
 
 async def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolInfo:
     if asset1_id < asset2_id:
-        # Tinyman Pool class do that for some untangible fucking reason
+        # Tinyman expects the larger asset ID first when deriving a pool.
         asset1_id, asset2_id = asset2_id, asset1_id
 
     import asyncio
