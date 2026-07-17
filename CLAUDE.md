@@ -7,11 +7,11 @@ Backend for Cometa — an Algorand DeFi platform handling liquidity pools, token
 - **Language**: Python 3.12, Pipenv
 - **Framework**: FastAPI + Uvicorn
 - **Database**: MongoDB (pymongo)
-- **Cache**: Redis
+- **Cache**: process-local TTL caches (Redis migration is roadmap work)
 - **Blockchain**: Algorand (py-algorand-sdk, algosdk)
 - **JS interop**: Node.js sidecar in `js/` (Algorand SDK operations)
 - **Deployment**: Docker Compose on VPS
-- **Image**: `nikolaik/python-nodejs:python3.12-nodejs21-slim-canary`
+- **Image**: digest-pinned Python 3.12 + Node.js 22
 
 ## Project Structure
 
@@ -36,12 +36,16 @@ metapunks/          — MetaPunks-specific logic
 
 ```bash
 # Local development
-pipenv install
+pipenv verify
+pipenv sync --dev
 pipenv run uvicorn app:app --reload --port 8000
 
-# Docker
-docker-compose up -d --build
-docker-compose logs -f app
+# Quality gate
+make quality
+
+# Current VPS-compatible Docker stack
+docker compose up -d --build
+docker compose logs -f app
 
 # Scripts (on VPS)
 scripts/redeploy.sh     # pull + rebuild + restart
@@ -58,9 +62,12 @@ scripts/backup_db.sh     # backup MongoDB
 - Use `logging` module, never `print()` — logger per module
 - Background tasks in `api/background.py` — use exponential backoff for retries
 - Algorand SDK calls that need Node.js go through `js/` sidecar
-- All API routes defined in `app.py`
+- Route registration and process orchestration stay in `app.py`; Flex routes live in `flex/api.py`
 - MongoDB models in `api/db_model.py`
-- Asset prices cached with TTL (Redis) — see `dexes/` for price fetching
+- Asset prices use process-local TTL caches — see `dexes/` for provider calls
+- Preserve financial values as `Decimal` or integer base units until an explicit compatibility boundary
+- New pricing and transaction invariants belong in pure modules under `flex/domain/`
+- Run the strict mypy target before changing `core/circuit_breaker.py` or `flex/domain/`
 
 ## Cross-Project Sync
 
@@ -90,17 +97,20 @@ See parent `~/dev/cometa/CLAUDE.md` for the canonical API contract table. That f
 
 ## Testing
 
-No test infrastructure yet (CB-034). When adding tests:
+Tests are organized by boundary under `tests/unit/`. Run the same fast checks used
+by CI before committing:
 
 ```bash
-pipenv install --dev pytest pytest-asyncio httpx
-pipenv run pytest tests/ -v
+make sync
+make quality
 ```
 
 - Use `pytest-asyncio` for async endpoint tests
-- Use `httpx.AsyncClient` with FastAPI's `TestClient` for integration tests
-- Priority: lottery claim atomicity, price fetching, contract CRUD
-- Mock MongoDB with `mongomock` or use a test database
+- Use `httpx.AsyncClient` with ASGI transport for endpoint integration tests
+- Keep domain tests pure and deterministic; inject clocks and provider functions
+- Priority: event replay/idempotency, price freshness, contract CRUD, authorization
+- Use a dedicated test database only for integration tests; never point tests at production
+- Every bug fix should include a regression test when practical
 
 ## Commit Discipline
 
