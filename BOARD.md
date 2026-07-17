@@ -90,7 +90,7 @@
 | CB-007 | Fix blocking I/O in async endpoints — `send_nft()`, `is_opted_in()`, `get_account_assets()` | done | critical | backend, perf | `get_wallet_assets` wrapped in `run_in_executor` (CB-060). `send_nft`/`is_opted_in` no longer called (lottery disabled). `flex/blockchain/info.py` sync calls wrapped (CB-064) |
 | CB-008 | Configure aiocache to use Redis backend instead of in-memory | todo | high | backend, perf | `flex/providers/vestige.py`, `flex/data/` — SimpleMemoryCache means N workers = N caches = N API calls |
 | CB-009 | Unify `get_current_round()` — two implementations with different TTL and clients | done | high | backend, arch | Async version now delegates to sync via `run_in_executor`. Single algod call, shared cachetools cache. Dead functions removed from `blockchain/node.py` |
-| CB-010 | Fix CircuitBreaker — `asyncio.Lock` doesn't work across `spawn.Process` | todo | high | backend | `core/circuit_breaker.py:21` — each process has own CB instance, protection ineffective |
+| CB-010 | Add cross-process provider circuit coordination | todo | high | backend | Process-local breaker now has safe half-open probes and typed retry classification; multiple spawned workers still need shared Redis/Mongo coordination |
 | CB-011 | Fix N+1 queries in `/pools/state/` and `/pools/cost` endpoints | todo | high | backend, perf | `flex/api.py:83-88, 95-97` — sequential awaits per pool. Use `asyncio.gather()` |
 | CB-012 | Add MongoDB indexes for hot queries | done | high | backend, perf | Added indexes on `lp_states.token_id`, `pool_states.pool_id`, `user_states.address`, `lp_tokens.id` at startup in `init_app()` |
 | CB-013 | Fix `delete /pool/` endpoint — only reads, doesn't delete | todo | high | backend | `flex/api.py:51-52` — DELETE handler returns data without removing |
@@ -101,8 +101,8 @@
 |----|------|--------|----------|------|-------|
 | CB-014 | Replace all `print()` with `logger` calls | done | medium | backend | Runtime modules, including `env.py`, use module loggers. Remaining prints are limited to explicit CLI/one-off script output |
 | CB-015 | Standardize datetime usage — all `datetime.now(timezone.utc)` | todo | medium | backend | `app.py:205,260`, `flex/api.py:87,212` — mix of naive and aware datetimes |
-| CB-016 | Pin dependency versions in Pipfile | todo | medium | backend, infra | All packages `"*"` — non-reproducible builds. Pin to current working versions |
-| CB-017 | Fix Dockerfile — layer caching, non-root user, .dockerignore | todo | medium | infra | COPY before pip install, no USER directive, apt cache not cleaned |
+| CB-016 | Pin dependency versions in Pipfile | done | medium | backend, infra | Direct dependencies and Tinyman Git revision pinned; committed lock verified in CI |
+| CB-017 | Fix Dockerfile — layer caching, non-root user, .dockerignore | in_progress | medium | infra | Base digest, pinned Pipenv, cached Python layer, non-root user, healthcheck, and exclusions done. Immutable app artifact awaits read-only private npm package access |
 | CB-018 | Fix JS interop zombie processes — `start_js_interop_server()` leaks Node.js processes | done | medium | backend | Fixed: global process tracking, kill-before-spawn, context manager, atexit cleanup, restart cooldown, run_in_executor for async context |
 | CB-019 | Fix `safe_async_method` — return value discarded, decorator order with `@repeat_every` | done | medium | backend | Return value and metadata preserved; error logs exclude arguments; regression tests added |
 | CB-020 | Clean up dead code — `unusedcode/`, `notify_prices`, `check_vestige_hack.py`, debug scripts | todo | medium | backend | `unusedcode/`, `api/background.py:187-195`, root-level temp scripts |

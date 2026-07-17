@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from aiocache import cached as cached_async
-from cachetools import cached, TTLCache
+from cachetools import TTLCache, cached
 
 from env import settings
 from flex import db
@@ -10,17 +10,31 @@ from flex.blockchain.base import indexer_client
 from flex.blockchain.info import get_current_round
 from flex.data.asset_prices import create_and_update_asset_prices
 from flex.data.assets import load_all_assets_data
-from flex.data.lp_states import update_lp_states_with_transactions, create_lp_states_from_all_pools, \
-    update_all_lp_states_linear
-from flex.data.pool_state import update_pool_states_with_transactions, get_or_create_pool_state, update_pool_state, \
-    update_all_pool_states_linear
+from flex.data.lp_states import (
+    create_lp_states_from_all_pools,
+    update_all_lp_states_linear,
+    update_lp_states_with_transactions,
+)
+from flex.data.pool_state import (
+    get_or_create_pool_state,
+    update_all_pool_states_linear,
+    update_pool_state,
+    update_pool_states_with_transactions,
+)
 from flex.data.tinyman_lps import update_tinyman_algo_lp_state_and_prices
-from flex.data.transactions import ASSET_TRANSFER_TX, APPLICATION_CALL_TX, PAYMENT_TX
 from flex.db.model.blockchain import PoolTransaction, SyncBlock, SyncState
 from flex.db.model.liquidity_pools import LpState, LpTransaction
 from flex.db.model.pool_states import PoolState, UserState
 from flex.db.model.priced import AssetPrice
-from flex.providers.vestige import get_algo_price_usd
+from flex.domain.pricing import PricingError
+from flex.domain.transactions import (
+    ASSET_TRANSFER_TX,
+    PAYMENT_TX,
+    flatten_asset_transfers,
+    flatten_transfer_payments,
+    projection_event_id,
+)
+from flex.providers.price_router import get_algo_price_quote
 from flex.sync_state import get_sync_state, is_sync_delayed
 from flex.util import build_key_str
 
@@ -32,67 +46,15 @@ def get_all_lp_state_addresses() -> set[str]:
     return set(lp_state.address for lp_state in db.lp_states.get_all())
 
 
-# TODO: refactor (workaround to fasten up)
 def find_transfer_payment_transactions(txns: list[dict]) -> list[dict]:
-    transactions = []
-    for tx in txns:
-        if ASSET_TRANSFER_TX in tx or PAYMENT_TX in tx:
-            # Stake
-            transactions.append(tx)
-
-        elif APPLICATION_CALL_TX in tx:
-            inner_txns = tx.get('inner-txns')
-            if inner_txns is None:
-                continue
-
-            for inner_id, inner_tx in enumerate(inner_txns):
-                if ASSET_TRANSFER_TX in inner_tx or PAYMENT_TX in inner_tx:
-                    # Withdraw
-                    inner_tx['id'] = f"{tx['id']}#{inner_id}"
-                    transactions.append(inner_tx)
-
-                elif APPLICATION_CALL_TX in inner_tx:
-                    inner_inner_txns = inner_tx.get('inner-txns')
-                    if inner_inner_txns is None:
-                        continue
-
-                    for inner_inner_id, inner_inner_tx in enumerate(inner_inner_txns):
-                        if ASSET_TRANSFER_TX in inner_inner_tx or PAYMENT_TX in inner_inner_tx:
-                            # Withdraw
-                            inner_inner_tx['id'] = f"{tx['id']}#{inner_id}#{inner_inner_id}"
-                            transactions.append(inner_inner_tx)
-    return transactions
+    return flatten_transfer_payments(txns)
 
 
 def find_transfer_transactions(txns: list[dict]) -> list[dict]:
-    transfer_transactions = []
-    for tx in txns:
-        if ASSET_TRANSFER_TX in tx:
-            # Stake
-            transfer_transactions.append(tx)
-
-        elif APPLICATION_CALL_TX in tx:
-            inner_txns = tx.get('inner-txns')
-            if inner_txns is None:
-                continue
-
-            is_claim = False
-            for inner_tx in inner_txns:
-                if PAYMENT_TX in inner_tx:
-                    is_claim = True
-            if is_claim:
-                # TODO: save claim tx as well
-                continue
-
-            for inner_tx in inner_txns:
-                if ASSET_TRANSFER_TX in inner_tx:
-                    # Withdraw
-                    inner_tx['id'] = tx['id']
-                    transfer_transactions.append(inner_tx)
-    return transfer_transactions
+    return flatten_asset_transfers(txns)
 
 
-@cached_async(ttl=30, namespace='pool_state', key_builder=build_key_str)
+@cached_async(ttl=30, namespace="pool_state", key_builder=build_key_str)
 async def get_pool_state_by_address(address: str) -> PoolState:
     return db.pool_states.get_one(address=address)
 
@@ -102,24 +64,24 @@ async def process_lp_transactions(transactions: list[dict]) -> list[LpTransactio
 
     lp_transactions = []
     for tx in transactions:
-        txid = tx['id']
-        sender = tx['sender']
-        confirmed_round = tx['confirmed-round']
+        txid = tx["id"]
+        sender = tx["sender"]
+        confirmed_round = tx["confirmed-round"]
 
         if ASSET_TRANSFER_TX in tx:
-            asa_id = tx[ASSET_TRANSFER_TX]['asset-id']
-            receiver = tx[ASSET_TRANSFER_TX]['receiver']
-            amount = tx[ASSET_TRANSFER_TX]['amount']
+            asa_id = tx[ASSET_TRANSFER_TX]["asset-id"]
+            receiver = tx[ASSET_TRANSFER_TX]["receiver"]
+            amount = tx[ASSET_TRANSFER_TX]["amount"]
         elif PAYMENT_TX in tx:
             asa_id = 0
-            receiver = tx[PAYMENT_TX]['receiver']
-            amount = tx[PAYMENT_TX]['amount']
+            receiver = tx[PAYMENT_TX]["receiver"]
+            amount = tx[PAYMENT_TX]["amount"]
         else:
-            raise ValueError(f'Invalid transaction type: {tx}')
+            raise ValueError(f"Invalid transaction type: {tx}")
 
         if sender in all_lp_addresses:
             lp_tx = LpTransaction(
-                id=txid,
+                id=projection_event_id(txid, sender),
                 pool_address=sender,
                 user_address=receiver,
                 asa_id=asa_id,
@@ -130,7 +92,7 @@ async def process_lp_transactions(transactions: list[dict]) -> list[LpTransactio
 
         if receiver in all_lp_addresses:
             lp_tx = LpTransaction(
-                id=txid,
+                id=projection_event_id(txid, receiver),
                 pool_address=receiver,
                 user_address=sender,
                 asa_id=asa_id,
@@ -145,12 +107,12 @@ async def process_lp_transactions(transactions: list[dict]) -> list[LpTransactio
 async def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
     pool_transactions = []
     for tx in txns:
-        txid = tx['id']
-        sender = tx['sender']
-        tx_asa_id = tx[ASSET_TRANSFER_TX]['asset-id']
-        receiver = tx[ASSET_TRANSFER_TX]['receiver']
-        amount = tx[ASSET_TRANSFER_TX]['amount']
-        confirmed_round = tx['confirmed-round']
+        txid = tx["id"]
+        sender = tx["sender"]
+        tx_asa_id = tx[ASSET_TRANSFER_TX]["asset-id"]
+        receiver = tx[ASSET_TRANSFER_TX]["receiver"]
+        amount = tx[ASSET_TRANSFER_TX]["amount"]
+        confirmed_round = tx["confirmed-round"]
 
         withdraw_pool = await get_pool_state_by_address(address=sender)
         if withdraw_pool is not None:
@@ -162,7 +124,7 @@ async def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
                     pool_address=withdraw_pool.address,
                     asa_id=tx_asa_id,
                     delta_amount_micros=-amount,
-                    confirmed_round=confirmed_round
+                    confirmed_round=confirmed_round,
                 )
                 pool_transactions.append(pool_tx)
                 continue
@@ -177,7 +139,7 @@ async def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
                     pool_address=stake_pool.address,
                     asa_id=tx_asa_id,
                     delta_amount_micros=amount,
-                    confirmed_round=confirmed_round
+                    confirmed_round=confirmed_round,
                 )
                 pool_transactions.append(pool_tx)
 
@@ -194,63 +156,66 @@ async def update_lp_states(txns: list[dict]) -> list[LpState]:
     return await update_lp_states_with_transactions(lp_transactions)
 
 
-async def update_asset_prices(
-        updated_lp_states: list[LpState]
-) -> list[AssetPrice]:
+async def update_asset_prices(updated_lp_states: list[LpState]) -> list[AssetPrice]:
     if len(updated_lp_states) == 0:
         return []
 
-    algo_price_usd = await get_algo_price_usd()
-    algo_price_db = db.asset_prices.get_one(id=0)
-    if algo_price_db is not None:
-        algo_price_db.price_usd = algo_price_usd
-        algo_price_db.last_update_round = await get_current_round()
-        db.asset_prices.update(algo_price_db)
-
-    updated_asset_prices = [algo_price_db]
+    algo_quote = await get_algo_price_quote()
+    updated_asset_prices = []
     for lp_state in updated_lp_states:
         if lp_state.is_algo_pool:
-            updated_asset_price = await update_tinyman_algo_lp_state_and_prices(lp_state, algo_price_usd)
-            if updated_asset_price is not None:
+            try:
+                updated_asset_price = await update_tinyman_algo_lp_state_and_prices(
+                    lp_state,
+                    algo_quote,
+                )
                 updated_asset_prices.append(updated_asset_price)
+            except PricingError as exc:
+                logger.warning(
+                    "Skipping invalid Tinyman LP state %s: %s",
+                    lp_state.id,
+                    exc,
+                )
 
     if len(updated_asset_prices) > 0:
-        logger.debug(f'Updated {len(updated_asset_prices)} asset prices.')
+        logger.debug(f"Updated {len(updated_asset_prices)} asset prices.")
     return updated_asset_prices
 
 
 async def catch_up_the_sync_manually(sync_state: SyncState, current_round: int) -> SyncState:
-    logger.info('\n\nMANUAL roll rock and roll BABE.\n')
-    logger.info(f'Last sync round = {sync_state.last_round}, sync lag = {sync_state.rounds_since_updated(current_round)} rounds.\n')
+    logger.info("\n\nMANUAL roll rock and roll BABE.\n")
+    logger.info(
+        f"Last sync round = {sync_state.last_round}, sync lag = {sync_state.rounds_since_updated(current_round)} rounds.\n"
+    )
 
     _ = await load_all_assets_data()
     _ = await update_all_pool_states_linear(reset_pool_states=True)
 
     current_round = await get_current_round()
-    logger.info(f'\n\nAnother, shorter loop, starting from round {current_round}\n')
+    logger.info(f"\n\nAnother, shorter loop, starting from round {current_round}\n")
     await update_all_pool_states_linear()
 
-    logger.info('\n\nSyncing LP states linearly.\n')
+    logger.info("\n\nSyncing LP states linearly.\n")
     _ = await create_lp_states_from_all_pools()
     _ = await update_all_lp_states_linear()
     _ = await create_and_update_asset_prices()
 
     sync_state.last_round = current_round
     db.sync_states.update(sync_state)
-    logger.info(f'\n\nALL synced up to round {current_round}.\n')
+    logger.info(f"\n\nALL synced up to round {current_round}.\n")
 
     return sync_state
 
 
 async def sync_pools_loop():
     current_round = await get_current_round()
-    logger.info(f'\n\nEnter sync loop. Current round = {current_round}')
+    logger.info(f"\n\nEnter sync loop. Current round = {current_round}")
     sync_state = await get_sync_state()
 
     if sync_state.last_round is None or sync_state.rounds_since_updated(current_round) > settings.sync_lag_max_rounds:
         sync_state = await catch_up_the_sync_manually(sync_state, current_round)
 
-    logger.info('\n\nMain BLOCKCHAIN sync loop!\n')
+    logger.info("\n\nMain BLOCKCHAIN sync loop!\n")
 
     no_block_seconds = 0
     MAX_BLOCK_DELAY_SECONDS = 10
@@ -262,7 +227,7 @@ async def sync_pools_loop():
         except Exception as e:
             no_block_seconds += 1
             if no_block_seconds > MAX_BLOCK_DELAY_SECONDS:
-                logger.debug(f'No #{next_round} for {no_block_seconds} seconds: {e}')
+                logger.debug(f"No #{next_round} for {no_block_seconds} seconds: {e}")
 
             await asyncio.sleep(1)
             continue
@@ -270,8 +235,8 @@ async def sync_pools_loop():
         no_block_seconds = 0
 
         try:
-            raw_transactions = block_dict['transactions']
-            logger.debug(f'Fetch #{next_round}: sync {len(raw_transactions)} txns')
+            raw_transactions = block_dict["transactions"]
+            logger.debug(f"Fetch #{next_round}: sync {len(raw_transactions)} txns")
 
             updated_pool_states = await update_pools(find_transfer_transactions(raw_transactions))
             updated_lp_states = await update_lp_states(find_transfer_payment_transactions(raw_transactions))
@@ -279,16 +244,11 @@ async def sync_pools_loop():
 
             sync_state.last_round = next_round
             db.sync_states.update(sync_state)
-            db.sync_blocks.create(
-                SyncBlock(
-                    round=next_round,
-                    timestamp=block_dict['timestamp']
-                )
-            )
+            db.sync_blocks.create(SyncBlock(round=next_round, timestamp=block_dict["timestamp"]))
 
-            logger.debug(f'#{next_round} sync OK! Saved {len(updated_pool_states) + len(updated_lp_states)} txns\n')
+            logger.debug(f"#{next_round} sync OK! Saved {len(updated_pool_states) + len(updated_lp_states)} txns\n")
         except Exception as e:
-            logger.error(f'Error processing round {next_round}: {e}', exc_info=True)
+            logger.error(f"Error processing round {next_round}: {e}", exc_info=True)
             continue
 
 

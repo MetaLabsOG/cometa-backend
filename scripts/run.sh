@@ -1,5 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-#uvicorn app:app --host 0.0.0.0 --port 5000 # TODO: --workers "$WORKERS_NUM"
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
 
-pipenv run python -u app.py
+cd -- "${PROJECT_ROOT}"
+
+if [[ ! -f "app.py" ]]; then
+    printf 'ERROR: application entrypoint not found: %s/app.py\n' "${PROJECT_ROOT}" >&2
+    exit 1
+fi
+
+exec python -u app.py

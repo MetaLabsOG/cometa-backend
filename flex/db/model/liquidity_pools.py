@@ -34,7 +34,7 @@ class LpStateInfo:
 
 @dataclass_json
 @dataclass
-class LpState(BaseEntity['LpState']):
+class LpState(BaseEntity["LpState"]):
     id: int
     token_id: int
     asset1_id: int  # asset1_id > asset2_id
@@ -61,7 +61,7 @@ class LpState(BaseEntity['LpState']):
 
     @classmethod
     def primary_key_name(cls) -> str:
-        return 'token_id'
+        return "token_id"
 
     def to_info(self, algo_price_usd: float, current_time: datetime | None = None) -> LpStateInfo:
         current_time = current_time or datetime.now()
@@ -82,15 +82,15 @@ class LpState(BaseEntity['LpState']):
             token_price_usd=self.token_price_algo * algo_price_usd,
             last_updated_round=self.last_updated_round,
             swap_fee_apr=self.swap_fee_apr,
-            seconds_since_update=int((current_time - self.updated).total_seconds())
+            seconds_since_update=int((current_time - self.updated).total_seconds()),
         )
 
 
 @dataclass_json
 @dataclass
-class LpTransaction(BaseEntity['LpTransaction']):
+class LpTransaction(BaseEntity["LpTransaction"]):
     id: str
-    pool_address: int
+    pool_address: str
     user_address: str
     asa_id: int
     delta_amount_micros: int
