@@ -2,6 +2,13 @@
 .gitignore
 .claude
 .mcp.json
+.env
+.env.*
+**/.npmrc
+test_refund.py
+verify_pool.sh
+verify_algorand_credentials.py
+js/sellTokensDeflex.js
 *.md
 docs/
 scripts/missing_contracts.json

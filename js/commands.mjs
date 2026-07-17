@@ -16,6 +16,7 @@ import * as distribution_17_0_4 from "metalabsog-distribution-17_0_4";
 import * as distribution_17_0_5 from "metalabsog-distribution-17_0_5";
 
 import {MNEMONIC, REACH_ALGO_ENV} from "./config.mjs";
+import {getContractVersions} from "./contract-registry.mjs";
 
 // This module is ES module because our contract modules are ES modules, and we want them
 // to be loaded synchronously.
@@ -26,12 +27,10 @@ const __dirname = path.dirname(__filename);
 // ...and they also cannot import json without webpack...
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "./package.json")));
 
-// issue THAT
-//
 const localhostProviderEnv = {
     ALGO_SERVER: 'http://localhost',
     ALGO_PORT: '4180',
-    ALGO_TOKEN: 'REMOVED_CREDENTIAL',
+    ALGO_TOKEN: process.env.REACH_DEVNET_ALGOD_TOKEN,
     ALGO_INDEXER_SERVER: 'http://localhost',
     ALGO_INDEXER_PORT: '8980',
     ALGO_INDEXER_TOKEN: 'reach-devnet',
@@ -145,11 +144,8 @@ const mapConcurrent = async (ls, fn) => {
 // Export functions here and call them from Python by their name and arguments using `calljs`!
 
 export const contractVersion = async ({ contractType }) => {
-  if (!contractType in CONTRACT_PKGS) {
-    throw new Error(`unknown contract type ${contractType}`);
-  }
-
-  return latestVersion(Object.keys(CONTRACT_PKGS[contractType]));
+  const versions = getContractVersions(CONTRACT_PKGS, contractType);
+  return latestVersion(Object.keys(versions));
 };
 
 export const deployContract = async ({
@@ -157,11 +153,7 @@ export const deployContract = async ({
   contractSettings,
   version,
 }) => {
-  if (!contractType in CONTRACT_PKGS) {
-    throw new Error(`unknown contract type ${contractType}`);
-  }
-
-  const versions = CONTRACT_PKGS[contractType];
+  const versions = getContractVersions(CONTRACT_PKGS, contractType);
   if (!version) {
     version = latestVersion(Object.keys(versions));
   }
@@ -176,13 +168,11 @@ export const fetchContractsGlobalViews = async ({
   contractType,
   idVersions,
 }) => {
-  if (!contractType in CONTRACT_PKGS) {
-    throw new Error(`unknown contract type ${contractType}`);
-  }
+  const versions = getContractVersions(CONTRACT_PKGS, contractType);
   
   const results = await mapConcurrent(idVersions, async ({ id, version }) => {
     try {
-      const { backend } = CONTRACT_PKGS[contractType][version];
+      const { backend } = versions[version];
       const ctc = account.contract(backend, id);
       const initial = await ctc.unsafeViews.initial();
       const global = await ctc.unsafeViews.global();
@@ -209,13 +199,11 @@ export const fetchContractsLocalViews = async ({
   idVersions,
   walletAddress
 }) => {
-  if (!contractType in CONTRACT_PKGS) {
-    throw new Error(`unknown contract type ${contractType}`);
-  }
+  const versions = getContractVersions(CONTRACT_PKGS, contractType);
 
   const results = await mapConcurrent(idVersions, async ({ id, version }) => {
     try {
-      const { backend } = CONTRACT_PKGS[contractType][version];
+      const { backend } = versions[version];
       const ctc = account.contract(backend, id);
       const local = await ctc.unsafeViews.local(walletAddress);
       return local;

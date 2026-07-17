@@ -1,4 +1,12 @@
-export const COMETA_ENV = process.env.ALGO_NETWORK.toLowerCase() || "testnet";
+export function normalizeAlgoNetwork(value) {
+  const network = (value || "testnet").toLowerCase();
+  if (!["mainnet", "testnet"].includes(network)) {
+    throw new Error(`Unsupported ALGO_NETWORK: ${value}`);
+  }
+  return network;
+}
+
+export const COMETA_ENV = normalizeAlgoNetwork(process.env.ALGO_NETWORK);
 export const NETWORK = COMETA_ENV === "testnet" ? "TestNet" : "MainNet";
 
 export const MONGO_HOST = process.env.MONGODB_HOST;

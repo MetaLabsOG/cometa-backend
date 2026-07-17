@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
+from typing import Any, Generic, Type, TypeVar
 
-from pymongo import DESCENDING, ASCENDING
+from pymongo import ASCENDING, DESCENDING, ReturnDocument
 from pymongo.collection import Collection as MongoCollection
-from typing import TypeVar, Generic, Any, Type
-
 from pymongo.database import Database as MongoDatabase
+from pymongo.errors import DuplicateKeyError
+
+from flex.db.classes.base_entity import BaseEntity
 
 
 @dataclass
@@ -50,16 +52,25 @@ class CollectionManager(Generic[EntityT]):
         return res
 
     def get_or_create(self, item: EntityT) -> EntityT:
-        res = self.get_by_primary_key(self.primary_key_name, throw_ex=False)
-        if res is None:
-            res = self.create(item)
-        return res
+        """Use one upsert operation; concurrent uniqueness requires a primary-key index."""
+        query = {self.primary_key_name: item.primary_key}
+        try:
+            document = self.mongodb_collection.find_one_and_update(
+                query,
+                {'$setOnInsert': item.to_dict()},
+                upsert=True,
+                return_document=ReturnDocument.AFTER,
+            )
+        except DuplicateKeyError:
+            document = self.mongodb_collection.find_one(query)
+            if document is None:
+                raise
+        if document is None:
+            raise DbError(code=500, message=f'Failed to read {self.name} after upsert')
+        return self.item_from_dict(document)
 
     def get_or_create_with(self, **kwargs) -> EntityT:
-        res = self.get_by_primary_key(kwargs.get(self.primary_key_name), throw_ex=False)
-        if res is None:
-            res = self.create_with(**kwargs)
-        return res
+        return self.get_or_create(self.elem_type(**kwargs))
 
     def get_many(self, **kwargs) -> list[EntityT]:
         items = self.mongodb_collection.find(kwargs)

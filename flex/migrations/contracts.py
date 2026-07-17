@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 async def staking_pool_from_contract_info(contract_info: ContractInfo, distribution: bool = False) -> StakingPool:
-    # FIXME: I DON'T issue CARE, IT WORKS
+    # Distribution contracts historically used the same token for stake and
+    # reward; keep that compatibility rule explicit until old contracts migrate.
     if distribution:
         stake_token_id = contract_info.metadata.get('stake_token_id')
         if stake_token_id is None:
