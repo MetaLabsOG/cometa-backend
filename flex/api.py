@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from aiocache import cached
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
 from core.db.contracts import get_active_contracts, get_contracts_by_type
@@ -13,18 +13,18 @@ from flex import db
 from flex.data.asset_prices import (
     create_asset_prices_batch,
     get_all_asset_prices,
-    get_asset_price,
     get_asset_prices_by_query,
     validated_stored_asset_price,
 )
-from flex.data.assets import get_all_asset_details, get_asset_details, get_asset_details_by_query, get_full_asset
+from flex.data.assets import get_all_asset_details, get_asset_details_by_query, get_full_asset
 from flex.db.model.blockchain import AssetDetails
 from flex.db.model.priced import AssetPriceInfo
-from flex.domain.pricing import PriceUnavailableError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 PositiveAssetId = Annotated[int, Field(strict=True, gt=0)]
+AssetId = Annotated[int, Field(strict=True, ge=0)]
+QueryAssetId = Annotated[int, Query(ge=0)]
 
 
 # LP API
@@ -92,33 +92,46 @@ async def handle_get_lp_state_priced(body: LpStatePricedRequest):
 
 
 @router.post("/asset", tags=["Assets"])
-async def handle_get_asset_by_id(asset_id: int) -> AssetDetails:
-    return await get_asset_details(asset_id)
+async def handle_get_asset_by_id(asset_id: QueryAssetId) -> AssetDetails:
+    asset = db.assets.get_by_primary_key(asset_id, throw_ex=False)
+    if asset is None:
+        raise HTTPException(status_code=404, detail=f"Asset {asset_id} not found")
+    return asset.to_details()
 
 
 @router.post("/asset/price", tags=["Assets"])
-async def handle_get_asset_price_by_id(asset_id: int) -> AssetPriceInfo:
-    try:
-        asset_price = await get_asset_price(asset_id)
-        return asset_price.to_info(datetime.now(UTC))
-    except PriceUnavailableError as exc:
-        logger.warning("Price unavailable for asset %s: %s", asset_id, exc)
+async def handle_get_asset_price_by_id(asset_id: QueryAssetId) -> AssetPriceInfo:
+    current_time = datetime.now(UTC)
+    asset_price = db.asset_prices.get_one(id=asset_id)
+    if asset_price is None:
+        raise HTTPException(status_code=404, detail=f"Price for asset {asset_id} not found")
+    if (
+        validated_stored_asset_price(
+            asset_price,
+            max_age=timedelta(seconds=settings.asset_prices_max_stale),
+            now=current_time,
+        )
+        is None
+    ):
         raise HTTPException(
             status_code=503,
             detail=f"Price for asset {asset_id} is temporarily unavailable",
-        ) from exc
-    except Exception as e:
-        logger.exception("Error getting price for asset %s", asset_id)
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=404, detail=f"Asset {asset_id} not found") from e
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get price for asset {asset_id}",
-        ) from e
+        )
+    return asset_price.to_info(current_time)
 
 
 class AssetsParams(BaseModel):
-    ids: list[int] | None = None
+    ids: list[AssetId] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=250,
+    )
+
+    @model_validator(mode="after")
+    def deduplicate_ids(self) -> "AssetsParams":
+        if self.ids is not None:
+            self.ids = list(dict.fromkeys(self.ids))
+        return self
 
     def to_query_dict(self) -> dict:
         query_dict = {}

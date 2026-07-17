@@ -40,7 +40,7 @@ MongoDB—into stable, query-oriented API models for the product frontend.
 | **Financial precision** | Prices use validated `Decimal` value objects, carry source and observation time, and cross the legacy `float` boundary only explicitly. |
 | **Deterministic replay identity** | Nested Algorand transfers receive stable, projection-scoped event IDs; unique indexes guard price and event-marker collections. Crash-atomic projection remains roadmap work. |
 | **Resilient price routing** | Vestige and Tinyman payloads are validated with provenance and bounded staleness; retry classification and a guarded Vestige refresh prevent failure storms. |
-| **Operational boundaries** | Selected latency-sensitive SDK calls leave the event loop through executors; background workers reconcile chain state without coupling reads to refresh latency. |
+| **Operational boundaries** | Selected latency-sensitive SDK calls leave the event loop through executors; wallet fan-out is cached and bounded; background workers reconcile chain state without coupling reads to refresh latency. |
 
 The codebase combines a production system's real constraints with incremental
 modernization: pure domain modules and strict typing sit beside legacy adapters,
@@ -65,7 +65,9 @@ flowchart LR
 FastAPI routes are intentionally thin at the newer boundaries. Application
 services coordinate refresh and fallback behavior; domain modules own invariants;
 adapters isolate storage, chain, and provider-specific details. The optional
-Node.js sidecar performs Reach SDK operations and is disabled by default.
+Node.js sidecar performs read-only Reach view operations and is disabled by
+default. Its Unix socket is user-only, request size and read time are bounded,
+and an explicit command allowlist excludes deployment and signing.
 
 ### Reliability boundaries
 
@@ -77,6 +79,7 @@ Node.js sidecar performs Reach SDK operations and is disabled by default.
 | Sync SDK → async request path | Bounded executor hand-off |
 | Permanent provider error → retry loop | Typed classification prevents pointless retries |
 | Half-open circuit → provider | A single probe prevents a recovery stampede |
+| Python → optional Reach sidecar | Keyless account, allowlisted reads, bounded frames, user-only socket |
 
 ## Quick start
 
@@ -101,9 +104,9 @@ make run
 
 `make run` starts Uvicorn with reload on port `8000`. Keep `ENABLE_JS=false`
 unless you have access to the private sidecar packages and provide a read-only
-`NODE_AUTH_TOKEN`. A development mnemonic is currently required because legacy
-signing adapters derive an address at import time; use a generated, unfunded
-account only.
+`NODE_AUTH_TOKEN`. A development mnemonic is still required by legacy Python
+transaction adapters; use a generated, unfunded account only. The Node.js
+sidecar deletes mnemonic variables before loading its read-only command module.
 
 Verify the service:
 
@@ -130,7 +133,7 @@ This single command runs:
 - Ruff linting and formatting checks;
 - strict mypy checks on modern domain boundaries;
 - the complete Python test suite with branch coverage;
-- Node.js contract/configuration tests.
+- Node.js contract/configuration and sidecar boundary tests.
 
 CI repeats those checks on every pull request and every push to `main`, verifies
 the lockfile, and validates the Compose configuration. The focused coverage

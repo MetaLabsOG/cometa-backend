@@ -1,7 +1,8 @@
 import {MongoClient} from "mongodb";
 import humble, {fetchLiquidityPool} from "@reach-sh/humble-sdk";
+import algosdk from "algosdk";
 
-import {COMETA_ENV, MNEMONIC, MONGO_HOST, MONGO_PORT, NETWORK,} from "./config.mjs";
+import {COMETA_ENV, MONGO_HOST, MONGO_PORT, NETWORK,} from "./config.mjs";
 
 const client = new MongoClient(`mongodb://${MONGO_HOST}:${MONGO_PORT}`);
 
@@ -58,7 +59,8 @@ async function runHumble(collection) {
 
     humble.initHumbleSDK(humbleSettings);
     const reach = humble.createReachAPI();
-    const account = await reach.newAccountFromMnemonic(MNEMONIC);
+    const address = algosdk.encodeAddress(new Uint8Array(32));
+    const account = await reach.connectAccount({addr: address});
 
     const streamPromise = humble.subscribeToPoolStream(account, {
         onPoolFetched: async ({succeeded, data: {pool}}) => {
