@@ -8,24 +8,24 @@ from flex import db
 from flex.data.pools import get_pools_by_query
 from flex.data.transactions import pool_fetch_new_transactions
 from flex.db.model.blockchain import PoolTransaction
-from flex.db.model.pool_states import PoolState, UserState, UserPoolState
+from flex.db.model.pool_states import PoolState, UserPoolState, UserState
 from flex.db.model.pools import PoolType
+from flex.domain.transactions import event_id_aliases
 from flex.meta_error import MetaError
-
 
 logger = logging.getLogger(__name__)
 
 
 def get_pool_type_from_contract(contract: ContractInfo) -> PoolType:
-    if contract.type == 'distribution':
+    if contract.type == "distribution":
         return PoolType.STAKING
-    if contract.type == 'farm' and 'dex' in contract.metadata:
+    if contract.type == "farm" and "dex" in contract.metadata:
         return PoolType.FARMING
     return PoolType.STAKING
 
 
 async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
-    logging.info(f'Creating new pool state for contract {contract.id} - {contract.description}')
+    logging.info(f"Creating new pool state for contract {contract.id} - {contract.description}")
 
     pool_type = get_pool_type_from_contract(contract)
     if pool_type == PoolType.STAKING:
@@ -36,11 +36,11 @@ async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
         pool_id=contract.id,
         type=get_pool_type_from_contract(contract),
         address=pool.address,
-        stake_token=pool.stake_token
+        stake_token=pool.stake_token,
     )
 
     db.pool_states.create(pool_state)
-    logger.info(f'Created new pool state: address = {pool_state.address}')
+    logger.info(f"Created new pool state: address = {pool_state.address}")
     return pool_state
 
 
@@ -50,7 +50,7 @@ async def get_or_create_pool_state(pool_id: int) -> PoolState:
     if pool_state is None:
         contract_info = get_contract(pool_id)
         if contract_info is None:
-            raise MetaError(f'Pool {pool_id} contract not found')
+            raise MetaError(f"Pool {pool_id} contract not found")
         pool_state = await create_pool_state_from_contract(contract_info)
     return pool_state
 
@@ -58,23 +58,20 @@ async def get_or_create_pool_state(pool_id: int) -> PoolState:
 def get_user_state_pool(user_state: UserState, pool_state: PoolState) -> UserPoolState:
     user_pool_state = user_state.pool_by_address.get(pool_state.address)
     if user_pool_state is None:
-        user_pool_state = UserPoolState(
-            pool_id=pool_state.pool_id,
-            stake_token=pool_state.stake_token
-        )
+        user_pool_state = UserPoolState(pool_id=pool_state.pool_id, stake_token=pool_state.stake_token)
         user_state.pool_by_address[pool_state.address] = user_pool_state
     return user_pool_state
 
 
 async def apply_creation_tx(pool_state: PoolState, user_state: UserState, tx: PoolTransaction) -> PoolState:
     if tx.asa_id != pool_state.stake_token.id:
-        logger.debug(f'Pool {pool_state.pool_id} is not distribution pool')
+        logger.debug(f"Pool {pool_state.pool_id} is not distribution pool")
         return pool_state
     if pool_state.stake_amount_reduced_by_rewards:
-        logger.debug(f'Pool {pool_state.pool_id} already reduced rewards from the stake calc')
+        logger.debug(f"Pool {pool_state.pool_id} already reduced rewards from the stake calc")
         return pool_state
 
-    logger.info(f'Applying creation txn for pool {pool_state.pool_id}: {pool_state.stake_token.name}')
+    logger.info(f"Applying creation txn for pool {pool_state.pool_id}: {pool_state.stake_token.name}")
 
     user_pool_state = get_user_state_pool(user_state, pool_state)
     user_pool_state.staked_amount_micros -= tx.delta_amount_micros
@@ -92,9 +89,7 @@ async def apply_creation_tx(pool_state: PoolState, user_state: UserState, tx: Po
 
 
 async def update_pool_states_with_transactions(
-        transactions: list[PoolTransaction],
-        pool_states: list[PoolState] | None = None,
-        reset_pool_states: bool = False
+    transactions: list[PoolTransaction], pool_states: list[PoolState] | None = None, reset_pool_states: bool = False
 ) -> list[PoolState]:
     if len(transactions) == 0:
         return pool_states or []
@@ -111,11 +106,13 @@ async def update_pool_states_with_transactions(
         if len(new_user_states) > 0:
             created_user_states = db.user_states.create_many(new_user_states)
             user_state_by_address = {user_state.address: user_state for user_state in created_user_states}
-            logger.info(f'IN BATCH Created {len(created_user_states)} new user states.')
+            logger.info(f"IN BATCH Created {len(created_user_states)} new user states.")
 
+    applied_transactions = []
+    seen_event_ids: set[str] = set()
     for tx in transactions:
-        if db.pool_transactions.exists(id=tx.id):
-            logger.debug(f'Transaction {tx.id} already recorded in DB')
+        if tx.id in seen_event_ids or any(db.pool_transactions.exists(id=alias) for alias in event_id_aliases(tx.id)):
+            logger.debug(f"Transaction {tx.id} already recorded in DB")
             continue
 
         user_state = user_state_by_address.get(tx.user_address) or await get_or_create_user_state(tx.user_address)
@@ -139,15 +136,18 @@ async def update_pool_states_with_transactions(
 
         user_state.last_tx = tx.to_info()
         user_state_by_address[user_state.address] = user_state
+        applied_transactions.append(tx)
+        seen_event_ids.add(tx.id)
 
     for user_state in user_state_by_address.values():
         db.user_states.update(user_state)
     updated_pool_states = list(pool_state_by_id.values())
     for pool_state in updated_pool_states:
         db.pool_states.update(pool_state)
-    db.pool_transactions.create_many(transactions)
+    if applied_transactions:
+        db.pool_transactions.create_many(applied_transactions)
 
-    logger.info(f'Updated {len(pool_state_by_id)} pool states with {len(transactions)} transactions')
+    logger.info(f"Updated {len(pool_state_by_id)} pool states with {len(applied_transactions)} transactions")
 
     return updated_pool_states
 
@@ -164,19 +164,19 @@ async def update_all_pool_states_linear(reset_pool_states: bool = False) -> list
     missing_cnt = len(all_pools) - len(pool_states)
     if missing_cnt > 0:
         pool_state_ids = {pool_state.pool_id for pool_state in pool_states}
-        logger.info(f'Creating {missing_cnt} new pool states')
+        logger.info(f"Creating {missing_cnt} new pool states")
         ind = 1
         for pool in all_pools:
             if pool.id not in pool_state_ids:
                 try:
-                    logging.info(f'\n#{ind}/{missing_cnt} pool id = {pool.id} - {pool.description}\n')
+                    logging.info(f"\n#{ind}/{missing_cnt} pool id = {pool.id} - {pool.description}\n")
                     pool_state = await get_or_create_pool_state(pool.id)
                     pool_states.append(pool_state)
                     ind += 1
                 except Exception as e:
-                    logger.error(f'Failed to create pool state {pool.id}: {e}', exc_info=True)
+                    logger.error(f"Failed to create pool state {pool.id}: {e}", exc_info=True)
 
-    logger.info(f'Updating {len(pool_states)} pool states')
+    logger.info(f"Updating {len(pool_states)} pool states")
 
     # ASYNC
     # ind = 1
@@ -194,31 +194,33 @@ async def update_all_pool_states_linear(reset_pool_states: bool = False) -> list
     pool_states.reverse()
     for pool_state in pool_states:
         try:
-            logger.info(f'\n{ind}/{len(pool_states)} pool id = {pool_state.pool_id}\n')
+            logger.info(f"\n{ind}/{len(pool_states)} pool id = {pool_state.pool_id}\n")
             pool_state = await update_pool_state(pool_state, reset_pool_states=reset_pool_states)
             updated_pool_states.append(pool_state)
             ind += 1
         except Exception as e:
-            logger.error(f'Failed to update pool state {pool_state.pool_id}: {e}', exc_info=True)
+            logger.error(f"Failed to update pool state {pool_state.pool_id}: {e}", exc_info=True)
 
-    logger.info(f'Fresh {len(updated_pool_states)} pool states!')
+    logger.info(f"Fresh {len(updated_pool_states)} pool states!")
     return list(updated_pool_states)
 
 
 async def update_pool_state(pool_state: PoolState, reset_pool_states: bool = False) -> PoolState:
-    logger.debug(f'Updating pool state {pool_state.pool_id} {pool_state.stake_token.name}')
+    logger.debug(f"Updating pool state {pool_state.pool_id} {pool_state.stake_token.name}")
 
     new_transactions = await pool_fetch_new_transactions(pool_state)
     if len(new_transactions) == 0:
-        logger.debug(f'No new transactions for pool {pool_state.pool_id}')
+        logger.debug(f"No new transactions for pool {pool_state.pool_id}")
         return pool_state
 
-    updated_pool_states = await update_pool_states_with_transactions(new_transactions, pool_states=[pool_state], reset_pool_states=reset_pool_states)
+    updated_pool_states = await update_pool_states_with_transactions(
+        new_transactions, pool_states=[pool_state], reset_pool_states=reset_pool_states
+    )
     return updated_pool_states[0]
 
 
 async def update_pool_state_by_id(pool_id: int) -> PoolState:
-    logger.debug(f'Updating pool state {pool_id}')
+    logger.debug(f"Updating pool state {pool_id}")
     pool_state = await get_or_create_pool_state(pool_id)
     return await update_pool_state(pool_state)
 
@@ -228,5 +230,5 @@ async def get_or_create_user_state(address: str) -> UserState:
     user_state = db.user_states.get_one(address=address)
     if user_state is None:
         user_state = db.user_states.create(UserState(address=address))
-        logger.info(f'Created new user state: address = {user_state.address}')
+        logger.info(f"Created new user state: address = {user_state.address}")
     return user_state

@@ -5,6 +5,7 @@
 .env
 .env.*
 **/.npmrc
+**/node_modules
 test_refund.py
 verify_pool.sh
 verify_algorand_credentials.py

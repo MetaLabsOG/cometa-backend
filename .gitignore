@@ -41,6 +41,7 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .nox/
+.ruff_cache/
 .coverage
 .coverage.*
 .cache
@@ -102,6 +103,9 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+.env
+.env.*
+!.env.example
 .env.main
 .venv
 env/
@@ -129,6 +133,13 @@ dmypy.json
 .pyre/
 
 .idea
+.DS_Store
+**/.DS_Store
+/tmp/
+/scripts/missing_contracts.json
+/scripts/recovery_results.json
+/scripts/restore_checkpoint.json
+/scripts/restore_results.json
 metapunks/arweave_key.json
 metapunks/copy_chosen_nfts.sh
 metapunks/filter_nft_files.sh
@@ -212,7 +223,6 @@ temp_data/test_optins.json
 temp_data/user_pools_snapshot.json
 temp_data/user_pools.json
 temp_data/user_txns_35720000_37530000.json
-.env
 
 # Analysis artifacts
 *.json.bak
