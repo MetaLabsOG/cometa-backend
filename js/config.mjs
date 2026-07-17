@@ -18,8 +18,6 @@ export const META_ASA_IDS = {
 };
 
 export const META_TOKEN = META_ASA_IDS[NETWORK];
-export const MNEMONIC = process.env.ALGO_MNEMONIC;
-
 const ALGONODE_TOKEN = {"x-algo-api-token": process.env.ALGOD_TOKEN};
 
 export const REACH_ALGO_ENV = {

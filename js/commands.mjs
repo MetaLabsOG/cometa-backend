@@ -1,31 +1,16 @@
-import path from "path";
-import semver from "semver";
-import {fileURLToPath} from "url";
-import {readFileSync} from "fs";
 import {loadStdlib} from "@reach-sh/stdlib";
 import algosdk from 'algosdk';
 
 import * as RHC from '@reach-sh/stdlib/dist/cjs/ALGO_ReachHTTPClient.js';
 import * as UTBC from '@reach-sh/stdlib/dist/cjs/ALGO_UTBC.js';
 
-import {deployStandardContract} from "@metalabsog/common";
-
 import * as farm_17_2_4 from "metalabsog-farm-17_2_4";
 import * as farm_17_2_5 from "metalabsog-farm-17_2_5";
 import * as distribution_17_0_4 from "metalabsog-distribution-17_0_4";
 import * as distribution_17_0_5 from "metalabsog-distribution-17_0_5";
 
-import {MNEMONIC, REACH_ALGO_ENV} from "./config.mjs";
+import {REACH_ALGO_ENV} from "./config.mjs";
 import {getContractVersions} from "./contract-registry.mjs";
-
-// This module is ES module because our contract modules are ES modules, and we want them
-// to be loaded synchronously.
-// However, ES modules do not have those vars defined by default...
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// ...and they also cannot import json without webpack...
-const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "./package.json")));
 
 const localhostProviderEnv = {
     ALGO_SERVER: 'http://localhost',
@@ -48,7 +33,7 @@ function envDefaultsALGO(env) {
 }
 
 // These two functions allow us to use PureStake API with Reach without issue
-export function indexerFromEnv(env) {
+function indexerFromEnv(env) {
     const { ALGO_INDEXER_SERVER, ALGO_INDEXER_PORT, ALGO_INDEXER_TOKEN } = env;
     const port = ALGO_INDEXER_PORT || undefined; // UTBC checks for undefined
     const token =
@@ -61,7 +46,7 @@ export function indexerFromEnv(env) {
     return [rhc, new algosdk.Indexer(rhc)];
 }
 
-export function algodClientFromEnv(env) {
+function algodClientFromEnv(env) {
     const { ALGO_SERVER, ALGO_PORT, ALGO_TOKEN } = env;
     const port = ALGO_PORT || undefined; // UTBC checks for undefiend
     const token = typeof ALGO_TOKEN === 'string' ? { 'X-Algo-API-Token': ALGO_TOKEN } : ALGO_TOKEN;
@@ -77,7 +62,7 @@ export function algodClientFromEnv(env) {
  * This redefinition allows us to redefine `getProvider` properly, and it also allows us to make
  * a provider synchronously (e.g. to make a default provider and reuse algod client and indexer in `AppContext`)
  */
-export function makeProviderByEnv(env) {
+function makeProviderByEnv(env) {
     const fullEnv = envDefaultsALGO(env);
     const [algod_bc, algodClient] = algodClientFromEnv(fullEnv);
     const [indexer_bc, indexer] = indexerFromEnv(fullEnv);
@@ -115,9 +100,11 @@ export function makeProviderByEnv(env) {
 }
 
 
-// Setting up (and remembering!) the reach stuff
+// Global views do not need a funded signer. Keep this production sidecar
+// detached from the deployment mnemonic by using a public, keyless account.
 const reach = loadStdlib(REACH_ALGO_ENV);
-const account = await reach.newAccountFromMnemonic(MNEMONIC);
+const viewAccountAddress = algosdk.encodeAddress(new Uint8Array(32));
+const account = await reach.connectAccount({addr: viewAccountAddress});
 reach.setProvider(makeProviderByEnv(REACH_ALGO_ENV));
 
 const CONTRACT_PKGS = {
@@ -131,37 +118,8 @@ const CONTRACT_PKGS = {
   },
 };
 
-const latestVersion = (versions) =>
-  versions.reduce(
-    (prev, next) => (semver.gte(next, prev) ? next : prev),
-    "0.0.0"
-  );
-
 const mapConcurrent = async (ls, fn) => {
   return await Promise.all(ls.map(fn));
-};
-
-// Export functions here and call them from Python by their name and arguments using `calljs`!
-
-export const contractVersion = async ({ contractType }) => {
-  const versions = getContractVersions(CONTRACT_PKGS, contractType);
-  return latestVersion(Object.keys(versions));
-};
-
-export const deployContract = async ({
-  contractType,
-  contractSettings,
-  version,
-}) => {
-  const versions = getContractVersions(CONTRACT_PKGS, contractType);
-  if (!version) {
-    version = latestVersion(Object.keys(versions));
-  }
-
-  const { backend } = versions[version];
-  const ctc = account.contract(backend);
-  const contractId = await deployStandardContract(ctc, contractSettings);
-  return contractId;
 };
 
 export const fetchContractsGlobalViews = async ({
@@ -205,8 +163,7 @@ export const fetchContractsLocalViews = async ({
     try {
       const { backend } = versions[version];
       const ctc = account.contract(backend, id);
-      const local = await ctc.unsafeViews.local(walletAddress);
-      return local;
+      return await ctc.unsafeViews.local(walletAddress);
     } catch (e) {
       console.log(e);
       return null;
@@ -217,7 +174,7 @@ export const fetchContractsLocalViews = async ({
   for (let i = 0; i < idVersions.length; i++) {
     const curRes = results[i];
     if (curRes !== null) {
-      res[idVersions[i].id] = results[i];
+      res[idVersions[i].id] = curRes;
     }
   }
 

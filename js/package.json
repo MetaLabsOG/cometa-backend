@@ -16,20 +16,16 @@
   },
   "homepage": "https://github.com/MetaLabsOG/cometa-backend#readme",
   "dependencies": {
-    "@deflex/deflex-sdk-js": "^2.0.5",
-    "@metalabsog/common": "^17.0.0",
-    "@metalabsog/crowdsale": "17.0.0",
     "@reach-sh/humble-sdk": "^2.0.0",
     "@reach-sh/stdlib": "0.1.11-rc.0",
-    "algosdk": "1.19.0",
-    "dotenv": "^16.0.1",
+    "algosdk": "^1.24.1",
+    "dotenv": "^17.4.2",
+    "global-agent": "^4.1.3",
     "metalabsog-distribution-17_0_4": "npm:@metalabsog/distribution@^17.0.4",
     "metalabsog-distribution-17_0_5": "npm:@metalabsog/distribution@^17.0.5",
     "metalabsog-farm-17_2_4": "npm:@metalabsog/farm@17.2.4",
     "metalabsog-farm-17_2_5": "npm:@metalabsog/farm@17.2.5",
-    "mongodb": "^4.9.1",
-    "semver": "^7.3.7",
-    "url-parse": "^1.5.10",
-    "global-agent": "^3.0.0"
+    "mongodb": "^6.17.0",
+    "url-parse": "^1.5.10"
   }
 }

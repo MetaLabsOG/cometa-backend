@@ -13,11 +13,16 @@ from os import path
 
 from env import DIR_PATH
 
-COMETA_SOCK = '/tmp/cometa-js-interop.sock'
+COMETA_SOCK = "/tmp/cometa-js-interop.sock"
 SOCKET_WAIT_TIMEOUT = 30  # seconds
 RESTART_COOLDOWN = 10  # minimum seconds between restarts
 
 logger = logging.getLogger(__name__)
+
+
+class JsInteropCommandError(Exception):
+    """A valid sidecar response that reports an application-level failure."""
+
 
 _js_process: subprocess.Popen | None = None
 _js_lock = threading.Lock()
@@ -33,13 +38,13 @@ def _kill_js_process():
     try:
         _js_process.kill()
         _js_process.wait(timeout=5)
-        logger.info(f'Killed JS interop process (pid={pid})')
+        logger.info(f"Killed JS interop process (pid={pid})")
     except ProcessLookupError:
-        logger.debug(f'JS interop process (pid={pid}) already dead')
+        logger.debug(f"JS interop process (pid={pid}) already dead")
     except subprocess.TimeoutExpired:
-        logger.warning(f'JS interop process (pid={pid}) did not exit after kill')
+        logger.warning(f"JS interop process (pid={pid}) did not exit after kill")
     except Exception as e:
-        logger.warning(f'Error killing JS interop process (pid={pid}): {e}')
+        logger.warning(f"Error killing JS interop process (pid={pid}): {e}")
     _js_process = None
 
 
@@ -53,9 +58,9 @@ def start_js_interop_server():
     with _js_lock:
         _kill_js_process()
 
-        logger.info('Starting JS interop server')
+        logger.info("Starting JS interop server")
         if path.exists(COMETA_SOCK):
-            logger.info(f'Socket file {COMETA_SOCK} exists, cleaning...')
+            logger.info(f"Socket file {COMETA_SOCK} exists, cleaning...")
             os.unlink(COMETA_SOCK)
 
         jspath = path.join(DIR_PATH, "js", "index.js")
@@ -68,15 +73,16 @@ def start_js_interop_server():
         while not path.exists(COMETA_SOCK):
             if time.monotonic() > deadline:
                 _kill_js_process()
-                raise RuntimeError(f'JS interop server failed to start within {SOCKET_WAIT_TIMEOUT}s')
+                raise RuntimeError(f"JS interop server failed to start within {SOCKET_WAIT_TIMEOUT}s")
             if _js_process.poll() is not None:
                 rc = _js_process.returncode
                 _js_process = None
-                raise RuntimeError(f'JS interop server exited prematurely with code {rc}')
+                raise RuntimeError(f"JS interop server exited prematurely with code {rc}")
             time.sleep(0.1)
 
+        os.chmod(COMETA_SOCK, 0o600)
         _last_restart_time = time.monotonic()
-        logger.info(f'JS interop server started (pid={_js_process.pid})')
+        logger.info(f"JS interop server started (pid={_js_process.pid})")
         return _js_process
 
 
@@ -103,7 +109,7 @@ MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 async def recv_until_delimeter(s: socket.socket, delimeter: bytes, buf_size: int = 2048) -> bytes:
     loop = asyncio.get_running_loop()
-    buf = b''
+    buf = b""
     while delimeter not in buf:
         chunk = await loop.sock_recv(s, buf_size)
         if not chunk:
@@ -123,7 +129,7 @@ async def _restart_js_server():
 
 async def calljs(cmd: str, **params):
     if not path.exists(COMETA_SOCK):
-        logger.error(f'No Unix socket {COMETA_SOCK}; did you start js interop server?')
+        logger.error(f"No Unix socket {COMETA_SOCK}; did you start js interop server?")
         await _restart_js_server()
         await asyncio.sleep(1)
 
@@ -139,15 +145,12 @@ async def calljs(cmd: str, **params):
                 client.settimeout(30)
                 client.setblocking(False)
                 await loop.sock_connect(client, COMETA_SOCK)
-                await loop.sock_sendall(client, inp.encode('utf-8'))
+                await loop.sock_sendall(client, inp.encode("utf-8"))
                 client.shutdown(socket.SHUT_WR)
-                outp = await asyncio.wait_for(
-                    recv_until_delimeter(client, '\n'.encode('utf-8')),
-                    timeout=30
-                )
+                outp = await asyncio.wait_for(recv_until_delimeter(client, "\n".encode("utf-8")), timeout=30)
                 client.shutdown(socket.SHUT_RD)
 
-            response = json.loads(outp.decode('utf-8'))
+            response = json.loads(outp.decode("utf-8"))
 
             if "error" in response:
                 error_msg = response["error"]
@@ -159,16 +162,15 @@ async def calljs(cmd: str, **params):
                         for item in params.get("idVersions", []):
                             contract_id = str(item.get("id"))
                             if contract_id:
-                                result[contract_id] = {
-                                    "initial": {},
-                                    "global": {}
-                                }
+                                result[contract_id] = {"initial": {}, "global": {}}
                         return result
                     return {"error": "contract_view_unavailable"}
                 else:
-                    logger.error(f'JS error: {error_msg}')
-                    logger.error(f'Stack trace: {response["stack"]}')
-                    raise Exception(error_msg)
+                    logger.error(f"JS error: {error_msg}")
+                    stack = response.get("stack")
+                    if stack:
+                        logger.error("JS stack trace: %s", stack)
+                    raise JsInteropCommandError(error_msg)
 
             return response["response"]
 
@@ -179,7 +181,9 @@ async def calljs(cmd: str, **params):
                 socket_gone = not path.exists(COMETA_SOCK)
                 elapsed = time.monotonic() - _last_restart_time
                 if not socket_gone and elapsed < RESTART_COOLDOWN:
-                    logger.info(f"Skipping restart — last restart was {elapsed:.0f}s ago (cooldown {RESTART_COOLDOWN}s)")
+                    logger.info(
+                        f"Skipping restart — last restart was {elapsed:.0f}s ago (cooldown {RESTART_COOLDOWN}s)"
+                    )
                     await asyncio.sleep(2)
                 else:
                     await _restart_js_server()

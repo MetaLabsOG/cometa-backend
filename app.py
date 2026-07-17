@@ -6,11 +6,12 @@ from typing import List, Optional
 
 import uvicorn
 from algosdk import encoding
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 import dexes.humble as humble
 import flex.api
@@ -49,14 +50,16 @@ app = FastAPI(
     openapi_url=None,
 )
 ALLOWED_ORIGINS = {'https://app.cometa.farm', 'http://localhost:3000'}
+ALLOWED_HOSTS = ["api.cometa.farm", "localhost", "127.0.0.1", "testserver"]
 
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=False,
     allow_origins=list(ALLOWED_ORIGINS),
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_headers=["Accept", "Content-Type", "X-API-Key"],
 )
 app.include_router(flex.api.router)
 
@@ -104,10 +107,15 @@ async def status() -> dict:
 # WALLET API
 
 @app.get('/wallet/{address}/assets', tags=['Wallet'])
-async def wallet_assets(address: str) -> list[AssetInfo]:
+async def wallet_assets(
+    address: str,
+    limit: int = Query(default=100, ge=1, le=100),
+) -> list[AssetInfo]:
+    if not encoding.is_valid_address(address):
+        raise HTTPException(status_code=422, detail="Invalid Algorand address")
     loop = asyncio.get_running_loop()
     assets = await loop.run_in_executor(None, get_wallet_assets, address)
-    return assets
+    return assets[:limit]
 
 
 @app.get('/wallet/{address}/total_cost/', tags=['Wallet'])
@@ -307,13 +315,15 @@ async def register_contract(contract: AddContract) -> ContractInfo:
 
         target_beneficiary = settings.beneficiary_address
         if not target_beneficiary:
-            logger.warning("Beneficiary address not set in settings, skipping beneficiary check")
-        else:
-            target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
-            contract_beneficiary = view['initial'].get('beneficiary')
-            if contract_beneficiary != target_beneficiary_hex:
-                raise HTTPException(status_code=403,
-                                    detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary})")
+            raise HTTPException(
+                status_code=503,
+                detail="Contract registration is unavailable: beneficiary verification is not configured",
+            )
+        target_beneficiary_hex = '0x' + encoding.decode_address(target_beneficiary).hex()
+        contract_beneficiary = view['initial'].get('beneficiary')
+        if contract_beneficiary != target_beneficiary_hex:
+            raise HTTPException(status_code=403,
+                                detail=f"Farm's beneficiary address is invalid (expected {target_beneficiary}, got {contract_beneficiary})")
 
         cache_metadata = {"cache": view}
 

@@ -8,7 +8,6 @@ from pydantic import ValidationError
 
 from flex import api
 from flex.db.model.priced import AssetPrice
-from flex.domain.pricing import PriceUnavailableError
 
 
 def _lp_price(token_id: int, *, age_seconds: int = 0) -> AssetPrice:
@@ -57,6 +56,27 @@ def test_lp_request_deduplicates_batch_without_reordering() -> None:
     request = api.LpStatePricedRequest(lp_token_ids=[8, 5, 8, 13])
 
     assert request.lp_token_ids == [8, 5, 13]
+
+
+@pytest.mark.parametrize(
+    "ids",
+    [
+        [],
+        [-1],
+        [True],
+        ["1"],
+        list(range(1, 252)),
+    ],
+)
+def test_assets_request_rejects_invalid_or_unbounded_ids(ids: list) -> None:
+    with pytest.raises(ValidationError):
+        api.AssetsParams(ids=ids)
+
+
+def test_assets_request_deduplicates_ids_without_reordering() -> None:
+    request = api.AssetsParams(ids=[8, 0, 8, 13])
+
+    assert request.ids == [8, 0, 13]
 
 
 def test_lp_batch_uses_one_database_query_and_preserves_missing_entries(
@@ -148,14 +168,47 @@ def test_lp_endpoint_hides_price_older_than_max_stale(monkeypatch) -> None:
     assert response is None
 
 
-def test_asset_price_endpoint_maps_unavailable_price_to_503(monkeypatch) -> None:
-    async def unavailable_price(asset_id: int):
-        raise PriceUnavailableError("provider outage and stale fallback expired")
+def test_asset_endpoint_reads_only_from_existing_projection(monkeypatch) -> None:
+    expected = SimpleNamespace(id=42, name="Projected asset")
+    assets = SimpleNamespace(
+        get_by_primary_key=lambda asset_id, throw_ex: (
+            SimpleNamespace(to_details=lambda: expected) if asset_id == 42 else None
+        ),
+    )
+    monkeypatch.setattr(api, "db", SimpleNamespace(assets=assets))
 
-    monkeypatch.setattr(api, "get_asset_price", unavailable_price)
+    result = asyncio.run(api.handle_get_asset_by_id(42))
+
+    assert result is expected
+
+    with pytest.raises(HTTPException) as raised:
+        asyncio.run(api.handle_get_asset_by_id(43))
+
+    assert raised.value.status_code == 404
+
+
+def test_asset_price_endpoint_rejects_expired_projection(monkeypatch) -> None:
+    asset_prices = SimpleNamespace(
+        get_one=lambda **query: _lp_price(
+            query["id"],
+            age_seconds=api.settings.asset_prices_max_stale + 1,
+        ),
+    )
+    monkeypatch.setattr(api, "db", SimpleNamespace(asset_prices=asset_prices))
 
     with pytest.raises(HTTPException) as raised:
         asyncio.run(api.handle_get_asset_price_by_id(42))
 
     assert raised.value.status_code == 503
     assert raised.value.detail == "Price for asset 42 is temporarily unavailable"
+
+
+def test_asset_price_endpoint_returns_404_on_projection_miss(monkeypatch) -> None:
+    asset_prices = SimpleNamespace(get_one=lambda **query: None)
+    monkeypatch.setattr(api, "db", SimpleNamespace(asset_prices=asset_prices))
+
+    with pytest.raises(HTTPException) as raised:
+        asyncio.run(api.handle_get_asset_price_by_id(42))
+
+    assert raised.value.status_code == 404
+    assert raised.value.detail == "Price for asset 42 not found"
