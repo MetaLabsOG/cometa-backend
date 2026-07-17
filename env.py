@@ -1,13 +1,16 @@
+import logging
 import os
 from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+logger = logging.getLogger(__name__)
+
 
 class Settings(BaseSettings):
     algo_network: str
     algo_mnemonic: str
-    rekeyed_mnemonic: str = None
+    rekeyed_mnemonic: Optional[str] = None
 
     algod_address: str
     algod_token: str
@@ -101,7 +104,7 @@ settings = Settings()
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
-print(f'Algo Network = {settings.algo_network}')
-print(f'Mongo URL = {settings.mongodb_host}:{settings.mongodb_port}')
-print(f'Always Return Pool IDs = {settings.always_return_pool_ids}')
-print(f'Return All Cometa Pools to Addresses = {settings.return_all_cometa_pools_to_addresses}')
+logger.info('Algo network: %s', settings.algo_network)
+logger.info('Mongo endpoint: %s:%s', settings.mongodb_host, settings.mongodb_port)
+logger.info('Always-return pool IDs: %s', settings.always_return_pool_ids)
+logger.info('Return-all Cometa pool addresses: %s', settings.return_all_cometa_pools_to_addresses)
