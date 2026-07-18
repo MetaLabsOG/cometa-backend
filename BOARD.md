@@ -27,7 +27,7 @@
 | Precision-safe pricing | done | Decimal observations, provenance, freshness policy, guarded legacy boundary |
 | Provider resilience | done | Typed fallback errors, bounded stale data, retry classification, circuit breaker |
 | Replay identity | done | Deterministic nested event IDs and collection-level uniqueness constraints |
-| Container baseline | done | Digest-pinned base, unprivileged user, healthcheck, bounded logs, Docker exclusions |
+| Container baseline | done | Digest-pinned Alpine base, multi-stage non-root runtime, healthcheck, image exclusions, Trivy CI gate |
 | API hardening | done | Fail-closed header authentication, trusted hosts, explicit CORS policy, bounded LP/asset/wallet requests |
 | Native Reach decoding | done | Versioned global/local codecs, exact-width integers, deterministic layout tests, no private npm runtime |
 | Legacy runtime removal | done | CB-077: Node/Reach sidecar and production source bind mount removed |

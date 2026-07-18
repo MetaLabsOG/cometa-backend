@@ -54,6 +54,7 @@ jobs:
             ! command -v node
             ! command -v npm
             ! command -v git
+            ! command -v curl
             ! command -v pipenv
             test "$(id -u)" -eq 10001
             test -x /app/scripts/run.sh
@@ -63,3 +64,14 @@ jobs:
             python -c "import asyncio, os; from algosdk import account, mnemonic; private_key, _ = account.generate_account(); os.environ[\"ALGO_MNEMONIC\"] = mnemonic.from_private_key(private_key); import app; assert asyncio.run(app.status())[\"version\"] == app.VERSION"
             python -m pip check
           '
+      - name: Scan production image
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f \
+            image \
+            --no-progress \
+            --scanners vuln,secret \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            "cometa-backend:${COMETA_IMAGE_TAG:-local}"

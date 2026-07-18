@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://github.com/MetaLabsOG/cometa-backend/actions/workflows/ci.yml"><img src="https://github.com/MetaLabsOG/cometa-backend/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12" /></a>
-  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
   <a href="https://developer.algorand.org/"><img src="https://img.shields.io/badge/Algorand-mainnet-black?logo=algorand&logoColor=white" alt="Algorand mainnet" /></a>
   <a href="https://api.cometa.farm/status"><img src="https://img.shields.io/website?label=API&up_message=online&down_message=offline&url=https%3A%2F%2Fapi.cometa.farm%2Fstatus" alt="API status" /></a>
 </p>
@@ -42,6 +42,7 @@ MongoDB—into stable, query-oriented API models for the product frontend.
 | **Resilient price routing** | Vestige and Tinyman payloads are validated with provenance and bounded staleness; retry classification and a guarded Vestige refresh prevent failure storms. |
 | **Operational boundaries** | Selected latency-sensitive SDK calls leave the event loop through executors; wallet fan-out is cached and bounded; background workers reconcile chain state without coupling reads to refresh latency. |
 | **Versioned chain decoding** | Reach 0.1.11 state is decoded natively from Algorand with explicit per-version layouts, exact-width integers, and fail-closed schema validation. |
+| **Supply-chain hardening** | The digest-pinned Alpine image is multi-stage, non-root, and Python-only; CI smoke-tests it and rejects high/critical vulnerabilities or embedded secrets. |
 
 The codebase combines a production system's real constraints with incremental
 modernization: pure domain modules and strict typing sit beside legacy adapters,
@@ -134,9 +135,10 @@ This single command runs:
   state-codec and security-boundary tests.
 
 CI repeats those checks on every pull request and every push to `main`, verifies
-the lockfile, and validates the Compose configuration. The focused coverage
-ratchet is currently 75%; it measures maintained domain and infrastructure
-modules rather than presenting a misleading whole-repository number.
+the lockfile and Compose configuration, builds and smoke-tests the production
+image, and scans it with Trivy. The focused coverage ratchet is currently 75%;
+it measures maintained domain and infrastructure modules rather than presenting
+a misleading whole-repository number.
 
 Useful individual targets are `make lint`, `make format-check`,
 `make typecheck`, and `make test`.
