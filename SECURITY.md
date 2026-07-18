@@ -27,8 +27,8 @@ publishing details.
 ## Sensitive Areas
 
 The highest-risk boundaries are API authentication, Algorand transaction
-signing, the Python/Node.js sidecar, price-provider fallbacks, and event replay.
-Tests must use generated accounts and non-production credentials.
+signing, versioned on-chain state decoding, price-provider fallbacks, and event
+replay. Tests must use generated accounts and non-production credentials.
 
 Never commit mnemonics, API keys, `.env` files, database exports, recovery
 artifacts, or unredacted logs. If a secret reaches Git history, revoke or rotate

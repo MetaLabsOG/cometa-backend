@@ -9,9 +9,9 @@ Backend for Cometa — an Algorand DeFi platform handling liquidity pools, token
 - **Database**: MongoDB (pymongo)
 - **Cache**: process-local TTL caches (Redis migration is roadmap work)
 - **Blockchain**: Algorand (py-algorand-sdk, algosdk)
-- **JS interop**: Node.js sidecar in `js/` (Algorand SDK operations)
+- **Contract state**: versioned native Reach decoder over Algorand state
 - **Deployment**: Docker Compose on VPS
-- **Image**: digest-pinned Python 3.12 + Node.js 22
+- **Image**: digest-pinned Python 3.12 slim
 
 ## Project Structure
 
@@ -25,7 +25,6 @@ dexes/              — DEX integrations (HumbleSwap, Vestige, etc.)
 flex/               — Flex module (API + data)
 bot/                — Telegram bot logic
 farcaster/          — Farcaster integration
-js/                 — Node.js sidecar for Algorand SDK calls
 scripts/            — Deployment & management shell scripts
 airdrop/            — Airdrop tooling
 marketplaces/       — NFT marketplace integrations
@@ -47,13 +46,8 @@ make quality
 docker compose up -d --build
 docker compose logs -f app
 
-# Scripts (on VPS)
-scripts/redeploy.sh     # pull + rebuild + restart
-scripts/restart.sh       # restart containers
-scripts/stop.sh          # stop all
-scripts/log.sh           # tail logs
-scripts/db_shell.sh      # mongo shell
-scripts/backup_db.sh     # backup MongoDB
+# Production VPS (uses the parent ~/cometa/docker-compose.yml stack)
+scripts/redeploy.sh     # pull + rebuild + restart the backend service
 ```
 
 ## Rules
@@ -61,7 +55,7 @@ scripts/backup_db.sh     # backup MongoDB
 - Environment config via `env.py` (pydantic-settings) — never hardcode secrets
 - Use `logging` module, never `print()` — logger per module
 - Background tasks in `api/background.py` — use exponential backoff for retries
-- Algorand SDK calls that need Node.js go through `js/` sidecar
+- Decode only explicitly supported Reach contract versions in `flex/blockchain/contract_state.py`
 - Route registration and process orchestration stay in `app.py`; Flex routes live in `flex/api.py`
 - MongoDB models in `api/db_model.py`
 - Asset prices use process-local TTL caches — see `dexes/` for provider calls

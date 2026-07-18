@@ -41,6 +41,7 @@ MongoDB—into stable, query-oriented API models for the product frontend.
 | **Deterministic replay identity** | Nested Algorand transfers receive stable, projection-scoped event IDs; unique indexes guard price and event-marker collections. Crash-atomic projection remains roadmap work. |
 | **Resilient price routing** | Vestige and Tinyman payloads are validated with provenance and bounded staleness; retry classification and a guarded Vestige refresh prevent failure storms. |
 | **Operational boundaries** | Selected latency-sensitive SDK calls leave the event loop through executors; wallet fan-out is cached and bounded; background workers reconcile chain state without coupling reads to refresh latency. |
+| **Versioned chain decoding** | Reach 0.1.11 state is decoded natively from Algorand with explicit per-version layouts, exact-width integers, and fail-closed schema validation. |
 
 The codebase combines a production system's real constraints with incremental
 modernization: pure domain modules and strict typing sit beside legacy adapters,
@@ -58,16 +59,16 @@ flowchart LR
     SVC --> CACHE[TTL caches]
     SVC --> CHAIN[Algorand node + indexer]
     SVC --> DEX[DEX providers]
-    SVC -. optional .-> SOCKET[Bounded Unix socket]
-    SOCKET --> NODE[Node.js Reach sidecar]
 ```
 
 FastAPI routes are intentionally thin at the newer boundaries. Application
 services coordinate refresh and fallback behavior; domain modules own invariants;
 adapters isolate storage, chain, and provider-specific details. The optional
-Node.js sidecar performs read-only Reach view operations and is disabled by
-default. Its Unix socket is user-only, request size and read time are bounded,
-and an explicit command allowlist excludes deployment and signing.
+legacy Reach runtime has been replaced with a small native decoder: supported
+farm and distribution versions map packed Algorand global and local state into
+the existing API view shape without private npm packages or a second runtime.
+The decision and extension rules are documented in
+[`docs/architecture/native-reach-state.md`](docs/architecture/native-reach-state.md).
 
 ### Reliability boundaries
 
@@ -79,7 +80,7 @@ and an explicit command allowlist excludes deployment and signing.
 | Sync SDK → async request path | Bounded executor hand-off |
 | Permanent provider error → retry loop | Typed classification prevents pointless retries |
 | Half-open circuit → provider | A single probe prevents a recovery stampede |
-| Python → optional Reach sidecar | Keyless account, allowlisted reads, bounded frames, user-only socket |
+| Reach bytes → public view | Exact key, step, size, tag, and contract-version validation |
 
 ## Quick start
 
@@ -88,7 +89,6 @@ and an explicit command allowlist excludes deployment and signing.
 - Python 3.12 and [Pipenv](https://pipenv.pypa.io/)
 - MongoDB
 - access to an Algorand node/indexer
-- Node.js 22 for the full quality gate and optional sidecar
 
 ```bash
 git clone https://github.com/MetaLabsOG/cometa-backend.git
@@ -102,11 +102,9 @@ pipenv run python -c \
 make run
 ```
 
-`make run` starts Uvicorn with reload on port `8000`. Keep `ENABLE_JS=false`
-unless you have access to the private sidecar packages and provide a read-only
-`NODE_AUTH_TOKEN`. A development mnemonic is still required by legacy Python
-transaction adapters; use a generated, unfunded account only. The Node.js
-sidecar deletes mnemonic variables before loading its read-only command module.
+`make run` starts Uvicorn with reload on port `8000`. A development mnemonic is
+still required by legacy Python transaction adapters; use a generated, unfunded
+account only.
 
 Verify the service:
 
@@ -132,8 +130,8 @@ This single command runs:
 
 - Ruff linting and formatting checks;
 - strict mypy checks on modern domain boundaries;
-- the complete Python test suite with branch coverage;
-- Node.js contract/configuration and sidecar boundary tests.
+- the complete Python test suite with branch coverage, including deterministic Reach
+  state-codec and security-boundary tests.
 
 CI repeats those checks on every pull request and every push to `main`, verifies
 the lockfile, and validates the Compose configuration. The focused coverage
@@ -141,13 +139,13 @@ ratchet is currently 75%; it measures maintained domain and infrastructure
 modules rather than presenting a misleading whole-repository number.
 
 Useful individual targets are `make lint`, `make format-check`,
-`make typecheck`, `make test`, and `make test-js`.
+`make typecheck`, and `make test`.
 
 ## API snapshot
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /status` | Version and Algorand network health |
+| `GET /status` | Liveness, version, and configured Algorand network |
 | `GET /contracts` | Farm and distribution catalog |
 | `GET /contracts/user/{address}` | Contracts associated with a wallet |
 | `GET /contracts/farm/enriched` | Contracts enriched with asset metadata and prices |
@@ -168,10 +166,10 @@ blockchain/            Algorand node and indexer adapters
 core/                  Shared authentication, persistence, and resilience
 dexes/                 DEX-specific integrations
 flex/application/      Use-case orchestration
+flex/blockchain/       Versioned Algorand and Reach-state decoding
 flex/domain/           Pure pricing and transaction invariants
 flex/providers/        Market-data provider adapters
 flex/db/               MongoDB models, repositories, and indexes
-js/                    Optional Reach/Algorand sidecar
 tests/unit/            Fast regression and boundary tests
 scripts/               Deployment and safe operational utilities
 ```
