@@ -1,13 +1,13 @@
-#!/usr/bin/env bash
-set -Eeuo pipefail
+#!/bin/sh
+set -eu
 
-readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-readonly PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+project_root="$(dirname -- "${script_dir}")"
 
-cd -- "${PROJECT_ROOT}"
+cd -- "${project_root}"
 
-if [[ ! -f "app.py" ]]; then
-    printf 'ERROR: application entrypoint not found: %s/app.py\n' "${PROJECT_ROOT}" >&2
+if [ ! -f "app.py" ]; then
+    printf 'ERROR: application entrypoint not found: %s/app.py\n' "${project_root}" >&2
     exit 1
 fi
 

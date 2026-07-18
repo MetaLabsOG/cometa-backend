@@ -1,4 +1,4 @@
-FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS builder
+FROM python:3.12-alpine@sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df AS builder
 
 WORKDIR /app
 
@@ -10,9 +10,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 ARG PIPENV_RELEASE=2024.4.0
 
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache build-base git libffi-dev
 
 COPY Pipfile Pipfile.lock ./
 RUN python -m venv /opt/pipenv \
@@ -20,7 +18,7 @@ RUN python -m venv /opt/pipenv \
     && /opt/pipenv/bin/pipenv verify \
     && /opt/pipenv/bin/pipenv sync
 
-FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS runtime
+FROM python:3.12-alpine@sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df AS runtime
 
 WORKDIR /app
 
@@ -30,8 +28,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 COPY --from=builder /app/.venv /app/.venv
 
-RUN groupadd --system --gid 10001 cometa \
-    && useradd --system --uid 10001 --gid cometa --home-dir /home/cometa --create-home cometa
+RUN addgroup -S -g 10001 cometa \
+    && adduser -S -D -u 10001 -G cometa -h /home/cometa cometa
 
 COPY --chown=cometa:cometa app.py env.py telegram_bot.py ./
 COPY --chown=cometa:cometa api ./api

@@ -11,7 +11,7 @@ Backend for Cometa — an Algorand DeFi platform handling liquidity pools, token
 - **Blockchain**: Algorand (py-algorand-sdk, algosdk)
 - **Contract state**: versioned native Reach decoder over Algorand state
 - **Deployment**: Docker Compose on VPS
-- **Image**: digest-pinned Python 3.12 slim
+- **Image**: digest-pinned Python 3.12 Alpine
 
 ## Project Structure
 
