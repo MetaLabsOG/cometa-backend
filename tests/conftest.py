@@ -34,11 +34,10 @@ _TEST_ENV = {
     "TELEGRAM_ADMIN_IDS": "[]",
     "FARM_CREATION_FEE": "0",
     "FARM_FLAT_ALGO_CREATION_FEE": "0",
-    "ENABLE_JS": "false",
     "SYNC_NEW_POOLS": "false",
     "UPDATE_CONTRACT_CACHES": "false",
     "BACKGROUND_ASSET_PRICES_UPDATE": "false",
 }
 
 for _name, _value in _TEST_ENV.items():
-    os.environ.setdefault(_name, _value)
+    os.environ[_name] = _value

@@ -1,17 +1,16 @@
-import asyncio
 import logging
 from datetime import datetime
 
 from api.stats import get_lp_price
 from blockchain.assets import MICROALGOS_IN_ALGO
-from blockchain.indexer import get_address_app_ids, get_asset
+from blockchain.indexer import get_asset
 from blockchain.node import get_current_round
 from core.db.contracts import get_contracts
 from core.db.model import ContractInfo, PoolState, PoolType, UserPool
 from core.db.pools import pools_db
-from core.js_interop import calljs
 from core.tinychart import get_algo_price, get_asset_price
-from core.util import BLOCKS_IN_A_YEAR, blocks_to_seconds, parse_bignum, strip_version
+from core.util import BLOCKS_IN_A_YEAR, blocks_to_seconds, parse_bignum
+from flex.blockchain.contract_state import fetch_contract_local_views
 
 # ffs
 BIG_NUM = 1000000000000000000
@@ -110,26 +109,16 @@ def get_pool_state(contract: ContractInfo, is_mainnet: bool = True) -> PoolState
     )
 
 
-async def get_local_states_for_type(type: str, address: str, contracts: list[ContractInfo]) -> dict:
-    contracts = list(filter(lambda c: c.type == type, contracts))
-    if len(contracts) == 0:
-        return {}
-
-    ids_and_versions = [{"id": info.id, "version": strip_version(info.version)} for info in contracts]
-    local_states = await calljs(
-        "fetchContractsLocalViews", contractType=type, idVersions=ids_and_versions, walletAddress=address
-    )
-    return local_states
-
-
 async def get_local_states(contracts: list[ContractInfo], address: str) -> dict:
-    farm_states = get_local_states_for_type("farm", address, contracts)
-    distr_states = get_local_states_for_type("distribution", address, contracts)
-    list_of_states = await asyncio.gather(farm_states, distr_states)
-    res = {}
-    for states in list_of_states:
-        res.update(states)
-    return res
+    requested = [
+        {
+            "id": contract.id,
+            "type": contract.type,
+            "version": contract.version,
+        }
+        for contract in contracts
+    ]
+    return await fetch_contract_local_views(address, requested)
 
 
 def recalculate_reward(
@@ -149,11 +138,8 @@ def recalculate_reward(
 
 async def fetch_user_pools(address: str, is_mainnet: bool = True) -> list[UserPool]:
     all_contracts = get_contracts({"type": {"$in": ["farm", "distribution"]}})
-    app_ids = get_address_app_ids(address)
-    contracts = list(filter(lambda contract: contract.id in app_ids, all_contracts))
-    logger.debug(f"{address} contract_ids = {[c.id for c in contracts]}")
-
-    local_states = await get_local_states(contracts, address)
+    local_states = await get_local_states(all_contracts, address)
+    logger.debug("Decoded local state for %s Cometa contracts", len(local_states))
     contract_by_id = {str(c.id): c for c in all_contracts}
     pools = []
     for pool_id, state in local_states.items():

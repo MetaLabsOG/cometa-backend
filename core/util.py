@@ -55,9 +55,7 @@ def blocks_to_seconds(start_block: int, last_block: int) -> float:
 
 
 def strip_version(version: str) -> str:
-    if version[0] == "^":
-        return version[1:]
-    return version
+    return version.removeprefix("^")
 
 
 async def with_exponential_backoff(

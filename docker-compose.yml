@@ -7,10 +7,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    # Legacy VPS compatibility: installing the locked Reach sidecar dependencies
-    # in a clean image still requires authenticated GitHub Packages access.
-    volumes:
-      - .:/app
     ports:
       - "${SERVER_PORT:-8000}:${SERVER_PORT:-8000}"
     expose:
@@ -68,3 +64,4 @@ services:
 
 volumes:
   algod-data:
+    name: "cometa-algod-${ALGO_NETWORK:-mainnet}"

@@ -34,21 +34,9 @@ jobs:
       - name: Test full suite with focused coverage ratchet
         run: make test
 
-  javascript:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22"
-      - run: node --check js/index.js
-      - run: node --check js/commands.mjs
-      - run: make test-js
-
   configuration:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Validate Compose configuration
@@ -57,3 +45,21 @@ jobs:
         run: |
           cp .env.example .env
           docker compose config --quiet
+      - name: Build production image
+        run: docker compose build app
+      - name: Smoke-test production runtime
+        run: |
+          docker compose run --rm --no-deps --entrypoint sh app -c '
+            set -eu
+            ! command -v node
+            ! command -v npm
+            ! command -v git
+            ! command -v pipenv
+            test "$(id -u)" -eq 10001
+            test -x /app/scripts/run.sh
+            test ! -e /app/js
+            ! find /app -type f \( -name ".env" -o -name ".env.*" -o -name ".npmrc" -o -name ".DS_Store" -o -name "arweave_key.json" \) -print -quit | grep -q .
+            python -c "import algosdk, fastapi, httpx, nacl, pymongo, uvicorn"
+            python -c "import asyncio, os; from algosdk import account, mnemonic; private_key, _ = account.generate_account(); os.environ[\"ALGO_MNEMONIC\"] = mnemonic.from_private_key(private_key); import app; assert asyncio.run(app.status())[\"version\"] == app.VERSION"
+            python -m pip check
+          '
