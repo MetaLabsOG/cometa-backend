@@ -28,9 +28,6 @@ class Settings(BaseSettings):
     mongodb_password: Optional[str] = None
     new_db_name: str = "cometa-updated"
 
-    redis_host: str
-    redis_port: int
-
     logging_level: str = "INFO"
     logging_format: str = "[%(asctime)s][%(levelname)s][%(filename)s] %(message)s"
     logging_date_format: str = "%I:%M:%S"
@@ -67,7 +64,7 @@ class Settings(BaseSettings):
     sync_new_pools: bool = True
     sync_liquidity_pools: bool = False
     update_contract_caches: bool = True
-    update_contracts_chunk_size: int = 10
+    update_contracts_chunk_size: int = Field(default=10, ge=1, le=100)
 
     telegram_bot_api_token: str
     telegram_channel_id: int
@@ -93,10 +90,16 @@ class Settings(BaseSettings):
 
     farm_creation_fee: int
     farm_flat_algo_creation_fee: int
+
+    # Accepted temporarily so existing deployments can roll forward before
+    # removing obsolete integration keys from their .env files. These values
+    # are intentionally unused.
     enable_js: bool = False
     reach_no_warn: bool = False
     reach_connector_mode: str = "ALGO"
     sync_humble_pools: int = 0
+    redis_host: str = ""
+    redis_port: int = 6379
 
     asset_default_logo_svg_url: str = (
         "https://app.cometa.farm/static/media/tokenPlaceholder.b822bbf7d312b67292cf97f3d22194ed.svg"

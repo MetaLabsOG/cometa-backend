@@ -12,7 +12,6 @@ from core.cometa import calculate_tvl_for_type
 from core.db.contracts import get_contracts_by_type, update_contract
 from core.db.model import PoolType
 from core.decorators import repeat_every, safe_async_method
-from core.js_interop import calljs
 from core.util import parse_bignum, strip_version, with_exponential_backoff
 from env import settings
 from flex import db
@@ -73,24 +72,19 @@ async def update_contracts_cache(type: str) -> None:
 
     chunk_size = settings.update_contracts_chunk_size
     start_index = 0
+    updated = 0
+    failed = 0
 
     while start_index < len(ids_and_versions):
         chunk = ids_and_versions[start_index : start_index + chunk_size]
 
-        # Try JS interop first, fall back to algod on failure
-        states = {}
-        if settings.enable_js:
-            try:
-                states = await calljs("fetchContractsGlobalViews", contractType=type, idVersions=chunk)
-            except Exception as e:
-                logger.warning(f"JS interop failed for cache update ({type}), trying algod fallback: {e}")
+        try:
+            states = await fetch_contracts_views_batch(chunk, type)
+        except Exception as e:
+            logger.error(f"Algorand state fetch failed for cache update ({type}): {e}")
+            states = {}
 
-        if not states:
-            try:
-                states = await fetch_contracts_views_batch(chunk)
-            except Exception as e:
-                logger.error(f"Algod fallback also failed for cache update ({type}): {e}")
-
+        failed += len(chunk) - len(states)
         for s_id, state in states.items():
             id = int(s_id)
             old_metadata = existing_metadatas[id]
@@ -106,13 +100,20 @@ async def update_contracts_cache(type: str) -> None:
 
             new_metadata = {**old_metadata, "cache": state}
             update_contract(id, metadata=new_metadata)
+            updated += 1
 
         start_index += chunk_size
         await asyncio.sleep(1)
 
     time_delta = datetime.now(UTC) - start_time
     logger.info(
-        f"Updated state cache for {len(all_contracts)} contracts: {type} ({skipped} skipped) in {time_delta.total_seconds()}s"
+        "Updated state cache for %s/%s %s contracts (%s failed, %s skipped) in %.2fs",
+        updated,
+        len(contracts),
+        type,
+        failed,
+        skipped,
+        time_delta.total_seconds(),
     )
 
 

@@ -18,7 +18,6 @@ from bot.phrase_manager import Phrases
 from core.db.cometa_users import cometa_users, filter_compoundable_pools, filter_ended_pools, filter_no_action_pools
 
 # TODO: move commands to separate files
-from core.js_interop import managed_js_interop_server
 
 
 async def start(update: Update, context: CallbackContext):
@@ -257,8 +256,7 @@ if __name__ == "__main__":
     atexit.register(tear_down)
 
     try:
-        with managed_js_interop_server():
-            with start_bg_tasks():
-                start_bot()
+        with start_bg_tasks():
+            start_bot()
     except Exception as ex:
         logging.exception(ex)

@@ -1,8 +1,9 @@
 import asyncio
+import base64
 import logging
 
 from algosdk.v2client import indexer
-from cachetools import cached, LRUCache
+from cachetools import LRUCache, cached
 
 from env import settings
 
@@ -12,26 +13,23 @@ logger = logging.getLogger(__name__)
 indexer_client = indexer.IndexerClient(
     indexer_token=settings.algod_token,
     indexer_address=settings.algo_indexer_address,
-    headers={
-        'User-Agent': 'py-algorand-sdk',
-        'x-algo-api-token': settings.algod_token
-    }
+    headers={"User-Agent": "py-algorand-sdk", "x-algo-api-token": settings.algod_token},
 )
 
 # TODO: INFO NOT FULL, handle get_asset(0) better
 ALGO_ASSET_INFO = {
-    'created-at-round': 3317341,
-    'deleted': False,
-    'index': 0,
-    'params': {
-        'creator': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ',
-        'total': 1000000000000000000000000000,
-        'decimals': 6,
-        'default-frozen': False,
-        'unit-name': 'ALGO',
-        'name': 'Algorand',
-        'url': 'https://algorand.foundation/'
-    }
+    "created-at-round": 3317341,
+    "deleted": False,
+    "index": 0,
+    "params": {
+        "creator": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ",
+        "total": 1000000000000000000000000000,
+        "decimals": 6,
+        "default-frozen": False,
+        "unit-name": "ALGO",
+        "name": "Algorand",
+        "url": "https://algorand.foundation/",
+    },
 }
 
 
@@ -39,46 +37,61 @@ ALGO_ASSET_INFO = {
 def get_asset(asset_id: int):
     if asset_id == 0:
         return ALGO_ASSET_INFO
-    logger.debug(f'Fetching asset {asset_id} info')
+    logger.debug(f"Fetching asset {asset_id} info")
     data = indexer_client.asset_info(asset_id)
-    return data['asset']
+    return data["asset"]
 
 
 def get_account_assets(address: str) -> dict:
     data = indexer_client.account_info(address)
-    assets = data['account']['assets']
-    assets.append({
-        'asset-id': 0,
-        'amount': data['account']['amount'],
-        'deleted': False,
-        'is-frozen': False,
-        'opted-in-at-round': 0
-    })
+    assets = data["account"]["assets"]
+    assets.append(
+        {
+            "asset-id": 0,
+            "amount": data["account"]["amount"],
+            "deleted": False,
+            "is-frozen": False,
+            "opted-in-at-round": 0,
+        }
+    )
     return assets
 
 
-CONST_APP_STATE_BYTES = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+def _has_active_reach_local_state(entries: list[dict] | None) -> bool:
+    if not entries:
+        return False
+    for entry in entries:
+        try:
+            key = base64.b64decode(entry["key"], validate=True)
+            if key != b"\x00":
+                continue
+            encoded_value = entry["value"]
+            if not isinstance(encoded_value, dict) or encoded_value.get("type") != 1:
+                raise ValueError("Reach local state must be a byte slice")
+            value = base64.b64decode(encoded_value["bytes"], validate=True)
+            if len(value) != 60 or any(value[offset] not in (0, 1) for offset in (0, 9, 18, 27)):
+                raise ValueError("Reach local state has an invalid layout")
+            return any(value)
+        except (KeyError, TypeError, ValueError):
+            logger.warning("Ignoring malformed Algorand local state entry")
+            continue
+    return False
 
 
 def get_address_app_ids(address: str, only_active: bool = False) -> list[int]:
-    logger.debug(f'Fetching app ids for {address}')
+    logger.debug("Fetching account application IDs")
     data = indexer_client.account_info(address)
-    account = data.get('account')
+    account = data.get("account")
     if account is None:
-        raise Exception(f'Account {address} not found: {data}')
-    if not data['account'].get('apps-local-state'):
+        raise Exception(f"Account {address} not found: {data}")
+    if not data["account"].get("apps-local-state"):
         return []
 
     app_ids = []
-    for app in data['account']['apps-local-state']:
-        if only_active:
-            key_value = app.get('key-value')
-            if key_value is None or len(key_value) == 0:
-                continue
-            bytes_str = key_value[0]['value']['bytes']
-            if bytes_str == CONST_APP_STATE_BYTES:
-                continue
-        app_ids.append(app['id'])
+    for app in data["account"]["apps-local-state"]:
+        if only_active and not _has_active_reach_local_state(app.get("key-value")):
+            continue
+        app_ids.append(app["id"])
 
     return app_ids
 
@@ -91,16 +104,16 @@ async def get_address_app_ids_async(address: str, only_active: bool = False) -> 
 
 def get_asset_creator(asset_id: int) -> str:
     asset = get_asset(asset_id)
-    return asset['params']['creator']
+    return asset["params"]["creator"]
 
 
 def get_asset_owner(asset_id: int) -> str:
     data = indexer_client.asset_balances(asset_id=asset_id)
-    balances = data['balances']
+    balances = data["balances"]
     for balance in balances:
-        if balance['amount'] == 1:
-            return balance['address']
-    raise Exception(f'Asset {asset_id} has all zero balances')
+        if balance["amount"] == 1:
+            return balance["address"]
+    raise Exception(f"Asset {asset_id} has all zero balances")
 
 
 def get_asset_ids_by_creator(address):
@@ -109,13 +122,13 @@ def get_asset_ids_by_creator(address):
     params = {}
 
     indexer_client.search_assets(creator=address)
-    for i in range(100):
-        if data and data['next-token']:
-            params = {'next': data['next-token']}
+    for _ in range(100):
+        if data and data["next-token"]:
+            params = {"next": data["next-token"]}
         data = indexer_client.search_assets(creator=address, **params)
-        for asset in data['assets']:
-            asset_ids.append(asset['index'])
-        if not data.get('next-token', None):
+        for asset in data["assets"]:
+            asset_ids.append(asset["index"])
+        if not data.get("next-token", None):
             break
 
     return asset_ids
