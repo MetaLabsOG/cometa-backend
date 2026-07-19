@@ -342,14 +342,16 @@ def test_successful_asset_price_refresh_persists_provenance_without_mutating_inp
 
     update_one.assert_called_once()
     selector, update = update_one.call_args.args
-    assert selector == {
-        "id": stored.id,
-        "$or": [
-            {"observed_at": {"$exists": False}},
-            {"observed_at": None},
-            {"observed_at": {"$lte": observed_at}},
-        ],
-    }
+    assert selector == AssetPrice.encode_query(
+        {
+            "id": stored.id,
+            "$or": [
+                {"observed_at": {"$exists": False}},
+                {"observed_at": None},
+                {"observed_at": {"$lte": observed_at}},
+            ],
+        }
+    )
     assert update["$set"]["source"] == PriceSource.VESTIGE.value
     assert update["$set"]["observed_at"] == observed_at
     assert update_one.call_args.kwargs == {"upsert": False}
@@ -383,7 +385,10 @@ def test_older_asset_price_observation_cannot_replace_newer_record(
     persisted = asset_price_data._upsert_asset_price(older)
 
     assert persisted is False
-    collection.find_one.assert_called_once_with({"id": older.id}, {"_id": 1})
+    collection.find_one.assert_called_once_with(
+        AssetPrice.encode_query({"id": older.id}),
+        {"_id": 1},
+    )
     collection.insert_one.assert_not_called()
 
 

@@ -1,9 +1,17 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import ClassVar
 
-from dataclasses_json import dataclass_json
+from dataclasses_json import config, dataclass_json
 
+from flex.db.bson import (
+    decode_bson_delta,
+    decode_bson_uint64,
+    encode_bson_integer,
+)
 from flex.db.classes.base_entity import BaseEntity
+from flex.db.classes.bson_uint64 import BsonUint64StorageMixin
+from flex.domain.lp_projection import lp_event_order
 
 
 @dataclass_json
@@ -34,19 +42,75 @@ class LpStateInfo:
 
 @dataclass_json
 @dataclass
-class LpState(BaseEntity["LpState"]):
-    id: int
-    token_id: int
-    asset1_id: int  # asset1_id > asset2_id
-    asset2_id: int
+class LpState(
+    BsonUint64StorageMixin,
+    BaseEntity["LpState"],
+):
+    BSON_UINT64_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "id",
+            "token_id",
+            "asset1_id",
+            "asset2_id",
+            "last_updated_round",
+            "asset1_reserve_micros",
+            "asset2_reserve_micros",
+            "total_tokens_micros",
+        }
+    )
+
+    id: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
+    token_id: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
+    asset1_id: int = field(  # asset1_id > asset2_id
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
+    asset2_id: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
     dex_provider: str
     address: str
 
-    last_updated_round: int
+    last_updated_round: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
     # TODO: could not fit into MongoDB ??? (64 bits)
-    asset1_reserve_micros: int
-    asset2_reserve_micros: int
-    total_tokens_micros: int  # TODO: change name to issued_tokens_micros
+    asset1_reserve_micros: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
+    asset2_reserve_micros: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
+    total_tokens_micros: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
 
     asset1_reserve: float
     asset2_reserve: float
@@ -54,6 +118,8 @@ class LpState(BaseEntity["LpState"]):
     token_price_algo: float
 
     is_algo_pool: bool = False
+    last_event_order: str | None = None
+    derived_observed_at: datetime | None = None
 
     swap_fee_apr: float | None = None
     updated: datetime = field(default_factory=datetime.now)
@@ -92,9 +158,40 @@ class LpTransaction(BaseEntity["LpTransaction"]):
     id: str
     pool_address: str
     user_address: str
-    asa_id: int
-    delta_amount_micros: int
-    confirmed_round: int
+    asa_id: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
+    delta_amount_micros: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_delta,
+        )
+    )
+    confirmed_round: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
 
+    event_position: int = field(
+        default=0,
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        ),
+    )
+    event_order: str | None = None
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self) -> None:
+        if self.event_order is None:
+            self.event_order = lp_event_order(
+                self.confirmed_round,
+                self.id,
+                self.event_position,
+            )

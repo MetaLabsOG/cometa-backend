@@ -63,6 +63,9 @@ class Settings(BaseSettings):
 
     sync_new_pools: bool = True
     sync_liquidity_pools: bool = False
+    # Legacy stake projection does not yet validate complete application groups.
+    # Keep it fail-closed until the authoritative event classifier lands.
+    sync_staking_pools: bool = False
     update_contract_caches: bool = True
     update_contracts_chunk_size: int = Field(default=10, ge=1, le=100)
 
@@ -74,6 +77,8 @@ class Settings(BaseSettings):
     old_pool_end_date_days_ago: int = 30
     sync_lag_max_rounds: int = 1000  # 1 hour
     sync_behind_seconds_threshold: int = 60
+    sync_round_max_attempts: int = Field(default=5, ge=1, le=100)
+    sync_retry_max_seconds: float = Field(default=30, gt=0, le=300)
 
     reset_and_resync_pool_states: bool = False
 

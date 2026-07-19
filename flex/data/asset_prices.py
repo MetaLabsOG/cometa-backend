@@ -134,14 +134,20 @@ def _upsert_asset_price(asset_price: AssetPrice) -> bool:
     doc.pop("_id", None)
     created = doc.pop("created", asset_price.created)
     collection = db.asset_prices.mongodb_collection
-    selector = {
-        "id": asset_price.id,
-        "$or": [
-            {"observed_at": {"$exists": False}},
-            {"observed_at": None},
-            {"observed_at": {"$lte": asset_price.observed_at}},
-        ],
-    }
+    selector = AssetPrice.encode_query(
+        {
+            "id": asset_price.id,
+            "$or": [
+                {"observed_at": {"$exists": False}},
+                {"observed_at": None},
+                {
+                    "observed_at": {
+                        "$lte": asset_price.observed_at,
+                    }
+                },
+            ],
+        }
+    )
     result = collection.update_one(
         selector,
         {"$set": doc, "$setOnInsert": {"created": created}},
@@ -150,7 +156,13 @@ def _upsert_asset_price(asset_price: AssetPrice) -> bool:
     if result.matched_count:
         return True
 
-    if collection.find_one({"id": asset_price.id}, {"_id": 1}) is not None:
+    if (
+        collection.find_one(
+            AssetPrice.encode_query({"id": asset_price.id}),
+            {"_id": 1},
+        )
+        is not None
+    ):
         logger.info(
             "Discarding older price observation for asset %s at %s",
             asset_price.id,

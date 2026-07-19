@@ -7,6 +7,7 @@ from flex.db.indexes import (
     create_unique_id_index_fail_closed,
     deduplicate_and_create_unique_id_index,
     ensure_database_indexes,
+    ensure_sync_state_singleton,
 )
 
 
@@ -26,6 +27,7 @@ def _database(**collections: Mock) -> SimpleNamespace:
         "user_states",
         "lp_tokens",
         "airdrop_rewards",
+        "sync_states",
     )
     return SimpleNamespace(**{name: _manager(collections.get(name, Mock())) for name in names})
 
@@ -100,8 +102,16 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
     }
     for collection in unique_collections.values():
         collection.aggregate.return_value = []
+    lp_states = Mock()
+    lp_states.aggregate.return_value = []
+    sync_states = Mock()
+    sync_states.find.return_value = []
 
-    database = _database(**unique_collections)
+    database = _database(
+        **unique_collections,
+        lp_states=lp_states,
+        sync_states=sync_states,
+    )
 
     removed = ensure_database_indexes(database)
 
@@ -115,7 +125,10 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
     for collection in unique_collections.values():
         collection.create_index.assert_called_once_with("id", unique=True, name="id_unique")
 
-    database.lp_states.mongodb_collection.create_index.assert_called_once_with("token_id", name="token_id_idx")
+    assert database.lp_states.mongodb_collection.create_index.call_args_list == [
+        call("token_id", unique=True, name="token_id_unique"),
+        call("address", unique=True, name="address_unique"),
+    ]
     database.pool_states.mongodb_collection.create_index.assert_called_once_with("pool_id", name="pool_id_idx")
     database.user_states.mongodb_collection.create_index.assert_called_once_with("address", name="address_idx")
     database.lp_tokens.mongodb_collection.create_index.assert_called_once_with("id", name="lp_token_id_idx")
@@ -125,6 +138,51 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
         name="operation_id_unique",
         partialFilterExpression={"operation_id": {"$type": "string"}},
     )
+    database.sync_states.mongodb_collection.create_index.assert_called_once_with(
+        "id",
+        unique=True,
+        name="id_unique",
+    )
+
+
+def test_single_legacy_sync_cursor_is_migrated_without_guessing_between_competitors() -> None:
+    collection = Mock()
+    collection.find.return_value = [
+        {
+            "_id": "mongo-id",
+            "id": "legacy-random-id",
+            "last_round": 123,
+        }
+    ]
+    database = _database(sync_states=collection)
+
+    ensure_sync_state_singleton(database)
+
+    collection.update_one.assert_called_once_with(
+        {"_id": "mongo-id"},
+        {"$set": {"id": "main"}},
+    )
+    collection.create_index.assert_called_once_with(
+        "id",
+        unique=True,
+        name="id_unique",
+    )
+
+
+def test_competing_sync_cursors_fail_closed() -> None:
+    collection = Mock()
+    collection.find.return_value = [
+        {"_id": "a", "id": "a", "last_round": 100},
+        {"_id": "b", "id": "b", "last_round": 101},
+    ]
+
+    with pytest.raises(RuntimeError, match="competing checkpoints"):
+        ensure_sync_state_singleton(
+            _database(sync_states=collection),
+        )
+
+    collection.update_one.assert_not_called()
+    collection.create_index.assert_not_called()
 
 
 def test_correctness_critical_index_failure_is_not_swallowed() -> None:

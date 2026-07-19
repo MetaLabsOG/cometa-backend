@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, localcontext
 
 from env import settings
-from flex import db
 from flex.blockchain.info import ALGO_ASSET
 from flex.data.asset_prices import _upsert_asset_price
 from flex.data.assets import get_asset_details
@@ -31,20 +30,19 @@ def _pool_observed_at(lp_state: LpState) -> datetime:
     return observed_at.astimezone(UTC)
 
 
-async def _tinyman_pool_quotes(
+async def _tinyman_asset_quote(
     lp_state: LpState,
     *,
     algo_quote: PriceQuote,
-) -> tuple[PriceQuote, PriceQuote, str]:
+) -> tuple[PriceQuote, str]:
     if not lp_state.is_algo_pool or lp_state.asset2_id != ALGO_ASSET.id:
         raise InvalidLiquidityPoolError("Tinyman price source must be an asset/ALGO pool")
-    if lp_state.asset1_reserve_micros <= 0 or lp_state.asset2_reserve_micros <= 0 or lp_state.total_tokens_micros <= 0:
-        raise InvalidLiquidityPoolError("Tinyman reserves and issued LP supply must be positive")
+    if lp_state.asset1_reserve_micros <= 0 or lp_state.asset2_reserve_micros <= 0:
+        raise InvalidLiquidityPoolError("Tinyman reserves must be positive")
     if algo_quote.asset_id != ALGO_ASSET.id:
         raise InvalidPriceError("Tinyman projection requires an ALGO/USD quote")
 
     asset_details = await get_asset_details(lp_state.asset1_id)
-    lp_details = await get_asset_details(lp_state.token_id)
     with localcontext() as context:
         context.prec = PERSISTED_PRICE_PRECISION
         asset_reserve = Decimal(lp_state.asset1_reserve_micros) / Decimal(
@@ -53,11 +51,7 @@ async def _tinyman_pool_quotes(
         algo_reserve = Decimal(lp_state.asset2_reserve_micros) / Decimal(
             10**ALGO_ASSET.decimals,
         )
-        issued_lp_tokens = Decimal(lp_state.total_tokens_micros) / Decimal(
-            10**lp_details.decimals,
-        )
         asset_price_algo = +(algo_reserve / asset_reserve)
-        lp_price_algo = +(algo_reserve * Decimal(2) / issued_lp_tokens)
         algo_usd = algo_quote.usd
 
     stale_after = timedelta(seconds=settings.asset_prices_ttl)
@@ -71,30 +65,19 @@ async def _tinyman_pool_quotes(
         observed_round=lp_state.last_updated_round,
         observed_at=observed_at,
     )
-    lp_quote = PriceQuote.from_raw(
-        asset_id=lp_state.token_id,
-        algo=lp_price_algo,
-        usd=lp_price_algo * algo_usd,
-        source=PriceSource.DERIVED_LP,
-        stale_after=stale_after,
-        observed_round=lp_state.last_updated_round,
-        observed_at=observed_at,
-    )
-    return asset_quote, lp_quote, asset_details.name
+    return asset_quote, asset_details.name
 
 
-async def update_tinyman_algo_lp_state_and_prices(
+async def update_tinyman_algo_asset_price(
     lp_state: LpState,
     algo_quote: PriceQuote,
 ) -> AssetPrice:
-    """Project one validated Tinyman observation into LP and asset read models."""
+    """Project one validated Tinyman observation into the asset read model."""
 
-    asset_quote, lp_quote, asset_name = await _tinyman_pool_quotes(
+    asset_quote, asset_name = await _tinyman_asset_quote(
         lp_state,
         algo_quote=algo_quote,
     )
-    lp_state.token_price_algo = lp_quote.to_legacy_floats()[0]
-    db.lp_states.update(lp_state)
 
     price_algo, price_usd = asset_quote.to_legacy_floats()
     asset_price = AssetPrice(

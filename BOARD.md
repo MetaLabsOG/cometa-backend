@@ -8,17 +8,18 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-079**
+- Next available ID: **CB-080**
 
 ## Active
 
 | ID | Task | Status | Priority | Tags | Definition of done |
 | --- | --- | --- | --- | --- | --- |
 | CB-073 | Public repository hardening | in_progress | critical | security, dx | Credentials rotated, history sanitized, secret protection enabled, clean-clone scan passes |
-| CB-074 | Atomic event projection | todo | critical | backend, arch | Crash-safe inbox/projector with duplicate, replay, and recovery tests |
+| CB-074 | Atomic event projection | in_progress | critical | backend, arch | LP projector is crash-safe; replace the disabled legacy staking projector with verified grouped events and recovery tests |
 | CB-075 | Isolate transaction signing | todo | high | security, arch | Read-only API boundary; authenticated policy-limited signing service |
 | CB-076 | Async persistence boundary | todo | high | backend, perf | Storage outages cannot block the event loop; timeouts and readiness covered |
 | CB-078 | Replay-safe outbound asset payouts | done | critical | security, backend, arch | Exact allocations, immutable airdrop manifests, persisted signed intents, on-chain reconciliation, and regression tests |
+| CB-079 | Crash-safe LP projection | done | critical | backend, arch | Decimal128 balances, ordered per-state CAS cursor, fenced round checkpoint, snapshot guards, and crash/concurrency tests |
 
 ## Completed milestones
 
@@ -28,6 +29,7 @@
 | Precision-safe pricing | done | Decimal observations, provenance, freshness policy, guarded legacy boundary |
 | Provider resilience | done | Typed fallback errors, bounded stale data, retry classification, circuit breaker |
 | Replay identity | done | Deterministic nested event IDs and collection-level uniqueness constraints |
+| LP financial ledger | done | Marker-gap recovery, uint64-safe BSON operations, full-block preflight, snapshot coverage guards, and fenced round CAS |
 | Container baseline | done | Digest-pinned Alpine base, multi-stage non-root runtime, healthcheck, image exclusions, Trivy CI gate |
 | API hardening | done | Fail-closed header authentication, trusted hosts, explicit CORS policy, bounded LP/asset/wallet requests |
 | Native Reach decoding | done | Versioned global/local codecs, exact-width integers, deterministic layout tests, no private npm runtime |
