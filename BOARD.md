@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-080**
+- Next available ID: **CB-081**
 
 ## Active
 
@@ -20,6 +20,7 @@
 | CB-076 | Async persistence boundary | todo | high | backend, perf | Storage outages cannot block the event loop; timeouts and readiness covered |
 | CB-078 | Replay-safe outbound asset payouts | done | critical | security, backend, arch | Exact allocations, immutable airdrop manifests, persisted signed intents, on-chain reconciliation, and regression tests |
 | CB-079 | Crash-safe LP projection | done | critical | backend, arch | Decimal128 balances, ordered per-state CAS cursor, fenced round checkpoint, snapshot guards, and crash/concurrency tests |
+| CB-080 | Financial read-model regressions | done | medium | backend | Reward decimals use the reward asset and request ordering never mutates cached contract state |
 
 ## Completed milestones
 

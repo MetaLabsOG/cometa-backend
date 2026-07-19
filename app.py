@@ -423,7 +423,9 @@ async def get_contracts(
     without_old_pools: bool = True,
     include_address_pools: Optional[str] = None,
 ) -> List[ContractInfo]:
-    contracts = get_contracts_by_type(type)
+    # The repository result is TTL-cached. Work on a copy so `new_first`
+    # cannot reverse shared cache state for later requests.
+    contracts = list(get_contracts_by_type(type))
 
     if include_address_pools and (
         include_address_pools in settings.special_addresses

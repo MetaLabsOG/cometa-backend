@@ -5,14 +5,14 @@ from enum import Enum
 from dataclasses_json import dataclass_json
 
 from flex.blockchain.info import ALGO_ASSET
-from flex.db.model.blockchain import AssetInfo
 from flex.db.classes.base_entity import BaseEntity
+from flex.db.model.blockchain import AssetInfo
 
 
 class PoolType(str, Enum):
-    STAKING = 'staking'
-    FARMING = 'farming'
-    ANY = 'any'
+    STAKING = "staking"
+    FARMING = "farming"
+    ANY = "any"
 
 
 @dataclass_json
@@ -46,7 +46,7 @@ class PoolInfo:
 
 @dataclass_json
 @dataclass
-class StakingPool(BaseEntity['StakingPool']):
+class StakingPool(BaseEntity["StakingPool"]):
     description: str
     address: str
 
@@ -80,7 +80,9 @@ class StakingPool(BaseEntity['StakingPool']):
             stake_token=self.stake_token,
             reward_token=self.reward_token,
             reward_amount_micros=self.reward_amount_micros,
-            reward_amount=self.stake_token.micros_to_amount(self.reward_amount_micros),
+            reward_amount=self.reward_token.micros_to_amount(
+                self.reward_amount_micros,
+            ),
             algo_reward_amount_micros=self.algo_reward_amount_micros,
             algo_reward_amount=ALGO_ASSET.micros_to_amount(self.algo_reward_amount_micros),
             begin_block=self.begin_block,
@@ -88,13 +90,13 @@ class StakingPool(BaseEntity['StakingPool']):
             lock_length_blocks=self.lock_length_blocks,
             deploy_date=self.deploy_date,
             begin_date=self.begin_date,
-            end_date=self.end_date
+            end_date=self.end_date,
         )
 
 
 @dataclass_json
 @dataclass
-class FarmingPool(BaseEntity['FarmingPool']):
+class FarmingPool(BaseEntity["FarmingPool"]):
     description: str
     address: str
 
@@ -141,7 +143,7 @@ class FarmingPool(BaseEntity['FarmingPool']):
             lock_length_blocks=self.lock_length_blocks,
             deploy_date=self.deploy_date,
             begin_date=self.begin_date,
-            end_date=self.end_date
+            end_date=self.end_date,
         )
 
 

@@ -9,7 +9,8 @@ PYTHON_LINT_PATHS := \
 	flex/db/classes/bson_uint64.py flex/db/classes/collection_manager.py \
 	flex/db/indexes.py flex/db/lp_projection.py \
 	flex/db/sync_coordinator.py flex/db/model/airdrop.py flex/db/model/blockchain.py flex/db/model/liquidity_pools.py \
-	flex/db/model/priced.py flex/db/model/transfers.py flex/domain flex/providers/pact.py flex/providers/price_router.py \
+	flex/db/model/pools.py flex/db/model/priced.py flex/db/model/transfers.py flex/domain flex/providers/pact.py \
+	flex/providers/price_router.py \
 	flex/providers/vestige.py flex/sync_pools.py flex/sync_state.py \
 	flex/migrations/fix_dex_providers.py \
 	flex/tools/airdrop.py scripts/verify_algorand_credentials.py tests
@@ -32,7 +33,7 @@ PYTHON_FORMAT_PATHS := \
 	flex/data/transactions.py flex/db/asset_transfer_intents.py flex/db/bson.py flex/db/classes/base_entity.py \
 	flex/db/classes/bson_uint64.py flex/db/classes/collection_manager.py flex/db/indexes.py flex/db/lp_projection.py \
 	flex/db/sync_coordinator.py flex/db/model/airdrop.py flex/db/model/blockchain.py \
-	flex/db/model/liquidity_pools.py flex/db/model/priced.py flex/db/model/transfers.py \
+	flex/db/model/liquidity_pools.py flex/db/model/pools.py flex/db/model/priced.py flex/db/model/transfers.py \
 	flex/domain flex/providers/pact.py flex/providers/price_router.py \
 	flex/providers/vestige.py flex/sync_pools.py flex/sync_state.py telegram_bot.py \
 	flex/migrations/fix_dex_providers.py \
