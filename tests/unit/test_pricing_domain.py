@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 from algosdk.error import IndexerHTTPError
-from pymongo.errors import PyMongoError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from flex.application.price_refresh import (
     PriceDataError,
@@ -15,9 +15,9 @@ from flex.application.price_refresh import (
     validate_provider_quote,
 )
 from flex.data import asset_prices as asset_price_data
-from flex.data import lp_prices as lp_price_data
 from flex.db.model.priced import AssetPrice
 from flex.domain.pricing import (
+    MAX_OBSERVATION_CLOCK_SKEW,
     InvalidPriceError,
     PriceQuote,
     PriceSource,
@@ -160,6 +160,26 @@ def test_provider_boundary_rejects_misattributed_quote() -> None:
         )
 
 
+def test_provider_boundary_rejects_future_dated_quote() -> None:
+    quote = PriceQuote.from_raw(
+        asset_id=42,
+        algo="1",
+        usd="0.25",
+        source=PriceSource.VESTIGE,
+        observed_at=datetime.now(UTC) + MAX_OBSERVATION_CLOCK_SKEW + timedelta(seconds=1),
+        stale_after=timedelta(minutes=1),
+    )
+
+    with pytest.raises(PriceDataError, match="too far in the future"):
+        validate_provider_quote(
+            quote,
+            asset_id=42,
+            source=PriceSource.VESTIGE,
+            fresh_for=timedelta(minutes=1),
+            observed_round=123,
+        )
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -206,6 +226,29 @@ def test_standalone_freshness_uses_the_same_inclusive_boundary() -> None:
         )
         is True
     )
+
+
+def test_future_observation_is_never_treated_as_fresh() -> None:
+    now = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    observed_at = now + MAX_OBSERVATION_CLOCK_SKEW + timedelta(microseconds=1)
+    quote = PriceQuote.from_raw(
+        asset_id=42,
+        algo="1",
+        usd="0.25",
+        source=PriceSource.VESTIGE,
+        observed_at=observed_at,
+        stale_after=timedelta(minutes=5),
+    )
+
+    assert (
+        is_observation_stale(
+            observed_at,
+            fresh_for=timedelta(minutes=5),
+            now=now,
+        )
+        is True
+    )
+    assert quote.is_stale(now=now) is True
 
 
 def _stored_asset_price(
@@ -342,17 +385,55 @@ def test_successful_asset_price_refresh_persists_provenance_without_mutating_inp
 
     update_one.assert_called_once()
     selector, update = update_one.call_args.args
-    assert selector == {
-        "id": stored.id,
-        "$or": [
-            {"observed_at": {"$exists": False}},
-            {"observed_at": None},
-            {"observed_at": {"$lte": observed_at}},
-        ],
-    }
+    assert selector == AssetPrice.encode_query(
+        {
+            "id": stored.id,
+            "$or": [
+                {"observed_at": {"$exists": False}},
+                {"observed_at": None},
+                {"observed_at": {"$lte": observed_at}},
+                {
+                    "observed_at": {
+                        "$gt": refreshed.updated + MAX_OBSERVATION_CLOCK_SKEW,
+                    }
+                },
+            ],
+        }
+    )
     assert update["$set"]["source"] == PriceSource.VESTIGE.value
     assert update["$set"]["observed_at"] == observed_at
     assert update_one.call_args.kwargs == {"upsert": False}
+    collection.find_one.assert_not_called()
+    collection.insert_one.assert_not_called()
+
+
+def test_future_dated_asset_price_is_rejected_before_database_io(
+    monkeypatch,
+) -> None:
+    future = datetime.now(UTC) + MAX_OBSERVATION_CLOCK_SKEW + timedelta(seconds=1)
+    price = _stored_asset_price(
+        updated=future,
+        observed_at=future,
+    )
+    collection = SimpleNamespace(
+        update_one=Mock(),
+        find_one=Mock(),
+        insert_one=Mock(),
+    )
+    monkeypatch.setattr(
+        asset_price_data,
+        "db",
+        SimpleNamespace(
+            asset_prices=SimpleNamespace(
+                mongodb_collection=collection,
+            ),
+        ),
+    )
+
+    with pytest.raises(InvalidPriceError, match="too far in the future"):
+        asset_price_data._upsert_asset_price(price)
+
+    collection.update_one.assert_not_called()
     collection.find_one.assert_not_called()
     collection.insert_one.assert_not_called()
 
@@ -383,8 +464,50 @@ def test_older_asset_price_observation_cannot_replace_newer_record(
     persisted = asset_price_data._upsert_asset_price(older)
 
     assert persisted is False
-    collection.find_one.assert_called_once_with({"id": older.id}, {"_id": 1})
+    collection.find_one.assert_called_once_with(
+        AssetPrice.encode_query({"id": older.id}),
+        {"_id": 1},
+    )
     collection.insert_one.assert_not_called()
+
+
+def test_newer_initial_price_retries_after_concurrent_older_insert(
+    monkeypatch,
+) -> None:
+    observed_at = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    newer = _stored_asset_price(
+        updated=observed_at,
+        observed_at=observed_at,
+    )
+    collection = SimpleNamespace(
+        update_one=Mock(
+            side_effect=[
+                SimpleNamespace(matched_count=0),
+                SimpleNamespace(matched_count=1),
+            ]
+        ),
+        find_one=Mock(return_value=None),
+        insert_one=Mock(side_effect=DuplicateKeyError("concurrent insert")),
+    )
+    monkeypatch.setattr(
+        asset_price_data,
+        "db",
+        SimpleNamespace(
+            asset_prices=SimpleNamespace(
+                mongodb_collection=collection,
+            ),
+        ),
+    )
+
+    persisted = asset_price_data._upsert_asset_price(newer)
+
+    assert persisted is True
+    assert collection.update_one.call_count == 2
+    first_selector, first_update = collection.update_one.call_args_list[0].args
+    retry_selector, retry_update = collection.update_one.call_args_list[1].args
+    assert retry_selector == first_selector
+    assert retry_update == {"$set": first_update["$set"]}
+    assert collection.update_one.call_args_list[1].kwargs == {"upsert": False}
 
 
 def test_batch_refresh_isolates_expected_asset_metadata_failure(monkeypatch) -> None:
@@ -486,76 +609,3 @@ def test_batch_refresh_returns_concurrent_newer_price_when_write_loses(
     )
 
     assert result == [winner]
-
-
-def test_lp_data_adapter_passes_raw_uint64_values_to_exact_domain_pricer(monkeypatch) -> None:
-    asset1_id = 7
-    lp_token_id = 99
-    reserve_micros = 2**53 + 1
-    pool_balance_micros = 100
-    total_supply_micros = reserve_micros + pool_balance_micros
-    responses = iter(
-        [
-            {
-                "params": {
-                    "creator": "FACTORY",
-                    "reserve": "POOL",
-                    "total": total_supply_micros,
-                    "decimals": 8,
-                },
-            },
-            {
-                "assets": [
-                    {"asset-id": asset1_id, "amount": reserve_micros},
-                    {"asset-id": lp_token_id, "amount": pool_balance_micros},
-                ],
-                "amount": 0,
-            },
-        ],
-    )
-    run_sync_calls: list[tuple[object, tuple[object, ...]]] = []
-
-    async def run_sync(func, *args):
-        run_sync_calls.append((func, args))
-        return next(responses)
-
-    async def get_details(asset_id: int):
-        assert asset_id == asset1_id
-        return SimpleNamespace(decimals=6)
-
-    async def get_price_quote(asset_id: int):
-        assert asset_id == asset1_id
-        return PriceQuote.from_raw(
-            asset_id=asset1_id,
-            algo=Decimal("0.5"),
-            usd=Decimal("0.125"),
-            source=PriceSource.VESTIGE,
-            stale_after=timedelta(minutes=5),
-        )
-
-    exact_pricer = Mock(return_value=Decimal("1"))
-    monkeypatch.setattr(lp_price_data, "_run_sync", run_sync)
-    monkeypatch.setattr(lp_price_data, "get_asset_details", get_details)
-    monkeypatch.setattr(
-        lp_price_data.price_router,
-        "get_asset_price_quote",
-        get_price_quote,
-    )
-    monkeypatch.setattr(lp_price_data, "calculate_lp_token_price_algo_exact", exact_pricer)
-
-    result = asyncio.run(
-        lp_price_data.calculate_lp_token_price_algo(
-            {"lp_token_id": lp_token_id, "asset1_id": asset1_id},
-        ),
-    )
-
-    assert result == Decimal("1")
-    assert run_sync_calls[1][1] == ("POOL",)
-    exact_pricer.assert_called_once_with(
-        asset1_price_algo=Decimal("0.5"),
-        asset1_reserve_micros=reserve_micros,
-        asset1_decimals=6,
-        total_lp_supply_micros=total_supply_micros,
-        pool_lp_balance_micros=pool_balance_micros,
-        lp_token_decimals=8,
-    )

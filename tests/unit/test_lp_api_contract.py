@@ -10,7 +10,12 @@ from flex import api
 from flex.db.model.priced import AssetPrice
 
 
-def _lp_price(token_id: int, *, age_seconds: int = 0) -> AssetPrice:
+def _lp_price(
+    token_id: int,
+    *,
+    age_seconds: int = 0,
+    source: str = "vestige",
+) -> AssetPrice:
     observed_at = datetime.now(UTC) - timedelta(seconds=age_seconds)
     return AssetPrice(
         id=token_id,
@@ -18,7 +23,7 @@ def _lp_price(token_id: int, *, age_seconds: int = 0) -> AssetPrice:
         price_algo=1.25 if token_id == 8 else 2.5,
         price_usd=0.42 if token_id == 8 else 0.84,
         last_update_round=123,
-        source="derived_lp",
+        source=source,
         observed_at=observed_at,
         created=observed_at,
         updated=observed_at,
@@ -90,7 +95,7 @@ def test_lp_batch_uses_one_database_query_and_preserves_missing_entries(
             self.calls.append(query)
             return [
                 _lp_price(8),
-                _lp_price(13),
+                _lp_price(13, source="derived_lp"),
             ]
 
     asset_prices = AssetPrices()
@@ -115,11 +120,7 @@ def test_lp_batch_uses_one_database_query_and_preserves_missing_entries(
                 "token_price_usd": 0.42,
             },
             "5": None,
-            "13": {
-                "token_id": 13,
-                "token_price_algo": 2.5,
-                "token_price_usd": 0.84,
-            },
+            "13": None,
         },
     }
 
@@ -145,6 +146,29 @@ def test_lp_single_response_remains_backward_compatible(monkeypatch) -> None:
         "token_price_algo": 1.25,
         "token_price_usd": 0.42,
     }
+
+
+def test_lp_endpoint_hides_retired_derived_price_without_pool_marker(
+    monkeypatch,
+) -> None:
+    asset_prices = SimpleNamespace(
+        get_many_by_query=lambda query: [
+            _lp_price(8, source="derived_lp"),
+        ],
+    )
+    monkeypatch.setattr(
+        api,
+        "db",
+        SimpleNamespace(asset_prices=asset_prices),
+    )
+
+    response = asyncio.run(
+        api.handle_get_lp_state_priced(
+            api.LpStatePricedRequest(lp_token_id=8),
+        ),
+    )
+
+    assert response is None
 
 
 def test_lp_endpoint_hides_price_older_than_max_stale(monkeypatch) -> None:

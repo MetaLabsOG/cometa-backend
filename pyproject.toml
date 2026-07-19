@@ -2,6 +2,9 @@
 addopts = "-ra --strict-config --strict-markers"
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "integration: requires an external service such as MongoDB",
+]
 
 [tool.coverage.run]
 branch = true
@@ -27,6 +30,11 @@ quote-style = "double"
 files = [
     "core/circuit_breaker.py",
     "flex/blockchain/contract_state.py",
+    "flex/application/asset_transfers.py",
+    "flex/db/lp_projection.py",
+    "flex/db/sync_coordinator.py",
+    "flex/domain/allocation.py",
+    "flex/domain/lp_projection.py",
     "flex/domain/pricing.py",
     "flex/domain/transactions.py",
     "flex/providers/pact.py",

@@ -1,9 +1,17 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import ClassVar
 
-from dataclasses_json import dataclass_json
+from dataclasses_json import config, dataclass_json
 
+from flex.db.bson import (
+    decode_bson_uint64,
+    decode_optional_bson_uint64,
+    encode_bson_integer,
+    encode_optional_bson_uint64,
+)
 from flex.db.classes.base_entity import BaseEntity
+from flex.db.classes.bson_uint64 import BsonUint64StorageMixin
 from flex.db.model.pool_states import PoolStateInfo
 from flex.db.model.pools import PoolInfo
 from flex.db.util import get_uuid
@@ -47,13 +55,33 @@ class UserCost:
 class AirdropReward(BaseEntity["AirdropReward"]):
     airdrop_id: str
     address: str
-    asa_id: int
-    amount_micros: int
+    asa_id: str
+    amount_micros: str
     txid: str
 
+    operation_id: str | None = None
+    confirmed_round: int | None = field(
+        default=None,
+        metadata=config(
+            encoder=encode_optional_bson_uint64,
+            decoder=decode_optional_bson_uint64,
+        ),
+    )
     id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self) -> None:
+        self.asa_id = str(self.asa_id)
+        self.amount_micros = str(self.amount_micros)
+
+    @property
+    def asa_id_int(self) -> int:
+        return int(self.asa_id)
+
+    @property
+    def amount_micros_int(self) -> int:
+        return int(self.amount_micros)
 
 
 @dataclass_json
@@ -69,14 +97,41 @@ class AssetPriceInfo:
 
 @dataclass_json
 @dataclass
-class AssetPrice(BaseEntity["AssetPrice"]):
-    id: int
+class AssetPrice(
+    BsonUint64StorageMixin,
+    BaseEntity["AssetPrice"],
+):
+    BSON_UINT64_FIELDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "id",
+            "last_update_round",
+            "tinyman_algo_pool_id",
+        }
+    )
+
+    id: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
     price_usd: float
     price_algo: float
-    last_update_round: int
+    last_update_round: int = field(
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        )
+    )
     name: str
 
-    tinyman_algo_pool_id: int | None = None
+    tinyman_algo_pool_id: int | None = field(
+        default=None,
+        metadata=config(
+            encoder=encode_optional_bson_uint64,
+            decoder=decode_optional_bson_uint64,
+        ),
+    )
     source: str | None = None
     observed_at: datetime | None = None
 

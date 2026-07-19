@@ -17,7 +17,7 @@ class DbError(Exception):
     message: str
 
 
-EntityT = TypeVar('EntityT', bound='BaseEntity')
+EntityT = TypeVar("EntityT", bound="BaseEntity")
 
 
 @dataclass
@@ -40,7 +40,7 @@ class CollectionManager(Generic[EntityT]):
         return self.create(item)
 
     def get_one(self, **kwargs) -> EntityT | None:
-        res = self.mongodb_collection.find_one(kwargs)
+        res = self.mongodb_collection.find_one(self.elem_type.encode_query(kwargs))
         if res is None:
             return None
         return self.item_from_dict(dict(res))
@@ -48,16 +48,16 @@ class CollectionManager(Generic[EntityT]):
     def get_by_primary_key(self, val: Any, throw_ex: bool = True) -> EntityT | None:
         res = self.get_one(**{self.primary_key_name: val})
         if res is None and throw_ex:
-            raise DbError(code=404, message=f'No {self.name} found with {self.primary_key_name}={val}')
+            raise DbError(code=404, message=f"No {self.name} found with {self.primary_key_name}={val}")
         return res
 
     def get_or_create(self, item: EntityT) -> EntityT:
         """Use one upsert operation; concurrent uniqueness requires a primary-key index."""
-        query = {self.primary_key_name: item.primary_key}
+        query = self.elem_type.encode_query({self.primary_key_name: item.primary_key})
         try:
             document = self.mongodb_collection.find_one_and_update(
                 query,
-                {'$setOnInsert': item.to_dict()},
+                {"$setOnInsert": item.to_dict()},
                 upsert=True,
                 return_document=ReturnDocument.AFTER,
             )
@@ -66,34 +66,30 @@ class CollectionManager(Generic[EntityT]):
             if document is None:
                 raise
         if document is None:
-            raise DbError(code=500, message=f'Failed to read {self.name} after upsert')
+            raise DbError(code=500, message=f"Failed to read {self.name} after upsert")
         return self.item_from_dict(document)
 
     def get_or_create_with(self, **kwargs) -> EntityT:
         return self.get_or_create(self.elem_type(**kwargs))
 
     def get_many(self, **kwargs) -> list[EntityT]:
-        items = self.mongodb_collection.find(kwargs)
+        items = self.mongodb_collection.find(self.elem_type.encode_query(kwargs))
         return [self.item_from_dict(i) for i in items]
 
     def get_many_by_query(
-            self,
-            query_dict: dict,
-            sort_by: str | None = None,
-            reversed: bool = False,
-            limit: int| None = None
+        self, query_dict: dict, sort_by: str | None = None, reversed: bool = False, limit: int | None = None
     ) -> list[EntityT]:
-        items = self.mongodb_collection.find(query_dict)
+        items = self.mongodb_collection.find(self.elem_type.encode_query(query_dict))
         if sort_by is not None:
             items = items.sort(sort_by, DESCENDING if reversed else ASCENDING)
         elif reversed:
-            items = items.sort('_id', DESCENDING)
+            items = items.sort("_id", DESCENDING)
         if limit is not None:
             items = items.limit(limit)
         return [self.item_from_dict(i) for i in items]
 
     def get_by_array(self, field_name: str, values: list[Any]) -> list[EntityT]:
-        return self.get_many(**{field_name: {'$in': values}})
+        return self.get_many(**{field_name: {"$in": values}})
 
     def get_all(self) -> list[EntityT]:
         return self.get_many()
@@ -102,42 +98,52 @@ class CollectionManager(Generic[EntityT]):
         item.updated = datetime.now()
         item_dict = item.to_dict()
         self.mongodb_collection.update_one(
-            {self.primary_key_name: item.primary_key}, {'$set': item_dict}
+            self.elem_type.encode_query({self.primary_key_name: item.primary_key}),
+            {"$set": item_dict},
         )
         return item
 
     def update_with(self, item: EntityT, **kwargs) -> EntityT:
-        kwargs['updated'] = datetime.now()
+        kwargs["updated"] = datetime.now()
+        encoded_fields = self.elem_type.encode_storage_fields(kwargs)
         self.mongodb_collection.update_one(
-            {self.primary_key_name: item.primary_key}, {'$set': kwargs}
+            self.elem_type.encode_query({self.primary_key_name: item.primary_key}),
+            {"$set": encoded_fields},
         )
         item_dict = item.to_dict()
-        item_dict.update(kwargs)
+        item_dict.update(encoded_fields)
         return self.item_from_dict(item_dict)
 
     def update_many_with(self, filter: dict, **kwargs) -> int:
-        kwargs['updated'] = datetime.now()
-        res = self.mongodb_collection.update_many(filter, {'$set': kwargs})
+        kwargs["updated"] = datetime.now()
+        res = self.mongodb_collection.update_many(
+            self.elem_type.encode_query(filter),
+            {"$set": self.elem_type.encode_storage_fields(kwargs)},
+        )
         return res.modified_count
 
     def remove(self, item: EntityT) -> bool:
-        res = self.mongodb_collection.delete_one(
-            {self.primary_key_name: item.primary_key}
-        )
+        res = self.mongodb_collection.delete_one(self.elem_type.encode_query({self.primary_key_name: item.primary_key}))
         return res.deleted_count > 0
 
     def remove_by(self, **kwargs) -> int:
-        res = self.mongodb_collection.delete_many(kwargs)
+        res = self.mongodb_collection.delete_many(self.elem_type.encode_query(kwargs))
         return res.deleted_count
 
     def remove_all(self) -> int:
         return self.remove_by()
 
     def count(self, **kwargs) -> int:
-        return self.mongodb_collection.count_documents(kwargs)
+        return self.mongodb_collection.count_documents(self.elem_type.encode_query(kwargs))
 
     def exists(self, **kwargs) -> bool:
-        return self.mongodb_collection.find_one(kwargs, projection={'_id': 1}) is not None
+        return (
+            self.mongodb_collection.find_one(
+                self.elem_type.encode_query(kwargs),
+                projection={"_id": 1},
+            )
+            is not None
+        )
 
     def item_from_dict(self, item_dict: dict) -> EntityT:
         return self.elem_type.from_dict(item_dict)
@@ -147,7 +153,7 @@ class CollectionManager(Generic[EntityT]):
         return self.elem_type.primary_key_name()
 
     @classmethod
-    def create_for_type(cls, elem_type: Type[EntityT], mongodb_database: MongoDatabase) -> 'CollectionManager[EntityT]':
-        name = f'{elem_type.type_name_snake_case()}s'
+    def create_for_type(cls, elem_type: Type[EntityT], mongodb_database: MongoDatabase) -> "CollectionManager[EntityT]":
+        name = f"{elem_type.type_name_snake_case()}s"
         collection = mongodb_database[name]
         return cls(name, elem_type, collection)

@@ -1,26 +1,32 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from types import SimpleNamespace
 
 import httpx
 import pytest
 
 from env import settings
-from flex.data import lp_prices
-from flex.domain.pricing import PriceQuote, PriceSource, PriceUnavailableError
+from flex.domain.pricing import PriceSource, PriceUnavailableError
 from flex.meta_error import MetaError
 from flex.providers import price_router, vestige
 from flex.providers.vestige import Price
 
 
-def _record(*, age_seconds: int, algo: float = 2.0, usd: float = 0.5):
+def _record(
+    *,
+    age_seconds: int,
+    algo: float = 2.0,
+    usd: float = 0.5,
+    tinyman_algo_pool_id: int | None = None,
+    source: str = PriceSource.VESTIGE.value,
+):
     observed_at = datetime.now(UTC) - timedelta(seconds=age_seconds)
     return SimpleNamespace(
         id=42,
         price_algo=algo,
         price_usd=usd,
-        source=PriceSource.VESTIGE.value,
+        source=source,
+        tinyman_algo_pool_id=tinyman_algo_pool_id,
         observed_at=observed_at,
         updated=observed_at,
     )
@@ -127,6 +133,51 @@ def test_provider_outage_uses_only_bounded_stale_database_price(monkeypatch) -> 
     assert result == Price(algo=2.0, usd=0.5)
 
 
+def test_provider_outage_never_uses_legacy_raw_lp_projection(monkeypatch) -> None:
+    _database(
+        monkeypatch,
+        _record(age_seconds=0, tinyman_algo_pool_id=999),
+    )
+    monkeypatch.setattr(
+        vestige,
+        "vestige_full_asset_price_not_cached",
+        _provider_failure,
+    )
+    monkeypatch.setattr(
+        price_router,
+        "_asset_price_from_tinyman",
+        _provider_failure,
+    )
+
+    with pytest.raises(PriceUnavailableError, match="no acceptable fallback"):
+        asyncio.run(price_router.get_asset_price(42))
+
+
+def test_provider_outage_never_uses_derived_lp_source_without_pool_marker(
+    monkeypatch,
+) -> None:
+    _database(
+        monkeypatch,
+        _record(
+            age_seconds=0,
+            source=PriceSource.DERIVED_LP.value,
+        ),
+    )
+    monkeypatch.setattr(
+        vestige,
+        "vestige_full_asset_price_not_cached",
+        _provider_failure,
+    )
+    monkeypatch.setattr(
+        price_router,
+        "_asset_price_from_tinyman",
+        _provider_failure,
+    )
+
+    with pytest.raises(PriceUnavailableError, match="no acceptable fallback"):
+        asyncio.run(price_router.get_asset_price(42))
+
+
 def test_bounded_stale_quote_preserves_original_provenance(monkeypatch) -> None:
     stale_age = settings.asset_prices_ttl + 1
     record = _record(age_seconds=stale_age)
@@ -143,55 +194,6 @@ def test_bounded_stale_quote_preserves_original_provenance(monkeypatch) -> None:
     assert quote.source is PriceSource.VESTIGE
     assert quote.observed_at == record.observed_at
     assert quote.to_legacy_floats() == (2.0, 0.5)
-
-
-def test_derived_lp_keeps_bounded_stale_dependency_timestamp(monkeypatch) -> None:
-    record = _record(age_seconds=settings.asset_prices_ttl + 1)
-    _database(monkeypatch, record)
-    monkeypatch.setattr(
-        vestige,
-        "vestige_full_asset_price_not_cached",
-        _provider_failure,
-    )
-    monkeypatch.setattr(price_router, "_asset_price_from_tinyman", _provider_failure)
-    asset_quote = asyncio.run(price_router.get_asset_price_quote(42))
-    algo_quote = PriceQuote.from_raw(
-        asset_id=0,
-        algo=1,
-        usd=Decimal("0.25"),
-        source=PriceSource.VESTIGE,
-        stale_after=timedelta(minutes=5),
-    )
-    persisted = []
-
-    async def calculate_with_quote(lp_def):
-        assert lp_def == {"lp_token_id": 99}
-        return Decimal("4"), asset_quote
-
-    async def asset_details(asset_id: int):
-        assert asset_id == 99
-        return SimpleNamespace(name="LP")
-
-    monkeypatch.setattr(
-        lp_prices,
-        "_calculate_lp_token_price_algo_with_quote",
-        calculate_with_quote,
-    )
-    monkeypatch.setattr(lp_prices, "get_asset_details", asset_details)
-    monkeypatch.setattr(lp_prices, "_upsert_asset_price", persisted.append)
-
-    updated = asyncio.run(
-        lp_prices._update_single_lp(
-            {"lp_token_id": 99},
-            algo_quote,
-            current_round=123,
-        ),
-    )
-
-    assert updated is True
-    assert len(persisted) == 1
-    assert persisted[0].observed_at == record.observed_at
-    assert persisted[0].source == PriceSource.DERIVED_LP.value
 
 
 def test_price_older_than_max_stale_is_rejected(monkeypatch) -> None:

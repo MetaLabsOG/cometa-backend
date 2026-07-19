@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     algod_address: str
     algod_token: str
     algo_indexer_address: str
+    outbound_asset_transfer_max_fee_microalgos: int = Field(
+        default=1_000,
+        ge=1_000,
+        le=1_000_000,
+    )
 
     server_port: int
     workers_num: int
@@ -57,12 +62,18 @@ class Settings(BaseSettings):
     background_user_pools_update: bool = False
     background_pools_update: bool = False
     background_asset_prices_update: bool = True  # Enable background update of asset prices
+    # Retained only so existing deployments can roll forward. The raw-balance
+    # publisher has been removed and this flag cannot enable LP pricing.
+    background_lp_prices_update: bool = False
     asset_price_update_batch_size: int = Field(default=10, gt=0)
     asset_price_api_call_delay: float = Field(default=1, ge=0)
     asset_price_batch_delay: float = Field(default=2.0, ge=0)
 
     sync_new_pools: bool = True
     sync_liquidity_pools: bool = False
+    # Legacy stake projection does not yet validate complete application groups.
+    # Keep it fail-closed until the authoritative event classifier lands.
+    sync_staking_pools: bool = False
     update_contract_caches: bool = True
     update_contracts_chunk_size: int = Field(default=10, ge=1, le=100)
 
@@ -74,6 +85,8 @@ class Settings(BaseSettings):
     old_pool_end_date_days_ago: int = 30
     sync_lag_max_rounds: int = 1000  # 1 hour
     sync_behind_seconds_threshold: int = 60
+    sync_round_max_attempts: int = Field(default=5, ge=1, le=100)
+    sync_retry_max_seconds: float = Field(default=30, gt=0, le=300)
 
     reset_and_resync_pool_states: bool = False
 
@@ -82,7 +95,6 @@ class Settings(BaseSettings):
     asset_prices_ttl: int = Field(default=120, gt=0)  # 2 minutes.
     asset_prices_max_stale: int = Field(default=3600, gt=0)
     asset_prices_update_interval: int = 60  # Run the background update every 60 seconds
-    lp_prices_update_interval: int = 300  # LP pricing via algod every 5 minutes
     lp_token_prices_ttl: int = 30
     total_tvl_ttl: int = 30
 

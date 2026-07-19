@@ -6,7 +6,13 @@ from typing import Protocol
 
 import httpx
 
-from flex.domain.pricing import DecimalInput, PriceQuote, PriceSource, PricingError
+from flex.domain.pricing import (
+    DecimalInput,
+    PriceQuote,
+    PriceSource,
+    PricingError,
+    validate_observation_timestamp,
+)
 from flex.meta_error import MetaError
 from flex.providers import vestige
 
@@ -76,6 +82,7 @@ def validate_provider_quote(
                 stale_after=fresh_for,
                 observed_round=observed_round,
             )
+        validate_observation_timestamp(quote.observed_at)
         quote.to_legacy_floats()
         return quote
     except PriceRefreshError:

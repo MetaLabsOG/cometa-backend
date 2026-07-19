@@ -1,11 +1,10 @@
 import json
 from datetime import datetime
-
-from typing import Any, TypeVar, Generic
+from typing import Any, Generic, TypeVar
 
 from flex.db.util import string_to_snake_case
 
-EntityT = TypeVar('EntityT')
+EntityT = TypeVar("EntityT")
 
 
 # IMPLEMENTATIONS MUST be dataclass and dataclass_json
@@ -16,7 +15,20 @@ class BaseEntity(Generic[EntityT]):
 
     @classmethod
     def primary_key_name(cls) -> str:
-        return 'id'
+        return "id"
+
+    @classmethod
+    def encode_query(cls, query: dict[str, Any]) -> dict[str, Any]:
+        """Encode entity-specific storage types used in Mongo selectors."""
+        return dict(query)
+
+    @classmethod
+    def encode_storage_fields(
+        cls,
+        values: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Encode a partial Mongo update using the entity storage schema."""
+        return dict(values)
 
     @property
     def primary_key(self) -> Any:

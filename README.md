@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/MetaLabsOG/cometa-backend/actions/workflows/ci.yml"><img src="https://github.com/MetaLabsOG/cometa-backend/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12" /></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12%20%7C%203.14-3776AB?logo=python&logoColor=white" alt="Python 3.12 and 3.14" /></a>
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
   <a href="https://developer.algorand.org/"><img src="https://img.shields.io/badge/Algorand-mainnet-black?logo=algorand&logoColor=white" alt="Algorand mainnet" /></a>
   <a href="https://api.cometa.farm/status"><img src="https://img.shields.io/website?label=API&up_message=online&down_message=offline&url=https%3A%2F%2Fapi.cometa.farm%2Fstatus" alt="API status" /></a>
@@ -37,10 +37,11 @@ MongoDB—into stable, query-oriented API models for the product frontend.
 
 | Engineering concern | Implementation |
 | --- | --- |
-| **Financial precision** | Prices use validated `Decimal` value objects, carry source and observation time, and cross the legacy `float` boundary only explicitly. |
-| **Deterministic replay identity** | Nested Algorand transfers receive stable, projection-scoped event IDs; unique indexes guard price and event-marker collections. Crash-atomic projection remains roadmap work. |
+| **Financial precision** | Prices use validated `Decimal` value objects; LP balances, fees, and canonical asset supply retain the full Algorand `uint64` domain through BSON-safe storage. |
+| **Crash-safe projections** | Scoped event cursors, fee-specific IDs, per-state compare-and-set writes, immutable markers, and a fenced round checkpoint make LP replay convergent across crashes and competing workers. |
+| **Replay-safe payouts** | Airdrops and NFT transfers persist immutable signed intent before broadcast, cap signer fees, bind the configured genesis hash, keep terminal states monotonic, and fail closed on pre-intent lottery history. |
 | **Resilient price routing** | Vestige and Tinyman payloads are validated with provenance and bounded staleness; retry classification and a guarded Vestige refresh prevent failure storms. |
-| **Operational boundaries** | Selected latency-sensitive SDK calls leave the event loop through executors; wallet fan-out is cached and bounded; background workers reconcile chain state without coupling reads to refresh latency. |
+| **Operational boundaries** | Selected blocking chain calls leave the event loop; deterministic failures use bounded retry; unverified staking is fail-closed and the raw-balance LP price publisher has been removed. |
 | **Versioned chain decoding** | Reach 0.1.11 state is decoded natively from Algorand with explicit per-version layouts, exact-width integers, and fail-closed schema validation. |
 | **Supply-chain hardening** | The digest-pinned Alpine image is multi-stage, non-root, and Python-only; CI smoke-tests it and rejects high/critical vulnerabilities or embedded secrets. |
 
@@ -70,6 +71,12 @@ farm and distribution versions map packed Algorand global and local state into
 the existing API view shape without private npm packages or a second runtime.
 The decision and extension rules are documented in
 [`docs/architecture/native-reach-state.md`](docs/architecture/native-reach-state.md).
+Financial write paths are documented separately in
+[`docs/architecture/outbound-asset-transfers.md`](docs/architecture/outbound-asset-transfers.md)
+and [`docs/architecture/lp-projection.md`](docs/architecture/lp-projection.md).
+The latest internal multi-agent engineering review, including resolved and
+intentionally open items, is in
+[`docs/audit/01-audit-architecture-financial-2026-07-19.md`](docs/audit/01-audit-architecture-financial-2026-07-19.md).
 
 ### Reliability boundaries
 
@@ -77,8 +84,10 @@ The decision and extension rules are documented in
 | --- | --- |
 | Provider quote → stored price | Positive, finite decimal values with source and observation timestamp |
 | Cached price → API response | Explicit freshness window; expired data is rejected instead of silently relabelled |
-| Chain event → read model | Deterministic identity plus unique persistence constraints |
-| Sync SDK → async request path | Bounded executor hand-off |
+| Chain event → LP read model | Full-block preflight, fee-aware uint64 ledger, CAS cursor, marker repair, and round fencing |
+| Raw LP account balance → price | Prohibited; economic reserves require a verified DEX-specific adapter |
+| Asset payout → Algorand | Validate genesis and fee ceiling; persist signed intent first; rebroadcast identical bytes; reconcile before completion |
+| Selected sync chain SDK → async request path | Bounded executor hand-off |
 | Permanent provider error → retry loop | Typed classification prevents pointless retries |
 | Half-open circuit → provider | A single probe prevents a recovery stampede |
 | Reach bytes → public view | Exact key, step, size, tag, and contract-version validation |
@@ -87,7 +96,8 @@ The decision and extension rules are documented in
 
 ### Requirements
 
-- Python 3.12 and [Pipenv](https://pipenv.pypa.io/)
+- Python 3.12 and [Pipenv](https://pipenv.pypa.io/) for the production-equivalent environment
+- Python 3.14 is also exercised by CI as a forward-compatibility gate
 - MongoDB
 - access to an Algorand node/indexer
 
@@ -100,10 +110,13 @@ pipenv run python -c \
   'from algosdk import account, mnemonic; key, _ = account.generate_account(); print(mnemonic.from_private_key(key))'
 # Put this throwaway phrase in ALGO_MNEMONIC. Never fund or reuse the account.
 # Point MONGODB_HOST, ALGOD_ADDRESS, and ALGO_INDEXER_ADDRESS at dev services.
-make run
+make run-api
 ```
 
-`make run` starts Uvicorn with reload on port `8000`. A development mnemonic is
+`make run-api` is the safe API-only development loop. `make run` executes the
+production-equivalent entrypoint: critical indexes,
+optional migrations when `MIGRATE=true`, configured workers, and Uvicorn. For
+the full entrypoint, review every worker flag first. A development mnemonic is
 still required by legacy Python transaction adapters; use a generated, unfunded
 account only.
 
@@ -121,6 +134,10 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
+This Compose stack starts persistent MongoDB and a full Algorand node. Inspect
+the network, volume paths, and validated `MONGODB_IMAGE`/`ALGOD_IMAGE` values
+before using it outside an isolated development host.
+
 ## Quality gate
 
 ```bash
@@ -134,9 +151,13 @@ This single command runs:
 - the complete Python test suite with branch coverage, including deterministic Reach
   state-codec and security-boundary tests.
 
-CI repeats those checks on every pull request and every push to `main`, verifies
-the lockfile and Compose configuration, builds and smoke-tests the production
-image, and scans it with Trivy. The focused coverage ratchet is currently 75%;
+CI repeats those checks on Python 3.12 and 3.14 for every pull request and every
+push to `main`, verifies the lockfile and Compose configuration, builds and
+smoke-tests the production image, scans it with Trivy, and exercises financial
+repository invariants against a digest-pinned MongoDB service. A pinned
+TruffleHog gate fetches and scans every published Git ref for verified or unresolved
+credentials and feeds the stable required `python` status. The focused
+coverage ratchet is currently 75%;
 it measures maintained domain and infrastructure modules rather than presenting
 a misleading whole-repository number.
 
@@ -151,8 +172,8 @@ Useful individual targets are `make lint`, `make format-check`,
 | `GET /contracts` | Farm and distribution catalog |
 | `GET /contracts/user/{address}` | Contracts associated with a wallet |
 | `GET /contracts/farm/enriched` | Contracts enriched with asset metadata and prices |
-| `POST /assets/price` | Batch asset pricing |
-| `POST /lp/state/priced` | Batched LP reserve and price data |
+| `POST /assets/price` | Read stored bounded-fresh prices; optional `ids` accepts up to 250 values, while omission returns all stored projections |
+| `POST /lp/state/priced` | Read LP token prices; missing or stale batch entries are returned as `null` |
 | `GET /stats/tvl` | Protocol TVL snapshot |
 
 The production API intentionally disables interactive OpenAPI pages. Endpoint
@@ -173,7 +194,8 @@ flex/domain/           Pure pricing and transaction invariants
 flex/providers/        Market-data provider adapters
 flex/db/               MongoDB models, repositories, and indexes
 tests/unit/            Fast regression and boundary tests
-scripts/               Deployment and safe operational utilities
+tests/integration/     Opt-in tests against disposable real services
+scripts/               Deployment and legacy operational utilities
 ```
 
 ## Configuration and security

@@ -8,6 +8,7 @@ import httpx
 
 from env import settings
 from flex import db
+from flex.data.asset_prices import is_unverified_legacy_lp_price
 from flex.domain.pricing import (
     DecimalInput,
     PriceQuote,
@@ -163,7 +164,12 @@ def _stored_quote(
     now: datetime,
     max_age: timedelta,
 ) -> PriceQuote | None:
-    if record is None:
+    if record is None or is_unverified_legacy_lp_price(record):
+        if record is not None:
+            logger.warning(
+                "Ignoring retired raw-reserve LP projection for asset %s",
+                asset_id,
+            )
         return None
     try:
         observed_at = _record_observed_at(record)

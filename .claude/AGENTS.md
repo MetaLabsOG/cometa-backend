@@ -30,19 +30,32 @@ work status; it does not override repository safety rules or the current user re
   scripts unless the user explicitly requests that external action.
 - Validate on-chain and provider payloads before persistence.
 - Preserve idempotency for transaction replay and financial background jobs.
+- Treat confirmed payouts and complete manifests as terminal states.
+- The raw-balance LP publisher is retired. Do not recreate it; token-token fee
+  ALGO is operational balance, not an economic reserve.
 - Do not silently substitute zero for unavailable chain state or price data.
 
 ## Quality Gate
 
 ```bash
 pipenv verify
-pipenv sync --dev
+make sync
 make quality
 ```
 
 CI validates Compose but does not certify the image as immutable-deploy ready:
-the private Node sidecar package-auth blocker is documented in `README.md`. Keep the
-focused lint, type, and coverage ratchets honest.
+it runs the full quality gate on Python 3.12 and 3.14, builds the digest-pinned
+Python-only image, smoke-tests the non-root runtime, scans it with Trivy, and
+checks financial persistence invariants against a disposable MongoDB service.
+Keep the focused lint, type, and coverage ratchets honest.
+
+`make run` uses the production-equivalent `python app.py` entrypoint, including
+critical indexes, migrations only when `MIGRATE=true`, and configured workers.
+Use `make run-api` only for API-only hot reload.
+
+Financial projector design and known standalone-Mongo limits are documented in
+`docs/architecture/lp-projection.md`; outbound payout recovery is documented in
+`docs/architecture/outbound-asset-transfers.md`.
 
 ## Cross-Project Changes
 

@@ -4,7 +4,7 @@ Backend for Cometa — an Algorand DeFi platform handling liquidity pools, token
 
 ## Stack
 
-- **Language**: Python 3.12, Pipenv
+- **Language**: Python 3.12 production runtime; Python 3.14 compatibility CI; Pipenv
 - **Framework**: FastAPI + Uvicorn
 - **Database**: MongoDB (pymongo)
 - **Cache**: process-local TTL caches (Redis migration is roadmap work)
@@ -16,19 +16,20 @@ Backend for Cometa — an Algorand DeFi platform handling liquidity pools, token
 ## Project Structure
 
 ```
-app.py              — FastAPI application, routes, startup
+app.py              — FastAPI composition, routes, startup, and workers
 env.py              — Settings via pydantic-settings (from .env)
-api/                — Core API: background tasks, DB models, stats, swaps, wallets, NFT lottery
-blockchain/         — Algorand node/indexer interaction utilities
-core/               — Shared core logic
-dexes/              — DEX integrations (HumbleSwap, Vestige, etc.)
-flex/               — Flex module (API + data)
+api/                — Product API, background work, wallets, and disabled lottery surface
+blockchain/         — Algorand node/indexer adapters
+core/               — Shared authentication, persistence, and resilience
+dexes/              — DEX-specific integrations
+flex/application/   — Financial use-case orchestration
+flex/domain/        — Pure allocation, pricing, projection, and identity rules
+flex/db/            — Mongo models, BSON codecs, repositories, and indexes
+flex/tools/         — Operator tools such as manifest-driven airdrops
 bot/                — Telegram bot logic
-farcaster/          — Farcaster integration
-scripts/            — Deployment & management shell scripts
-airdrop/            — Airdrop tooling
-marketplaces/       — NFT marketplace integrations
-metapunks/          — MetaPunks-specific logic
+scripts/            — Deployment and management shell scripts
+tests/              — Unit tests plus opt-in real-service integration tests
+docs/               — Architecture decisions, operations, and audit reports
 ```
 
 ## Key Commands
@@ -36,8 +37,9 @@ metapunks/          — MetaPunks-specific logic
 ```bash
 # Local development
 pipenv verify
-pipenv sync --dev
-pipenv run uvicorn app:app --reload --port 8000
+make sync
+make run       # production-equivalent startup, including indexes/workers
+make run-api   # API-only Uvicorn reload; no migrations or workers
 
 # Quality gate
 make quality
@@ -57,9 +59,22 @@ scripts/redeploy.sh     # pull + rebuild + restart the backend service
 - Background tasks in `api/background.py` — use exponential backoff for retries
 - Decode only explicitly supported Reach contract versions in `flex/blockchain/contract_state.py`
 - Route registration and process orchestration stay in `app.py`; Flex routes live in `flex/api.py`
-- MongoDB models in `api/db_model.py`
+- Legacy contract persistence models live in `core/db/model.py`; `api/db_model.py`
+  contains only the public contract-type enum. Maintained Flex models and
+  repositories live under `flex/db/`.
 - Asset prices use process-local TTL caches — see `dexes/` for provider calls
 - Preserve financial values as `Decimal` or integer base units until an explicit compatibility boundary
+- Persist maintained Flex financial `uint64` fields through the BSON codecs in
+  `flex/db/bson.py`; do not copy legacy int64/float compatibility shapes
+- Outbound transfers must persist immutable signed intent before broadcast and reconcile on-chain before completion
+- Legacy lottery draws without a matching durable operation remain `reconciliation_required`
+- LP events must enter through the complete-round preflight and `MongoLpProjectionRepository`
+- Keep token-token fee funding in `operational_algo_balance_micros`; never mix it into economic reserves
+- Trust `total_supply_micros` only with `total_supply_source=indexer`; otherwise
+  refetch and persist both fields atomically before a financial supply read
+- Keep `SYNC_STAKING_POOLS=false` until full Algorand application-group validation is implemented
+- Raw LP account balances never publish prices; `BACKGROUND_LP_PRICES_UPDATE`
+  is a retired compatibility setting and cannot restore the removed publisher
 - New pricing and transaction invariants belong in pure modules under `flex/domain/`
 - Run the strict mypy target before changing `core/circuit_breaker.py` or `flex/domain/`
 
@@ -91,8 +106,8 @@ See parent `~/dev/cometa/CLAUDE.md` for the canonical API contract table. That f
 
 ## Testing
 
-Tests are organized by boundary under `tests/unit/`. Run the same fast checks used
-by CI before committing:
+Fast tests are organized by boundary under `tests/unit/`; real-service checks live
+under `tests/integration/`. Run the same local quality gate used by CI before committing:
 
 ```bash
 make sync
@@ -103,7 +118,10 @@ make quality
 - Use `httpx.AsyncClient` with ASGI transport for endpoint integration tests
 - Keep domain tests pure and deterministic; inject clocks and provider functions
 - Priority: event replay/idempotency, price freshness, contract CRUD, authorization
+- Exercise crash boundaries, concurrent replay, BSON `uint64` limits, and
+  Indexer-lag cutovers for financial projections
 - Use a dedicated test database only for integration tests; never point tests at production
+- Set `MONGODB_TEST_URI` only to run the opt-in MongoDB integration suite
 - Every bug fix should include a regression test when practical
 
 ## Commit Discipline
@@ -118,9 +136,10 @@ make quality
 
 Tasks in `BOARD.md`. Format: pantheon.
 
-## Available MCP Tools
+## Optional Diagnostic Tools
 
-- **MongoDB MCP** — direct database queries in Claude sessions. Use for debugging: `db.contracts.find({active: true})`, inspecting collections, verifying data integrity. Connection: `mongodb://localhost:27017/cometa`
-- **Algorand MCP** — on-chain state verification, account info, asset lookups on mainnet
-- **Vestige MCP** — DEX price data, pool states, trading pairs for Algorand DeFi
-- **Codex MCP** — second-opinion code review via GPT-5.x. Run `review` after writing significant code
+MongoDB, Algorand, and DEX inspection connectors may be available in some agent
+sessions. Treat them as optional and read-only by default. Derive database and
+network targets from the active environment; never assume localhost is a safe
+database and never sign or broadcast a transaction without explicit task-scoped
+authorization.

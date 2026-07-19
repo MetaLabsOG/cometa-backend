@@ -287,8 +287,9 @@ async def get_farm_enriched(active_only: bool = True):
         except Exception as e:
             logger.error(f"Batch price creation failed: {e}")
 
-    # LP prices are now in asset_prices collection (populated by background worker).
-    # Keep lp_states key as empty dict for frontend compatibility.
+    # This route only consumes independently validated stored observations.
+    # No active publisher derives LP prices from pool-account balances.
+    # Keep lp_states empty for frontend compatibility.
     lp_states_dict = {}
 
     assets_dict = {a.id: a.to_details().to_dict() for a in assets_list}

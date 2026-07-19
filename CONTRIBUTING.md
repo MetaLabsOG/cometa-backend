@@ -13,16 +13,21 @@ make sync
 make run
 ```
 
+`make run` uses the production-equivalent entrypoint. Use `make run-api` for
+API-only hot reload when migrations and background workers are intentionally
+out of scope.
+
 Before opening a pull request, run the same gate used by CI:
 
 ```bash
 make quality
 ```
 
-Use `make format` to apply Ruff formatting. New domain code should use Python
-3.12 type hints and pass strict mypy checks. Keep I/O in adapters or application
-services; prefer pure functions and immutable value objects for pricing,
-transaction parsing, and other financial rules.
+Use `make format` to apply Ruff formatting. New domain code targets Python 3.12,
+passes strict mypy, and must remain green under the Python 3.14 compatibility
+job. Keep I/O in adapters or application services; prefer pure functions and
+immutable value objects for pricing, transaction parsing, and other financial
+rules.
 
 ## Tests
 
@@ -31,13 +36,23 @@ using the `test_<behavior>.py` naming pattern. Test both the successful result
 and the failure boundary, especially for:
 
 - integer or `Decimal` amount handling;
+- BSON round trips across the full Algorand `uint64` range;
 - duplicate, replayed, reordered, or nested chain events;
+- crashes between durable intent, broadcast, reconciliation, marker, and cursor writes;
 - stale prices and provider fallback exhaustion;
 - retries, timeouts, and circuit-breaker transitions;
 - authentication and storage uniqueness.
 
 Mock external networks at the adapter boundary. Never use production credentials,
 wallets, or mutable production data in tests.
+
+MongoDB semantics that mocks cannot prove belong under `tests/integration/`.
+Run them only against a disposable database:
+
+```bash
+MONGODB_TEST_URI=mongodb://127.0.0.1:27017 \
+  pipenv run pytest tests/integration -m integration -v
+```
 
 ## API compatibility
 
