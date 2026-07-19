@@ -81,6 +81,28 @@ jobs:
             --exit-code 1 \
             "cometa-backend:${COMETA_IMAGE_TAG:-local}"
 
+  secret-scan:
+    name: Secret history
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Fetch every published ref
+        run: git fetch --force --prune origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+      - name: Scan reachable Git history
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            ghcr.io/trufflesecurity/trufflehog@sha256:59b244249d1a1aef4baa24fe73d3c931616264482580d806d77f6c74d26b3e42 \
+            git file:///repo \
+            --results=verified,unknown \
+            --fail \
+            --fail-on-scan-errors \
+            --no-update \
+            --github-actions
+
   mongo-integration:
     name: MongoDB financial invariants
     runs-on: ubuntu-latest
@@ -113,14 +135,20 @@ jobs:
     if: ${{ always() }}
     needs:
       - python-matrix
+      - configuration
       - mongo-integration
+      - secret-scan
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Require Python and MongoDB checks
         env:
           MATRIX_RESULT: ${{ needs.python-matrix.result }}
+          CONFIGURATION_RESULT: ${{ needs.configuration.result }}
           MONGO_RESULT: ${{ needs.mongo-integration.result }}
+          SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
         run: |
           test "$MATRIX_RESULT" = "success"
+          test "$CONFIGURATION_RESULT" = "success"
           test "$MONGO_RESULT" = "success"
+          test "$SECRET_SCAN_RESULT" = "success"

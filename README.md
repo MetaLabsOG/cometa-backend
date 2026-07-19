@@ -37,11 +37,11 @@ MongoDB—into stable, query-oriented API models for the product frontend.
 
 | Engineering concern | Implementation |
 | --- | --- |
-| **Financial precision** | Prices use validated `Decimal` value objects; maintained LP projection and sync fields retain the full Algorand `uint64` domain through BSON-safe codecs. |
-| **Crash-safe projections** | Scoped event cursors, per-state compare-and-set writes, immutable markers, and a fenced round checkpoint make LP replay convergent across crashes and competing workers. |
-| **Replay-safe payouts** | Airdrops and NFT transfers persist immutable signed intent before broadcast, reconcile on-chain outcomes, and allocate integer base units exactly. |
+| **Financial precision** | Prices use validated `Decimal` value objects; LP balances, fees, and canonical asset supply retain the full Algorand `uint64` domain through BSON-safe storage. |
+| **Crash-safe projections** | Scoped event cursors, fee-specific IDs, per-state compare-and-set writes, immutable markers, and a fenced round checkpoint make LP replay convergent across crashes and competing workers. |
+| **Replay-safe payouts** | Airdrops and NFT transfers persist immutable signed intent before broadcast, cap signer fees, bind the configured genesis hash, keep terminal states monotonic, and fail closed on pre-intent lottery history. |
 | **Resilient price routing** | Vestige and Tinyman payloads are validated with provenance and bounded staleness; retry classification and a guarded Vestige refresh prevent failure storms. |
-| **Operational boundaries** | Selected blocking chain calls leave the event loop; deterministic failures use bounded retry; unverified staking, LP projection, and legacy LP pricing paths are disabled by default. |
+| **Operational boundaries** | Selected blocking chain calls leave the event loop; deterministic failures use bounded retry; unverified staking is fail-closed and the raw-balance LP price publisher has been removed. |
 | **Versioned chain decoding** | Reach 0.1.11 state is decoded natively from Algorand with explicit per-version layouts, exact-width integers, and fail-closed schema validation. |
 | **Supply-chain hardening** | The digest-pinned Alpine image is multi-stage, non-root, and Python-only; CI smoke-tests it and rejects high/critical vulnerabilities or embedded secrets. |
 
@@ -84,8 +84,9 @@ intentionally open items, is in
 | --- | --- |
 | Provider quote → stored price | Positive, finite decimal values with source and observation timestamp |
 | Cached price → API response | Explicit freshness window; expired data is rejected instead of silently relabelled |
-| Chain event → LP read model | Full-block preflight, uint64-safe CAS cursor, marker repair, and round fencing |
-| Asset payout → Algorand | Persist signed intent first; rebroadcast identical bytes; reconcile before completion |
+| Chain event → LP read model | Full-block preflight, fee-aware uint64 ledger, CAS cursor, marker repair, and round fencing |
+| Raw LP account balance → price | Prohibited; economic reserves require a verified DEX-specific adapter |
+| Asset payout → Algorand | Validate genesis and fee ceiling; persist signed intent first; rebroadcast identical bytes; reconcile before completion |
 | Selected sync chain SDK → async request path | Bounded executor hand-off |
 | Permanent provider error → retry loop | Typed classification prevents pointless retries |
 | Half-open circuit → provider | A single probe prevents a recovery stampede |
@@ -153,7 +154,9 @@ This single command runs:
 CI repeats those checks on Python 3.12 and 3.14 for every pull request and every
 push to `main`, verifies the lockfile and Compose configuration, builds and
 smoke-tests the production image, scans it with Trivy, and exercises financial
-repository invariants against a digest-pinned MongoDB service. The focused
+repository invariants against a digest-pinned MongoDB service. A pinned
+TruffleHog gate fetches and scans every published Git ref for verified or unresolved
+credentials and feeds the stable required `python` status. The focused
 coverage ratchet is currently 75%;
 it measures maintained domain and infrastructure modules rather than presenting
 a misleading whole-repository number.

@@ -107,12 +107,27 @@ celerybeat.pid
 .env.*
 !.env.example
 .env.main
+*.mnemonic
+*.seed
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Database exports and operator backups
+dump/
+backups/
+*.bson
+*.dump
+*.sql.gz
 
 # Spyder project settings
 .spyderproject
@@ -242,3 +257,14 @@ test-results/
 test_refund.py
 check_vestige_hack.py
 sample.py
+# Retired credential-bearing operator helper; history is scrubbed separately.
+/verify_pool.sh
+
+# Local operator scratch files; never publish from this checkout.
+/analyze_logs.sh
+/download_and_analyze_logs.sh
+/log_analyzer.py
+/docs/impeccable-analysis.md
+/docs/pagination-plan.md
+/scripts/recover_contracts.py
+/scripts/restore_missing.py

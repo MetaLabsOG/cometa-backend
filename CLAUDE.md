@@ -37,7 +37,7 @@ docs/               — Architecture decisions, operations, and audit reports
 ```bash
 # Local development
 pipenv verify
-pipenv sync --dev
+make sync
 make run       # production-equivalent startup, including indexes/workers
 make run-api   # API-only Uvicorn reload; no migrations or workers
 
@@ -67,9 +67,14 @@ scripts/redeploy.sh     # pull + rebuild + restart the backend service
 - Persist maintained Flex financial `uint64` fields through the BSON codecs in
   `flex/db/bson.py`; do not copy legacy int64/float compatibility shapes
 - Outbound transfers must persist immutable signed intent before broadcast and reconcile on-chain before completion
+- Legacy lottery draws without a matching durable operation remain `reconciliation_required`
 - LP events must enter through the complete-round preflight and `MongoLpProjectionRepository`
+- Keep token-token fee funding in `operational_algo_balance_micros`; never mix it into economic reserves
+- Trust `total_supply_micros` only with `total_supply_source=indexer`; otherwise
+  refetch and persist both fields atomically before a financial supply read
 - Keep `SYNC_STAKING_POOLS=false` until full Algorand application-group validation is implemented
-- Keep `BACKGROUND_LP_PRICES_UPDATE=false` until DEX-specific economic reserves are verified
+- Raw LP account balances never publish prices; `BACKGROUND_LP_PRICES_UPDATE`
+  is a retired compatibility setting and cannot restore the removed publisher
 - New pricing and transaction invariants belong in pure modules under `flex/domain/`
 - Run the strict mypy target before changing `core/circuit_breaker.py` or `flex/domain/`
 

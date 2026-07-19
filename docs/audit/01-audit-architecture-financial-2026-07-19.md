@@ -1,183 +1,165 @@
-# Внутренний мультиагентный аудит архитектуры и финансовой корректности
+# Мультиагентный аудит архитектуры и финансовой корректности
 
 **Дата:** 2026-07-19
-
-**База аудита:** `main@2c1cdad`
-
-**Ветка исправлений:** `audit/financial-correctness`
+**База:** состояние `main` до ветки `audit/financial-correctness`; история
+репозитория затем была очищена, поэтому старые SHA намеренно не используются.
 
 ## Резюме
 
-Аудит проводился с позиции production fintech backend, а не косметической
-подготовки GitHub-профиля. На исходной базе были риски повторной выплаты,
-потери точности и некорректного replay при конкурирующих воркерах. На ветке
-исправлений денежные операции переведены на integer base units, устойчивые
-business keys, immutable intents и compare-and-set проекции.
+Аудит проводился как review production fintech backend, а не косметическая
+подготовка профиля. Независимые потоки проверяли выплаты, MongoDB concurrency,
+LP accounting, price provenance, Algorand boundaries, supply chain, Git history,
+CI и публичную документацию. Повторяющиеся находки перепроверялись тестами и
+исправлялись только после воспроизведения.
 
-## Executive summary
+Ключевой результат: денежные операции используют integer base units,
+неизменяемые business IDs, persisted signed intents и одно-документные CAS.
+Непроверенные источники цены и staking projection остаются fail-closed.
 
-This internal review used separate agent roles for financial correctness,
-MongoDB concurrency, CI and supply-chain posture, security and history, and
-public API documentation. The branch replaces unsafe payout and LP state
-transitions with durable intents, exact base-unit allocation, conditional
-writes, fencing, and real-Mongo race tests. It deliberately keeps unverified
-staking projection and legacy LP pricing disabled. Remaining authority,
-async-persistence, and runtime-hardening work is listed below instead of hidden
-behind a maturity score.
+| Граница | Контроль |
+| --- | --- |
+| Выплата | exact allocation, durable intent, bounded signer fee, on-chain reconciliation |
+| Staking draw | CAS entitlement, одна generation, crash-repair того же draw ID |
+| LP ledger | strict uint64 input, ordered cursor, marker repair, fenced round lease |
+| Цена | provenance + freshness + clock-skew guard; raw pool balances запрещены |
+| Проверка | Python 3.12/3.14, 372 fast tests, 26 real-Mongo tests, 83.19% focused coverage |
 
-Качественная сводка критических границ:
-
-| Область | Исходный риск | Текущий контроль |
-| --- | --- | --- |
-| Финансовая корректность | double-pay и float allocation | replay-safe выплаты, exact allocation, fail-closed legacy |
-| Конкурентность и recovery | blind RMW и недоказанный replay | CAS, marker repair, round leases, реальные Mongo-тесты |
-| Security boundaries | смешанные read/signing полномочия | секреты вне кода; auth/signing вынесены в следующий milestone |
-| Инженерная проверяемость | mocks не доказывали BSON/Mongo | Python 3.12/3.14, strict typing, 262 теста, Mongo integration CI |
-
-MongoDB гарантирует атомарность одной операции над одним документом, поэтому
-проектор строится вокруг conditional update, а не blind read-modify-write.
-Междокументная одновременная видимость остаётся отдельной задачей для
-replica-set transactions. См. [MongoDB atomicity](https://www.mongodb.com/docs/manual/core/write-operations-atomicity/)
+MongoDB гарантирует атомарность одной операции над одним документом; поэтому
+денежные инварианты размещены внутри одного CAS aggregate, а не blind
+read-modify-write. Междокументная одновременная видимость потребует replica-set
+transactions. См. [atomicity](https://www.mongodb.com/docs/manual/core/write-operations-atomicity/)
 и [transactions](https://www.mongodb.com/docs/manual/core/transactions/).
 
 ## Ранжированные находки
 
-### 1. Critical — повторная выплата и неточное распределение airdrop — исправлено
+### 1. Critical — секрет оставался в достижимой Git history — исправлено в репозитории
 
-**Почему:** сбой после broadcast, но до записи результата, позволял повторно
-отправить актив; float-доли не гарантировали сохранение целого бюджета.
+**Почему:** удаление файла из HEAD не отзывает значение и не удаляет старый
+blob; его можно восстановить из любого достижимого commit.
 
-**Исправление:** immutable signed intent сохраняется до broadcast и сверяется
-по `operation_id`; неопределённый результат reconciled по txid
-(`flex/application/asset_transfers.py:179-298`). Airdrop резервирует неизменяемый
-manifest до первой отправки (`flex/tools/airdrop.py:332-405`), а largest-remainder
-allocation сохраняет бюджет до последней base unit
-(`flex/domain/allocation.py:36-80`).
+**Исправление:** чувствительные исторические пути удалены из всех публикуемых
+refs через `git-filter-repo`; old-object и fresh-clone проверки входят в
+процедуру публикации. CI сканирует все публикуемые refs digest-pinned
+TruffleHog (`.github/workflows/ci.yml:84`). Ротация ранее использованного
+credential остаётся обязательным внешним действием владельца.
 
-### 2. Critical — LP double-apply, stale-read race и истёкший lease — исправлено
+### 2. Critical — double-pay window, float allocation и signer fee — исправлено
 
-**Почему:** blind read-modify-write терял обновления; конкурентный replay мог
-принять свежий marker за corruption из-за старого snapshot; истёкший worker
-мог завершить round.
+**Почему:** crash после broadcast до Mongo update допускал повторную отправку;
+float shares не сохраняли бюджет; доверенный Algod мог предложить чрезмерную
+комиссию.
 
-**Исправление:** per-state CAS cursor, marker-last recovery и повторное чтение
-при конкурентном marker (`flex/db/lp_projection.py:53-149`). Завершение round
-требует неистёкший lease (`flex/db/sync_coordinator.py:63-100`). Управляемая
-гонка на настоящем Mongo доказывает exactly-once delta
-(`tests/integration/test_mongo_financial_projection.py:130-155`).
+**Исправление:** immutable signed intent сохраняется до первого broadcast и
+reconciled по txid (`flex/application/asset_transfers.py:227`). Airdrop заранее
+фиксирует полный manifest, а largest-remainder allocation сохраняет каждую base
+unit. Confirmed intent и complete manifest терминальны. Gateway до подписи и
+повторно перед broadcast проверяет genesis, signature, lease и configured fee
+floor/ceiling (`flex/blockchain/asset_transfers.py:50`). Algorand minimum fee описан в
+[официальной документации](https://dev.algorand.co/concepts/transactions/fees/).
 
-### 3. Critical — LP price manipulation через raw account balance — исправлено
+### 3. Critical — staking lottery создавала две независимые liabilities — исправлено
 
-**Почему:** donation или protocol excess на адресе пула мог попасть в
-«экономический резерв» и исказить цену.
+**Почему:** прежний `read recent draws → insert` позволял двум workers создать
+разные draw IDs; idempotency выплаты не объединяет разные business operations.
 
-**Исправление:** legacy worker отделён от обычного price refresh и default-off
-через `BACKGROUND_LP_PRICES_UPDATE=false` (`env.py:57-64`,
-`api/background.py:243-251`). Включать только после DEX-specific проверки
-app state и economic reserves.
+**Исправление:** один entitlement на `(lottery_name, wallet)` атомарно меняет
+`next_eligible_at`, `generation` и active draw. Crash recovery продолжает тот же
+draw и replay prize selection (`api/nft_lottery.py:275`). Гонка 32 вызовов и crash
+между entitlement/draw writes проверены на настоящем MongoDB. One-of-one NFT
+inventory ещё требует отдельной атомарной reservation, поэтому публичные
+lottery routes остаются disabled.
 
-### 4. High — staking classifier принимал непроверенные переводы — mitigated
+### 4. Critical — LP replay мог потерять или повторить баланс — исправлено
 
-**Почему:** перевод рядом с application call не доказывает stake; без проверки
-полной transaction group можно создать ложное состояние.
+**Почему:** blind RMW, stale snapshots и истёкший worker нарушали exactly-once
+projection.
 
-**Исправление сейчас:** `SYNC_STAKING_POOLS=false`, а попытка включения
-завершается fail-closed (`flex/sync_pools.py:351-367`). **Следующий фикс:**
-типизированный parser полной Algorand group, проверка app ID, selector,
-sender/receiver, asset и group order, затем adversarial fixtures.
+**Исправление:** per-state cursor CAS, marker-last repair и re-read после
+конкурентного marker (`flex/db/lp_projection.py:52`). Round commit fenced
+неистёкшим lease. Fee pool-sender — отдельное replay-safe ALGO событие;
+token-token operational ALGO не смешивается с economic reserves. Indexer
+amounts, IDs, rounds, duplicates и snapshots проверяются до negation и Mongo
+write (`flex/sync_pools.py:78`, `flex/data/lp_states.py:113`).
 
-### 5. High — browser-visible shared key не является авторизацией — открыто
+### 5. Critical — raw account balance мог манипулировать LP price — исправлено
 
-**Почему:** `X-API-Key` сравнивается корректно, но один общий клиентский token
-не подтверждает пользователя и не разделяет права
-(`core/auth.py:8-13`, `app.py:323-369`).
+**Почему:** donation, minimum-balance funding или protocol excess не являются
+экономическими reserves DEX.
 
-**Конкретный фикс:** registration авторизовать wallet-signature challenge с
-nonce, expiry и replay table; `/contracts/refresh-cache` оставить только
-server-to-server роли с отдельным secret и audit log. До этого считать текущий
-token compatibility/rate-control механизмом, не security boundary.
+**Исправление:** LP projector стал ledger-only; raw-balance publisher удалён.
+Startup очищает обе legacy provenance signatures, а readers независимо их
+отклоняют. LP registry прекращает весь refresh, если не классифицирован хотя бы
+один farm stake token. Provider observation за пределами clock-skew budget
+отклоняется до записи; уже сохранённое далёкое future value считается invalid
+и заменяется корректной котировкой. Новый источник допускается только после
+DEX-specific app state verification. Canonical supply доверяется лишь с
+`total_supply_source=indexer`.
 
-### 6. High — blocking persistence остаётся в async routes — открыто
+### 6. High — shared browser key не является пользовательской авторизацией — открыто
 
-**Почему:** sync PyMongo/provider вызовы в event loop увеличивают tail latency
-всех запросов при деградации Mongo или DEX (`app.py:418-428`,
-`app.py:529-535`, `app.py:559-561`).
+**Почему:** один `X-API-Key` не доказывает wallet ownership и не разделяет роли
+(`core/auth.py:8`, `app.py:323`).
 
-**Конкретный фикс:** ввести async repository ports с timeout/cancellation;
-переходно — `asyncio.to_thread` вокруг целого repository call и
-thread-safe cache, плюс saturation/load test.
+**Конкретный фикс:** wallet-signature challenge с nonce, expiry и replay table;
+server-to-server maintenance role с отдельным secret и audit log. До этого
+shared key считается compatibility/rate-control механизмом.
 
-### 7. High — Mongo invariants раньше проверялись только fake-коллекциями — исправлено
+### 7. High — blocking persistence остаётся в async routes — открыто
 
-**Почему:** mocks не проверяют BSON numeric comparison, unique-index races,
-`$inc` promotion и реальные `find_one_and_update` semantics.
+**Почему:** sync PyMongo/provider calls в event loop увеличивают tail latency
+всех запросов при деградации Mongo или DEX (`app.py:418`, `app.py:529`).
 
-**Исправление:** отдельный digest-pinned MongoDB CI job
-(`.github/workflows/ci.yml:84-109`) проверяет concurrent CAS, marker repair,
-legacy int64→Decimal128, `uint64` max, fail-closed duplicates и fencing
-(`tests/integration/test_mongo_financial_projection.py:130-336`). Стабильный
-required context `python` агрегирует matrix и Mongo job
-(`.github/workflows/ci.yml:111-126`).
+**Конкретный фикс:** async repository ports с timeout/cancellation; переходно —
+`asyncio.to_thread` вокруг целого repository call и saturation test.
 
-### 8. Medium — mutable stateful Docker images — открыто
+### 8. High — legacy staking classifier не доказывает transaction group — mitigated
 
-**Почему:** `mongo` и `algorand/algod:latest` могут поменять major/runtime при
-обычном rebuild поверх persistent volumes (`docker-compose.yml:29-61`).
+**Почему:** соседний transfer без проверки app ID, selector и group order не
+доказывает stake.
 
-**Конкретный фикс:** после проверки реального VPS зафиксировать оба образа как
-`tag@sha256`, описать backup/restore и downgrade, а CI должен отклонять bare
-tags и `latest`. Не подменять production digest без data-format rehearsal.
+**Текущий контроль:** `SYNC_STAKING_POOLS=false`, а включение отклоняется.
+Следующий фикс — типизированный parser полной Algorand group и adversarial
+fixtures. Это отдельно от исправленного lottery entitlement.
 
-### 9. Medium — container smoke не запускает production entrypoint — открыто
+### 9. High — mocks не доказывали Mongo/BSON invariants — исправлено
 
-**Почему:** CI заменяет entrypoint на shell и импортирует `app`, поэтому не
-доказывает запуск `scripts/run.sh`, Uvicorn, healthcheck и graceful shutdown
-(`.github/workflows/ci.yml:55-70`).
+**Почему:** fake collections не воспроизводят Decimal128 comparison, unique
+index races, `$inc` promotion и `find_one_and_update`.
 
-**Конкретный фикс:** поднять disposable Mongo, запустить образ штатно с
-безопасными feature flags, дождаться healthy, запросить `/status`, затем
-проверить SIGTERM и вывести logs при сбое.
+**Исправление:** digest-pinned MongoDB CI job проверяет 26 integration scenarios:
+CAS replay, marker repair, uint64 max, legacy int64 promotion, terminal payout
+races, uniqueness, staking entitlement и lease fencing
+(`.github/workflows/ci.yml:106`). Stable `python` context агрегирует Python
+matrix, container configuration/image scan, Mongo и all-ref secret scan
+(`.github/workflows/ci.yml:133`).
 
-### 10. Medium — contract registration не атомарен по business key — открыто
+### 10. Medium — runtime/container proof остаётся неполным — открыто
 
-**Почему:** check-then-insert допускает конкурентные дубликаты, а notification
-после записи является незарегистрированным side effect
-(`app.py:327-365`, `core/db/contracts.py:16-25`).
+**Почему:** production smoke заменяет entrypoint shell-командой, а stateful
+Mongo/Algod image rollout требует отдельной data-format rehearsal.
 
-**Конкретный фикс:** unique index по contract `id`, atomic upsert с
-immutable-field conflict check и transactional outbox для уведомления.
+**Конкретный фикс:** disposable stack должен запустить штатный entrypoint,
+дождаться health, проверить `/status`, SIGTERM и logs. Production digests
+фиксировать только после backup/restore и downgrade rehearsal.
 
 ## Milestones
 
-1. **M0 — money safety (готово):** findings 1–3 исправлены; finding 4
-   переведён в fail-closed. Добавлены NFT idempotency
-   (`api/wallet.py:14-37`), on-chain reconciliation и regressions.
-2. **M1 — persistence proof (готово):** finding 7, Python matrix, BSON boundary,
-   stable required check. Production остаётся на 3.12; 3.14 — compatibility
-   gate. Python 3.14.6 является актуальным maintenance release
-   ([Python.org](https://www.python.org/downloads/release/python-3146/)).
-3. **M2 — authority and atomic workflows (следующий):** findings 5 и 10.
-4. **M3 — runtime hardening:** findings 6, 8 и 9; затем SLO/metrics и controlled
-   deploy rehearsal.
+1. **M0 — money safety (готово):** findings 2–5; точные суммы, terminal states,
+   fee/network policy, CAS entitlements, strict uint64 boundaries.
+2. **M1 — proof and history (готово в коде):** findings 1 и 9; Python
+   3.12/3.14, real Mongo, immutable scanner, clean-history procedure.
+3. **M2 — authority (следующий):** finding 6, atomic contract registration,
+   transactional outbox и one-of-one NFT inventory.
+4. **M3 — runtime (следующий):** findings 7, 8 и 10; затем SLO, metrics и
+   controlled deploy rehearsal.
 
-## Вклад независимых агентов
-
-- три financial-review потока независимо подтвердили payout/LP классы ошибок;
-- adversarial Mongo/BSON review воспроизвёл stale-read race, пропущенный
-  первоначальным concurrency-тестом;
-- CI/GitHub review обнаружил drift обязательного status context после matrix;
-- dependency/container review проверил lock, image posture и runtime smoke;
-- docs/API review сравнил публичные обещания с фактическими route shapes и
-  cross-project consumer contract.
-
-Форматирование и стиль намеренно не включались в findings: их обеспечивает
-Ruff. Приоритет аудита — correctness, security, data integrity и доказуемое
-recovery-поведение.
+Python 3.14.6 проверяется как forward-compatibility gate и является текущим
+maintenance release ([Python.org](https://www.python.org/downloads/release/python-3146/));
+production-equivalent environment остаётся на Python 3.12.
 
 ## Воспроизводимость
 
 ```bash
-git log --oneline 2c1cdad..HEAD
 make sync
 make quality
 
@@ -186,6 +168,8 @@ MONGODB_TEST_URI=mongodb://127.0.0.1:27017 \
   pipenv run pytest tests/integration -m integration -v
 ```
 
-`make quality` проверен в чистом окружении Python 3.14.6;
-production-equivalent `make sync` явно выбирает Python 3.12. CI повторяет обе
-версии и включает real-Mongo job в стабильный required context `python`.
+Отдельные чистые environments Python 3.12.8 и 3.14.6 дали одинаковый результат:
+372 passed, 26 integration skipped. Все 26 integration tests прошли на
+standalone MongoDB отдельно. Форматирование не включалось в findings: его
+обеспечивает Ruff; review приоритизировал correctness, security, data integrity
+и recovery semantics.

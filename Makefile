@@ -3,8 +3,8 @@ PYTHON_LINT_PATHS := \
 	core/circuit_breaker.py core/cometa.py core/decorators.py core/util.py \
 	flex/__init__.py flex/api.py flex/application flex/blockchain/asset_transfers.py \
 	flex/blockchain/contract_state.py flex/blockchain/info.py flex/data/asset_prices.py \
-	flex/data/lp_prices.py flex/data/lp_states.py flex/data/pool_state.py \
-	flex/data/tinyman_lps.py flex/data/transactions.py \
+	flex/data/lp_registry.py flex/data/lp_states.py flex/data/lp_tokens.py flex/data/pool_state.py \
+	flex/data/transactions.py \
 	flex/db/asset_transfer_intents.py flex/db/bson.py flex/db/classes/base_entity.py \
 	flex/db/classes/bson_uint64.py flex/db/classes/collection_manager.py \
 	flex/db/indexes.py flex/db/lp_projection.py \
@@ -18,7 +18,7 @@ PYTHON_LINT_PATHS := \
 PYTHON_MODERN_PATHS := \
 	api/background.py api/nft_lottery.py api/wallet.py core/circuit_breaker.py flex/application \
 	flex/blockchain/asset_transfers.py \
-	flex/blockchain/contract_state.py flex/data/asset_prices.py flex/data/lp_prices.py \
+	flex/blockchain/contract_state.py flex/data/asset_prices.py flex/data/lp_registry.py flex/data/lp_tokens.py \
 	flex/db/asset_transfer_intents.py flex/db/bson.py flex/db/classes/bson_uint64.py \
 	flex/db/lp_projection.py flex/db/sync_coordinator.py \
 	flex/db/model/airdrop.py flex/db/model/priced.py flex/db/model/transfers.py \
@@ -28,8 +28,8 @@ PYTHON_FORMAT_PATHS := \
 	api/background.py api/nft_lottery.py api/wallet.py app.py blockchain/indexer.py bot/log.py \
 	core/circuit_breaker.py core/cometa.py core/util.py \
 	flex/api.py flex/application flex/blockchain/asset_transfers.py flex/blockchain/contract_state.py flex/blockchain/info.py \
-	flex/data/asset_prices.py flex/data/lp_prices.py \
-	flex/data/lp_states.py flex/data/pool_state.py flex/data/tinyman_lps.py \
+	flex/data/asset_prices.py flex/data/lp_registry.py \
+	flex/data/lp_states.py flex/data/lp_tokens.py flex/data/pool_state.py \
 	flex/data/transactions.py flex/db/asset_transfer_intents.py flex/db/bson.py flex/db/classes/base_entity.py \
 	flex/db/classes/bson_uint64.py flex/db/classes/collection_manager.py flex/db/indexes.py flex/db/lp_projection.py \
 	flex/db/sync_coordinator.py flex/db/model/airdrop.py flex/db/model/blockchain.py \

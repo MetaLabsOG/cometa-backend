@@ -30,13 +30,16 @@ work status; it does not override repository safety rules or the current user re
   scripts unless the user explicitly requests that external action.
 - Validate on-chain and provider payloads before persistence.
 - Preserve idempotency for transaction replay and financial background jobs.
+- Treat confirmed payouts and complete manifests as terminal states.
+- The raw-balance LP publisher is retired. Do not recreate it; token-token fee
+  ALGO is operational balance, not an economic reserve.
 - Do not silently substitute zero for unavailable chain state or price data.
 
 ## Quality Gate
 
 ```bash
 pipenv verify
-pipenv sync --dev
+make sync
 make quality
 ```
 

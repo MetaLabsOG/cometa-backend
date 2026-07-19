@@ -33,3 +33,7 @@ replay. Tests must use generated accounts and non-production credentials.
 Never commit mnemonics, API keys, `.env` files, database exports, recovery
 artifacts, or unredacted logs. If a secret reaches Git history, revoke or rotate
 it immediately; deleting the current file is not sufficient.
+
+GitHub secret scanning and push protection are enabled. CI additionally scans
+the full reachable history with a pinned detector; do not bypass that gate with
+an allowlist unless the value is a documented, non-secret test fixture.
