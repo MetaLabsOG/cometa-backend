@@ -13,18 +13,23 @@ permissions:
   contents: read
 
 jobs:
-  python:
+  python-matrix:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pipenv
       - run: python -m pip install --disable-pip-version-check pipenv==2024.4.0
       - run: pipenv verify
-      - run: pipenv sync --dev
+      - run: pipenv sync --dev --python "${{ matrix.python-version }}"
       - name: Lint maintained modules
         run: make lint
       - name: Check formatting
@@ -75,3 +80,47 @@ jobs:
             --severity HIGH,CRITICAL \
             --exit-code 1 \
             "cometa-backend:${COMETA_IMAGE_TAG:-local}"
+
+  mongo-integration:
+    name: MongoDB financial invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mongodb:
+        image: mongo:7.0.28@sha256:4510cf3d7050003e958745adb25d2deb3fb907430716162d9cc1a92eda2a6047
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'quit(db.adminCommand(\"ping\").ok ? 0 : 2)'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      MONGODB_TEST_URI: mongodb://127.0.0.1:27017
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pipenv
+      - run: python -m pip install --disable-pip-version-check pipenv==2024.4.0
+      - run: pipenv sync --dev --python "3.12"
+      - name: Test financial repositories against MongoDB
+        run: pipenv run pytest tests/integration -m integration -v
+
+  python:
+    name: python
+    if: ${{ always() }}
+    needs:
+      - python-matrix
+      - mongo-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require Python and MongoDB checks
+        env:
+          MATRIX_RESULT: ${{ needs.python-matrix.result }}
+          MONGO_RESULT: ${{ needs.mongo-integration.result }}
+        run: |
+          test "$MATRIX_RESULT" = "success"
+          test "$MONGO_RESULT" = "success"
