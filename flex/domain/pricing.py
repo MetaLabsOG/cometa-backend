@@ -13,6 +13,7 @@ MAX_SIGNIFICANT_DIGITS = 50
 MAX_ASSET_DECIMALS = 19
 CALCULATION_PRECISION = 80
 PERSISTED_PRICE_PRECISION = 34
+MAX_OBSERVATION_CLOCK_SKEW = timedelta(minutes=1)
 
 
 class PricingError(ValueError):
@@ -64,6 +65,20 @@ def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def validate_observation_timestamp(
+    observed_at: datetime,
+    *,
+    now: datetime | None = None,
+) -> datetime:
+    """Reject timestamps that could pin a quote ahead of wall-clock time."""
+
+    observed = _utc(observed_at)
+    current_time = _utc(now or datetime.now(UTC))
+    if observed > current_time + MAX_OBSERVATION_CLOCK_SKEW:
+        raise InvalidPriceError("observed_at is too far in the future")
+    return observed
 
 
 def _legacy_float(value: Decimal, *, field: str) -> float:
@@ -156,6 +171,8 @@ class PriceQuote:
 
     def is_stale(self, *, now: datetime | None = None) -> bool:
         current_time = _utc(now or datetime.now(UTC))
+        if self.observed_at > current_time + MAX_OBSERVATION_CLOCK_SKEW:
+            return True
         return current_time - self.observed_at >= self.stale_after
 
     def to_legacy_floats(self) -> tuple[float, float]:
@@ -174,7 +191,10 @@ def is_observation_stale(
     if fresh_for <= timedelta(0):
         raise ValueError("fresh_for must be positive")
     current_time = _utc(now or datetime.now(UTC))
-    return current_time - _utc(observed_at) >= fresh_for
+    observed = _utc(observed_at)
+    if observed > current_time + MAX_OBSERVATION_CLOCK_SKEW:
+        return True
+    return current_time - observed >= fresh_for
 
 
 def _non_negative_int(value: int, *, field: str) -> int:

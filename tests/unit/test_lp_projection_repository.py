@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from threading import RLock
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from bson import BSON, Decimal128
@@ -150,6 +151,7 @@ def _state(
 def _transaction(
     event_id: str = "TX@POOL",
     *,
+    asa_id: int = 7,
     amount: int = 10,
     round_number: int = 100,
     position: int = 1,
@@ -158,7 +160,7 @@ def _transaction(
         id=event_id,
         pool_address="POOL",
         user_address="USER",
-        asa_id=7,
+        asa_id=asa_id,
         delta_amount_micros=amount,
         confirmed_round=round_number,
         event_position=position,
@@ -381,6 +383,23 @@ def test_uint64_identifiers_and_cursors_are_bson_safe() -> None:
     assert restored.event_position == maximum
 
 
+def test_operational_algo_balance_is_bson_safe_and_backward_compatible() -> None:
+    maximum = 2**64 - 1
+    state = _state()
+    state.operational_algo_balance_micros = maximum
+
+    encoded = BSON.encode(state.to_dict())
+    restored = LpState.from_dict(BSON(encoded).decode())
+
+    assert restored.operational_algo_balance_micros == maximum
+
+    legacy_payload = state.to_dict()
+    legacy_payload.pop("operational_algo_balance_micros")
+    restored_legacy = LpState.from_dict(legacy_payload)
+
+    assert restored_legacy.operational_algo_balance_micros == 0
+
+
 def test_uint64_repository_queries_and_updates_are_bson_safe() -> None:
     maximum = 2**64 - 1
     state = _state(
@@ -416,6 +435,36 @@ def test_uint64_repository_queries_and_updates_are_bson_safe() -> None:
     )
 
 
+def test_token_token_pool_fee_updates_only_operational_algo_balance() -> None:
+    state = _state(
+        cursor=lp_round_end_order(99),
+        reserve=100,
+    )
+    state.asset2_id = 8
+    state.asset2_reserve_micros = 200
+    state.operational_algo_balance_micros = 5_000
+    repository, states, _ = _repository(state)
+
+    outcome = repository.project(
+        _transaction(
+            event_id="TX#fee@POOL",
+            asa_id=0,
+            amount=-1_000,
+        ),
+    )
+
+    assert outcome.result is LpProjectionResult.APPLIED
+    assert outcome.state.asset1_reserve_micros == 100
+    assert outcome.state.asset2_reserve_micros == 200
+    assert outcome.state.operational_algo_balance_micros == 4_000
+    persisted = LpState.from_dict(states.documents[0])
+    assert persisted.operational_algo_balance_micros == 4_000
+    assert isinstance(
+        states.documents[0]["operational_algo_balance_micros"],
+        Decimal128,
+    )
+
+
 def test_event_position_is_sorted_numerically_within_a_round() -> None:
     assert lp_event_order(100, "TX-2", 2) < lp_event_order(100, "TX-10", 10)
 
@@ -435,6 +484,48 @@ def test_snapshot_cannot_overwrite_a_newer_event_cursor() -> None:
     assert LpState.from_dict(states.documents[0]).asset1_reserve_micros == 150
 
 
+def test_balance_snapshot_does_not_publish_derived_price_fields() -> None:
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    current = _state(
+        cursor=lp_round_end_order(100),
+        last_round=100,
+        reserve=100,
+    )
+    current.asset1_reserve = 1.0
+    current.asset2_reserve = 2.0
+    current.total_tokens = 3.0
+    current.token_price_algo = 4.0
+    current.derived_observed_at = observed_at
+    current.asset2_id = 8
+    current.operational_algo_balance_micros = 5_000
+    repository, states, _ = _repository(current)
+
+    incoming = _state(cursor=None, last_round=101, reserve=150)
+    incoming.asset1_reserve = 10.0
+    incoming.asset2_reserve = 20.0
+    incoming.total_tokens = 30.0
+    incoming.token_price_algo = 40.0
+    incoming.derived_observed_at = observed_at + timedelta(minutes=1)
+    incoming.asset2_id = 8
+    incoming.operational_algo_balance_micros = 6_000
+
+    result = repository.replace_snapshot(
+        incoming,
+        observed_round=101,
+    )
+
+    assert result.asset1_reserve_micros == 150
+    assert result.operational_algo_balance_micros == 6_000
+    assert result.asset1_reserve == 1.0
+    assert result.asset2_reserve == 2.0
+    assert result.total_tokens == 3.0
+    assert result.token_price_algo == 4.0
+    assert result.derived_observed_at == observed_at
+    persisted = LpState.from_dict(states.documents[0])
+    assert persisted.token_price_algo == 4.0
+    assert persisted.derived_observed_at == observed_at
+
+
 def test_same_round_snapshot_with_different_balances_fails_closed() -> None:
     snapshot_cursor = lp_round_end_order(100)
     repository, states, _ = _repository(
@@ -450,26 +541,48 @@ def test_same_round_snapshot_with_different_balances_fails_closed() -> None:
     assert LpState.from_dict(states.documents[0]).asset1_reserve_micros == 100
 
 
-def test_older_derived_calculation_cannot_overwrite_newer_price() -> None:
-    cursor = lp_round_end_order(100)
-    newer_time = datetime(2026, 1, 1, 0, 1, tzinfo=UTC)
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("asset1_reserve_micros", -1),
+        ("asset2_reserve_micros", True),
+        ("total_tokens_micros", 2**64),
+        ("operational_algo_balance_micros", 1.5),
+    ],
+)
+def test_invalid_snapshot_is_rejected_before_mongo_write(
+    field_name: str,
+    invalid_value: object,
+) -> None:
+    state = _state(cursor=None)
+    setattr(state, field_name, invalid_value)
+    states = SimpleNamespace(
+        find_one_and_update=Mock(),
+    )
+    repository = MongoLpProjectionRepository(
+        states=states,  # type: ignore[arg-type]
+        events=AtomicCollection(),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(LpProjectionPersistenceError, match=field_name):
+        repository.replace_snapshot(state, observed_round=100)
+
+    states.find_one_and_update.assert_not_called()
+
+
+def test_event_marker_counterparty_is_immutable() -> None:
+    expected = _transaction()
+    conflicting = _transaction()
+    conflicting.user_address = "OTHER-USER"
     repository, states, _ = _repository(
-        _state(cursor=cursor, last_round=100),
-    )
-    states.documents[0]["derived_observed_at"] = newer_time
-    states.documents[0]["token_price_algo"] = 2.0
-    stale = _state(cursor=cursor, last_round=100)
-    stale.derived_observed_at = newer_time - timedelta(minutes=1)
-    stale.token_price_algo = 1.0
-
-    updated = repository.update_derived_fields(
-        stale,
-        expected_cursor=cursor,
+        _state(cursor=lp_round_end_order(99)),
+        events=[conflicting],
     )
 
-    assert updated is None
-    assert states.documents[0]["token_price_algo"] == 2.0
-    assert states.documents[0]["derived_observed_at"] == newer_time
+    with pytest.raises(LpProjectionPersistenceError, match="immutable data"):
+        repository.project(expected)
+
+    assert LpState.from_dict(states.documents[0]).asset1_reserve_micros == 100
 
 
 def test_expired_round_lease_uses_fencing_owner_and_checkpoint_cas() -> None:

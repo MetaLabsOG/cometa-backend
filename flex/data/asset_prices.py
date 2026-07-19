@@ -17,11 +17,13 @@ from flex.blockchain.info import get_current_round
 from flex.data.assets import get_asset_details
 from flex.db.model.priced import AssetPrice, AssetPriceInfo
 from flex.domain.pricing import (
+    MAX_OBSERVATION_CLOCK_SKEW,
     PriceQuote,
     PriceSource,
     PriceUnavailableError,
     PricingError,
     is_observation_stale,
+    validate_observation_timestamp,
 )
 from flex.util import build_key_str
 
@@ -70,6 +72,15 @@ def is_asset_price_stale(
     )
 
 
+def is_unverified_legacy_lp_price(asset_price: object) -> bool:
+    """Return whether a price came from the retired raw-reserve projection."""
+
+    return (
+        getattr(asset_price, "tinyman_algo_pool_id", None) is not None
+        or getattr(asset_price, "source", None) == PriceSource.DERIVED_LP.value
+    )
+
+
 def validated_stored_asset_price(
     asset_price: AssetPrice,
     *,
@@ -77,6 +88,13 @@ def validated_stored_asset_price(
     now: datetime | None = None,
 ) -> AssetPrice | None:
     """Return a stored price only when its values and age satisfy policy."""
+
+    if is_unverified_legacy_lp_price(asset_price):
+        logger.warning(
+            "Ignoring retired raw-reserve LP projection for asset %s",
+            getattr(asset_price, "id", "unknown"),
+        )
+        return None
 
     current_time = now or datetime.now(UTC)
     if is_asset_price_stale(
@@ -126,10 +144,20 @@ def _skip_asset_price_cache(asset_price: AssetPrice) -> bool:
 def _upsert_asset_price(asset_price: AssetPrice) -> bool:
     """Persist a quote only if it is not older than the stored observation."""
 
+    if is_unverified_legacy_lp_price(asset_price):
+        raise PricingError(
+            "raw reserve LP projections are retired and cannot be persisted",
+        )
     if not isinstance(asset_price.observed_at, datetime):
         raise PricingError("persisted asset prices require an observation timestamp")
 
-    asset_price.updated = datetime.now(UTC)
+    current_time = datetime.now(UTC)
+    observed_at = validate_observation_timestamp(
+        asset_price.observed_at,
+        now=current_time,
+    )
+    asset_price.observed_at = observed_at
+    asset_price.updated = current_time
     doc = asset_price.to_dict()
     doc.pop("_id", None)
     created = doc.pop("created", asset_price.created)
@@ -142,7 +170,12 @@ def _upsert_asset_price(asset_price: AssetPrice) -> bool:
                 {"observed_at": None},
                 {
                     "observed_at": {
-                        "$lte": asset_price.observed_at,
+                        "$lte": observed_at,
+                    }
+                },
+                {
+                    "observed_at": {
+                        "$gt": current_time + MAX_OBSERVATION_CLOCK_SKEW,
                     }
                 },
             ],
@@ -173,8 +206,21 @@ def _upsert_asset_price(asset_price: AssetPrice) -> bool:
     try:
         collection.insert_one({**doc, "created": created})
     except DuplicateKeyError:
+        # The concurrent insert may be older than this observation. Re-run the
+        # same conditional write so arrival order cannot defeat timestamp order.
+        retry = collection.update_one(
+            selector,
+            {"$set": doc},
+            upsert=False,
+        )
+        if retry.matched_count:
+            logger.info(
+                "Replaced a concurrently inserted older price for asset %s",
+                asset_price.id,
+            )
+            return True
         logger.info(
-            "A concurrent price writer won the insert for asset %s",
+            "A concurrent price writer kept a newer observation for asset %s",
             asset_price.id,
         )
         return False
@@ -183,9 +229,9 @@ def _upsert_asset_price(asset_price: AssetPrice) -> bool:
 
 def _current_price_after_rejected_write(asset_id: int) -> AssetPrice:
     current = db.asset_prices.get_one(id=asset_id)
-    if current is None:
+    if current is None or is_unverified_legacy_lp_price(current):
         raise PyMongoError(
-            f"price write for asset {asset_id} lost a race but no winner exists",
+            f"price write for asset {asset_id} lost a race but no safe winner exists",
         )
     return current
 
@@ -197,8 +243,8 @@ async def create_asset_prices_batch(
 ) -> list[AssetPrice]:
     """Create prices for multiple assets using Vestige batch API.
 
-    LP token prices are handled by the background worker (lp_prices.py),
-    not by this function.
+    LP tokens are excluded by the background registry until a verified
+    economic-reserve adapter exists.
     """
     from flex.providers.vestige import vestige_batch_prices
 
@@ -294,6 +340,7 @@ async def update_asset_price(
         price_algo=price_algo,
         price_usd=price_usd,
         last_update_round=quote.observed_round if quote.observed_round is not None else current_round,
+        tinyman_algo_pool_id=None,
         source=quote.source.value,
         observed_at=quote.observed_at,
     )

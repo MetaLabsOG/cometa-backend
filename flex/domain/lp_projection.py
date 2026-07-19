@@ -3,7 +3,11 @@
 from dataclasses import dataclass
 from typing import Literal
 
-MAX_ALGORAND_UINT = 2**64 - 1
+from flex.domain.algorand import (
+    MAX_ALGORAND_UINT,
+    require_algorand_uint64,
+)
+
 EVENT_ROUND_WIDTH = 20
 ROUND_END_SUFFIX = "~"
 
@@ -11,6 +15,7 @@ type LpBalanceField = Literal[
     "asset1_reserve_micros",
     "asset2_reserve_micros",
     "total_tokens_micros",
+    "operational_algo_balance_micros",
 ]
 
 
@@ -31,20 +36,16 @@ def lp_event_order(
 ) -> str:
     """Build a lexicographically sortable, deterministic event cursor."""
 
-    if (
-        isinstance(confirmed_round, bool)
-        or not isinstance(confirmed_round, int)
-        or not 0 <= confirmed_round <= MAX_ALGORAND_UINT
-    ):
-        raise InvalidLpProjectionError("confirmed_round must be an Algorand uint64")
+    try:
+        require_algorand_uint64(confirmed_round, "confirmed_round")
+    except ValueError as exc:
+        raise InvalidLpProjectionError(str(exc)) from exc
     if not isinstance(event_id, str) or not event_id or ":" in event_id:
         raise InvalidLpProjectionError("event_id must be non-empty and cannot contain ':'")
-    if (
-        isinstance(event_position, bool)
-        or not isinstance(event_position, int)
-        or not 0 <= event_position <= MAX_ALGORAND_UINT
-    ):
-        raise InvalidLpProjectionError("event_position must be an Algorand uint64")
+    try:
+        require_algorand_uint64(event_position, "event_position")
+    except ValueError as exc:
+        raise InvalidLpProjectionError(str(exc)) from exc
     return f"{confirmed_round:0{EVENT_ROUND_WIDTH}d}:{event_position:0{EVENT_ROUND_WIDTH}d}:{event_id}"
 
 
@@ -112,6 +113,11 @@ def lp_balance_delta(
     if event_asset_id == asset2_id:
         return LpBalanceDelta(
             field="asset2_reserve_micros",
+            amount=event_pool_delta_micros,
+        )
+    if event_asset_id == 0:
+        return LpBalanceDelta(
+            field="operational_algo_balance_micros",
             amount=event_pool_delta_micros,
         )
     raise InvalidLpProjectionError(

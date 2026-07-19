@@ -9,7 +9,6 @@ from env import settings
 from flex import db
 from flex.blockchain.base import indexer_client
 from flex.blockchain.info import get_current_round
-from flex.data.asset_prices import create_and_update_asset_prices
 from flex.data.assets import load_all_assets_data
 from flex.data.lp_states import (
     create_lp_states_from_all_pools,
@@ -21,17 +20,17 @@ from flex.data.pool_state import (
     update_pool_state,
     update_pool_states_with_transactions,
 )
-from flex.data.tinyman_lps import update_tinyman_algo_asset_price
 from flex.db.model.blockchain import PoolTransaction, SyncBlock, SyncState
 from flex.db.model.liquidity_pools import LpState, LpTransaction
 from flex.db.model.pool_states import PoolState, UserState
-from flex.db.model.priced import AssetPrice
 from flex.db.sync_coordinator import (
     MongoSyncCoordinator,
     SyncCoordinatorError,
 )
-from flex.domain.lp_projection import lp_cursor_complete_through
-from flex.domain.pricing import PricingError
+from flex.domain.algorand import require_algorand_uint64
+from flex.domain.lp_projection import (
+    lp_cursor_complete_through,
+)
 from flex.domain.transactions import (
     ASSET_TRANSFER_TX,
     PAYMENT_TX,
@@ -39,15 +38,24 @@ from flex.domain.transactions import (
     flatten_transfer_payments,
     projection_event_id,
 )
-from flex.providers.price_router import get_algo_price_quote
 from flex.sync_state import get_sync_state, is_sync_delayed
 from flex.util import build_key_str
 
 logger = logging.getLogger(__name__)
 
 
-def get_all_lp_state_addresses() -> set[str]:
-    return set(lp_state.address for lp_state in db.lp_states.get_all())
+def get_lp_tracked_assets_by_address() -> dict[str, frozenset[int]]:
+    return {
+        lp_state.address: frozenset(
+            {
+                0,
+                lp_state.asset1_id,
+                lp_state.asset2_id,
+                lp_state.token_id,
+            }
+        )
+        for lp_state in db.lp_states.get_all()
+    }
 
 
 def find_transfer_payment_transactions(txns: list[dict]) -> list[dict]:
@@ -63,18 +71,41 @@ async def get_pool_state_by_address(address: str) -> PoolState:
     return db.pool_states.get_one(address=address)
 
 
+def _transaction_fee(tx: dict, *, txid: str) -> int:
+    try:
+        return require_algorand_uint64(
+            tx.get("fee"),
+            "LP transaction fee",
+        )
+    except ValueError as exc:
+        raise ValueError(f"{exc}: {txid}") from exc
+
+
 async def process_lp_transactions(transactions: list[dict]) -> list[LpTransaction]:
-    all_lp_addresses = get_all_lp_state_addresses()
+    tracked_assets_by_address = get_lp_tracked_assets_by_address()
+    all_lp_addresses = tracked_assets_by_address.keys()
 
     lp_transactions = []
     for event_position, tx in enumerate(transactions):
         txid = tx["id"]
         sender = tx["sender"]
-        confirmed_round = tx["confirmed-round"]
+        confirmed_round = require_algorand_uint64(
+            tx.get("confirmed-round"),
+            "LP transaction confirmed-round",
+        )
 
         if ASSET_TRANSFER_TX in tx:
             transfer = tx[ASSET_TRANSFER_TX]
             receiver = transfer["receiver"]
+            asa_id = require_algorand_uint64(
+                transfer.get("asset-id"),
+                "LP transaction asset-id",
+                positive=True,
+            )
+            amount = require_algorand_uint64(
+                transfer.get("amount"),
+                "LP transaction amount",
+            )
             affected_addresses = {
                 sender,
                 receiver,
@@ -84,9 +115,13 @@ async def process_lp_transactions(transactions: list[dict]) -> list[LpTransactio
             if not (affected_addresses & all_lp_addresses):
                 continue
             if any(field in transfer for field in ("sender", "close-to", "close-amount")):
-                raise ValueError(f"LP projection does not support clawback/close semantics: {txid}")
-            asa_id = transfer["asset-id"]
-            amount = transfer["amount"]
+                tracked_affected_pool = any(
+                    address in tracked_assets_by_address and asa_id in tracked_assets_by_address[address]
+                    for address in affected_addresses
+                    if address is not None
+                )
+                if tracked_affected_pool:
+                    raise ValueError(f"LP projection does not support clawback/close semantics: {txid}")
         elif PAYMENT_TX in tx:
             payment = tx[PAYMENT_TX]
             receiver = payment["receiver"]
@@ -100,17 +135,27 @@ async def process_lp_transactions(transactions: list[dict]) -> list[LpTransactio
             if any(field in payment for field in ("close-remainder-to", "close-amount")):
                 raise ValueError(f"LP projection does not support payment close semantics: {txid}")
             asa_id = 0
-            amount = payment["amount"]
+            amount = require_algorand_uint64(
+                payment.get("amount"),
+                "LP transaction amount",
+            )
         else:
             raise ValueError(f"Invalid transaction type: {tx}")
 
-        if sender == receiver and sender in all_lp_addresses:
+        fee = _transaction_fee(tx, txid=txid)
+        sender_assets = tracked_assets_by_address.get(sender)
+        receiver_assets = tracked_assets_by_address.get(receiver)
+        sender_tracks_asset = sender_assets is not None and asa_id in sender_assets
+        receiver_tracks_asset = receiver_assets is not None and asa_id in receiver_assets
+        is_pool_self_transfer = sender == receiver and sender_tracks_asset
+        if is_pool_self_transfer:
             # A self-transfer has zero net effect on the pool. Emitting both
             # legs would create the same scoped event ID twice and make a
-            # deduplicating projector persist only one side.
-            continue
+            # deduplicating projector persist only one side. Its network fee
+            # is still a real ALGO debit and is projected separately below.
+            pass
 
-        if sender in all_lp_addresses:
+        elif sender_tracks_asset:
             lp_tx = LpTransaction(
                 id=projection_event_id(txid, sender),
                 pool_address=sender,
@@ -122,7 +167,7 @@ async def process_lp_transactions(transactions: list[dict]) -> list[LpTransactio
             )
             lp_transactions.append(lp_tx)
 
-        if receiver in all_lp_addresses:
+        if not is_pool_self_transfer and receiver_tracks_asset:
             lp_tx = LpTransaction(
                 id=projection_event_id(txid, receiver),
                 pool_address=receiver,
@@ -133,6 +178,19 @@ async def process_lp_transactions(transactions: list[dict]) -> list[LpTransactio
                 event_position=event_position,
             )
             lp_transactions.append(lp_tx)
+
+        if sender_assets is not None and fee:
+            lp_transactions.append(
+                LpTransaction(
+                    id=projection_event_id(f"{txid}#fee", sender),
+                    pool_address=sender,
+                    user_address=sender,
+                    asa_id=0,
+                    delta_amount_micros=-fee,
+                    confirmed_round=confirmed_round,
+                    event_position=event_position,
+                )
+            )
 
     return lp_transactions
 
@@ -196,32 +254,6 @@ async def update_lp_states(
     )
 
 
-async def update_asset_prices(updated_lp_states: list[LpState]) -> list[AssetPrice]:
-    if len(updated_lp_states) == 0:
-        return []
-
-    algo_quote = await get_algo_price_quote()
-    updated_asset_prices = []
-    for lp_state in updated_lp_states:
-        if lp_state.is_algo_pool:
-            try:
-                updated_asset_price = await update_tinyman_algo_asset_price(
-                    lp_state,
-                    algo_quote,
-                )
-                updated_asset_prices.append(updated_asset_price)
-            except PricingError as exc:
-                logger.warning(
-                    "Skipping invalid Tinyman LP state %s: %s",
-                    lp_state.id,
-                    exc,
-                )
-
-    if len(updated_asset_prices) > 0:
-        logger.debug(f"Updated {len(updated_asset_prices)} asset prices.")
-    return updated_asset_prices
-
-
 def _snapshot_checkpoint_round(
     *,
     previous_round: int | None,
@@ -262,7 +294,6 @@ async def catch_up_the_sync_manually(sync_state: SyncState, current_round: int) 
         logger.info("\n\nSyncing LP states from authoritative account snapshots.\n")
         _ = await create_lp_states_from_all_pools()
         snapshotted_states = await update_all_lp_states_linear()
-        _ = await create_and_update_asset_prices()
     else:
         snapshotted_states = []
 
@@ -365,7 +396,6 @@ async def sync_pools_loop():
                 if settings.sync_liquidity_pools
                 else []
             )
-            _ = await update_asset_prices(updated_lp_states)
 
             sync_state = await asyncio.to_thread(
                 coordinator.complete_round,

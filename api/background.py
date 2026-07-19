@@ -25,7 +25,7 @@ from flex.data.asset_prices import (
     is_asset_price_stale,
     update_asset_price,
 )
-from flex.data.lp_prices import get_lp_token_definitions, update_lp_token_prices
+from flex.data.lp_registry import get_lp_token_definitions
 from flex.migrations import migrate_background
 from flex.sync_pools import sync_pools_loop
 
@@ -161,7 +161,8 @@ async def update_asset_prices_background():
 
     all_assets = db.assets.get_all()
 
-    # Exclude LP tokens — they are priced separately by update_lp_token_prices()
+    # LP tokens have no verified economic-reserve adapter. Keep them out of the
+    # generic provider refresh instead of deriving prices from account balances.
     try:
         lp_defs = await get_lp_token_definitions()
         lp_token_ids = {d["lp_token_id"] for d in lp_defs}
@@ -241,14 +242,9 @@ async def update_asset_prices_background():
     )
 
     if settings.background_lp_prices_update:
-        # This legacy worker prices raw account balances. It is opt-in until
-        # every supported DEX has a verified economic-reserve adapter.
-        try:
-            await update_lp_token_prices(current_round)
-        except Exception:
-            logger.exception("LP token price update failed")
-    else:
-        logger.info("Background LP price updates are disabled")
+        logger.error(
+            "BACKGROUND_LP_PRICES_UPDATE is retired and ignored; raw pool-account balances cannot publish prices",
+        )
 
 
 def run_background():

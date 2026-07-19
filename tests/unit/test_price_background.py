@@ -4,48 +4,42 @@ from types import SimpleNamespace
 import pytest
 
 from api import background
-from flex.data import lp_prices
+from flex.data import lp_registry
 
 
-def test_empty_asset_catalog_still_updates_lp_prices(monkeypatch) -> None:
+def _empty_price_database() -> SimpleNamespace:
+    return SimpleNamespace(
+        assets=SimpleNamespace(get_all=lambda: []),
+        asset_prices=SimpleNamespace(get_all=lambda: []),
+    )
+
+
+def test_retired_lp_price_flag_cannot_enable_a_publisher(monkeypatch) -> None:
     monkeypatch.setattr(background.settings, "background_asset_prices_update", True)
     monkeypatch.setattr(background.settings, "background_lp_prices_update", True)
-    monkeypatch.setattr(
-        background,
-        "db",
-        SimpleNamespace(
-            assets=SimpleNamespace(get_all=lambda: []),
-            asset_prices=SimpleNamespace(get_all=lambda: []),
-        ),
-    )
+    monkeypatch.setattr(background, "db", _empty_price_database())
     monkeypatch.setattr(background, "get_current_round", lambda: 321)
 
     async def no_lp_definitions() -> list[dict]:
         return []
-
-    updated_rounds: list[int] = []
-
-    async def record_lp_update(current_round: int) -> None:
-        updated_rounds.append(current_round)
 
     monkeypatch.setattr(
         background,
         "get_lp_token_definitions",
         no_lp_definitions,
     )
-    monkeypatch.setattr(background, "update_lp_token_prices", record_lp_update)
 
     one_shot = background.update_asset_prices_background.__wrapped__.__wrapped__
     asyncio.run(one_shot())
 
-    assert updated_rounds == [321]
+    assert not hasattr(background, "update_lp_token_prices")
 
 
-def test_lp_registry_failure_cannot_overwrite_lp_with_external_price(
+def test_lp_registry_failure_keeps_generic_refresh_fail_closed(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(background.settings, "background_asset_prices_update", True)
-    monkeypatch.setattr(background.settings, "background_lp_prices_update", True)
+    monkeypatch.setattr(background.settings, "background_lp_prices_update", False)
     monkeypatch.setattr(
         background,
         "db",
@@ -64,11 +58,6 @@ def test_lp_registry_failure_cannot_overwrite_lp_with_external_price(
     async def unexpected_asset_refresh(*args, **kwargs):
         raise AssertionError("regular asset refresh must fail closed")
 
-    updated_rounds: list[int] = []
-
-    async def record_lp_update(current_round: int) -> None:
-        updated_rounds.append(current_round)
-
     monkeypatch.setattr(
         background,
         "get_lp_token_definitions",
@@ -79,67 +68,38 @@ def test_lp_registry_failure_cannot_overwrite_lp_with_external_price(
         "create_asset_price",
         unexpected_asset_refresh,
     )
-    monkeypatch.setattr(background, "update_lp_token_prices", record_lp_update)
-
-    one_shot = background.update_asset_prices_background.__wrapped__.__wrapped__
-    asyncio.run(one_shot())
-
-    assert updated_rounds == [321]
-
-
-def test_lp_price_worker_is_disabled_independently(
-    monkeypatch,
-) -> None:
-    monkeypatch.setattr(background.settings, "background_asset_prices_update", True)
-    monkeypatch.setattr(background.settings, "background_lp_prices_update", False)
-    monkeypatch.setattr(
-        background,
-        "db",
-        SimpleNamespace(
-            assets=SimpleNamespace(get_all=lambda: []),
-            asset_prices=SimpleNamespace(get_all=lambda: []),
-        ),
-    )
-    monkeypatch.setattr(background, "get_current_round", lambda: 321)
-
-    async def no_lp_definitions() -> list[dict]:
-        return []
-
-    async def unexpected_lp_update(current_round: int) -> None:
-        raise AssertionError(
-            f"disabled LP price worker received round {current_round}",
-        )
-
-    monkeypatch.setattr(
-        background,
-        "get_lp_token_definitions",
-        no_lp_definitions,
-    )
-    monkeypatch.setattr(
-        background,
-        "update_lp_token_prices",
-        unexpected_lp_update,
-    )
 
     one_shot = background.update_asset_prices_background.__wrapped__.__wrapped__
     asyncio.run(one_shot())
 
 
-def test_incomplete_lp_registry_fails_closed(monkeypatch) -> None:
-    contract = SimpleNamespace(
-        metadata={
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {
             "stake_token_id": 999,
             "asset1_id": 7,
             "asset2_id": 0,
         },
+        {
+            "stake_token_id": 999,
+        },
+    ],
+)
+def test_incomplete_lp_registry_fails_closed(
+    monkeypatch,
+    metadata: dict,
+) -> None:
+    contract = SimpleNamespace(
+        metadata=metadata,
     )
     monkeypatch.setattr(
-        lp_prices,
+        lp_registry,
         "get_contracts_by_type",
         lambda contract_type: [contract],
     )
     monkeypatch.setattr(
-        lp_prices,
+        lp_registry,
         "db",
         SimpleNamespace(
             lp_tokens=SimpleNamespace(
@@ -150,7 +110,7 @@ def test_incomplete_lp_registry_fails_closed(monkeypatch) -> None:
     )
 
     with pytest.raises(
-        lp_prices.LpTokenRegistryError,
-        match=r"incomplete.*999",
+        lp_registry.LpTokenRegistryError,
+        match=r"classification is incomplete.*999",
     ):
-        asyncio.run(lp_prices.get_lp_token_definitions.__wrapped__())
+        asyncio.run(lp_registry.get_lp_token_definitions.__wrapped__())

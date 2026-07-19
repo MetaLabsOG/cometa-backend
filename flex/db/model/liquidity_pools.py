@@ -11,7 +11,8 @@ from flex.db.bson import (
 )
 from flex.db.classes.base_entity import BaseEntity
 from flex.db.classes.bson_uint64 import BsonUint64StorageMixin
-from flex.domain.lp_projection import lp_event_order
+from flex.domain.algorand import MAX_ALGORAND_UINT, require_algorand_uint64
+from flex.domain.lp_projection import InvalidLpProjectionError, lp_event_order
 
 
 @dataclass_json
@@ -56,6 +57,7 @@ class LpState(
             "asset1_reserve_micros",
             "asset2_reserve_micros",
             "total_tokens_micros",
+            "operational_algo_balance_micros",
         }
     )
 
@@ -117,6 +119,15 @@ class LpState(
     total_tokens: float
     token_price_algo: float
 
+    # Token-token pools still hold ALGO to fund network fees. Keep this
+    # operational balance separate from economic reserves and public pricing.
+    operational_algo_balance_micros: int = field(
+        default=0,
+        metadata=config(
+            encoder=encode_bson_integer,
+            decoder=decode_bson_uint64,
+        ),
+    )
     is_algo_pool: bool = False
     last_event_order: str | None = None
     derived_observed_at: datetime | None = None
@@ -124,6 +135,16 @@ class LpState(
     swap_fee_apr: float | None = None
     updated: datetime = field(default_factory=datetime.now)
     created: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self) -> None:
+        try:
+            for field_name in self.BSON_UINT64_FIELDS:
+                require_algorand_uint64(
+                    getattr(self, field_name),
+                    field_name,
+                )
+        except ValueError as exc:
+            raise InvalidLpProjectionError(str(exc)) from exc
 
     @classmethod
     def primary_key_name(cls) -> str:
@@ -189,9 +210,26 @@ class LpTransaction(BaseEntity["LpTransaction"]):
     updated: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self) -> None:
-        if self.event_order is None:
-            self.event_order = lp_event_order(
-                self.confirmed_round,
-                self.id,
-                self.event_position,
+        try:
+            require_algorand_uint64(self.asa_id, "asa_id")
+            require_algorand_uint64(self.confirmed_round, "confirmed_round")
+            require_algorand_uint64(self.event_position, "event_position")
+        except ValueError as exc:
+            raise InvalidLpProjectionError(str(exc)) from exc
+        if (
+            isinstance(self.delta_amount_micros, bool)
+            or not isinstance(self.delta_amount_micros, int)
+            or not -MAX_ALGORAND_UINT <= self.delta_amount_micros <= MAX_ALGORAND_UINT
+        ):
+            raise InvalidLpProjectionError(
+                "delta_amount_micros must fit the signed Algorand uint64 domain",
             )
+        expected_order = lp_event_order(
+            self.confirmed_round,
+            self.id,
+            self.event_position,
+        )
+        if self.event_order is None:
+            self.event_order = expected_order
+        elif self.event_order != expected_order:
+            raise InvalidLpProjectionError("event_order does not match the immutable event fields")

@@ -1,7 +1,9 @@
+import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from threading import Barrier, Event
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -9,18 +11,33 @@ from bson import Decimal128
 from pymongo import MongoClient
 from pymongo.database import Database
 
-from flex.db.indexes import create_unique_field_index_fail_closed
+from flex import sync_pools
+from flex.data import asset_prices as asset_price_data
+from flex.data import assets as asset_data
+from flex.db.indexes import (
+    create_unique_field_index_fail_closed,
+    create_unique_id_index_fail_closed,
+    delete_unverified_legacy_lp_prices,
+)
 from flex.db.lp_projection import (
     LpProjectionResult,
     MongoLpProjectionRepository,
 )
-from flex.db.model.blockchain import SyncState
+from flex.db.model.blockchain import (
+    TOTAL_SUPPLY_SOURCE_INDEXER,
+    UINT64_MAX,
+    Asset,
+    SyncState,
+)
 from flex.db.model.liquidity_pools import LpState, LpTransaction
+from flex.db.model.priced import AssetPrice
 from flex.db.sync_coordinator import (
     MongoSyncCoordinator,
     SyncCoordinatorError,
 )
 from flex.domain.lp_projection import lp_round_end_order
+from flex.domain.pricing import MAX_OBSERVATION_CLOCK_SKEW
+from flex.domain.transactions import ASSET_TRANSFER_TX
 
 pytestmark = pytest.mark.integration
 
@@ -99,12 +116,17 @@ def _state(*, reserve: int = 100) -> LpState:
     )
 
 
-def _transaction(*, amount: int = 10) -> LpTransaction:
+def _transaction(
+    *,
+    amount: int = 10,
+    asa_id: int = 7,
+    event_id: str = "TX@POOL",
+) -> LpTransaction:
     return LpTransaction(
-        id="TX@POOL",
+        id=event_id,
         pool_address="POOL",
         user_address="USER",
-        asa_id=7,
+        asa_id=asa_id,
         delta_amount_micros=amount,
         confirmed_round=100,
         event_position=1,
@@ -200,6 +222,74 @@ def test_real_mongo_decimal128_increment_reaches_uint64_max(
     assert raw["asset1_reserve_micros"] == Decimal128(str(maximum))
 
 
+def test_real_mongo_projects_token_pool_fee_to_operational_algo(
+    mongo_database: Database,
+) -> None:
+    state = _state()
+    state.asset2_id = 8
+    state.operational_algo_balance_micros = 1_000
+    repository = _repository(mongo_database, state)
+
+    outcome = repository.project(
+        _transaction(
+            amount=-1_000,
+            asa_id=0,
+            event_id="TX#fee@POOL",
+        ),
+    )
+
+    raw = mongo_database["lp_states"].find_one({"address": "POOL"})
+    assert outcome.state.asset1_reserve_micros == 100
+    assert outcome.state.asset2_reserve_micros == 100
+    assert outcome.state.operational_algo_balance_micros == 0
+    assert raw is not None
+    assert raw["operational_algo_balance_micros"] == Decimal128("0")
+
+
+def test_real_mongo_replays_amount_and_fee_from_one_raw_transaction(
+    mongo_database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = _state()
+    state.asset2_id = 8
+    state.operational_algo_balance_micros = 2_000
+    repository = _repository(mongo_database, state)
+    monkeypatch.setattr(
+        sync_pools,
+        "get_lp_tracked_assets_by_address",
+        lambda: {"POOL": frozenset({0, 7, 8, 99})},
+    )
+    raw_transaction = {
+        "id": "TX",
+        "sender": "POOL",
+        "confirmed-round": 100,
+        "fee": 1_000,
+        ASSET_TRANSFER_TX: {
+            "asset-id": 7,
+            "amount": 5,
+            "receiver": "USER",
+        },
+    }
+
+    transactions = asyncio.run(sync_pools.process_lp_transactions([raw_transaction]))
+    ordered = sorted(transactions, key=lambda transaction: transaction.event_order)
+    first_outcomes = [repository.project(transaction) for transaction in ordered]
+    replay_outcomes = [repository.project(transaction) for transaction in ordered]
+
+    persisted = repository.get_state("POOL")
+    assert [transaction.id for transaction in transactions] == [
+        "TX@POOL",
+        "TX#fee@POOL",
+    ]
+    assert persisted.asset1_reserve_micros == 95
+    assert persisted.asset2_reserve_micros == 100
+    assert persisted.operational_algo_balance_micros == 1_000
+    assert persisted.last_event_order == max(transaction.event_order for transaction in transactions)
+    assert mongo_database["lp_transactions"].count_documents({}) == 2
+    assert all(outcome.result is LpProjectionResult.APPLIED for outcome in first_outcomes)
+    assert all(outcome.result is LpProjectionResult.ALREADY_APPLIED for outcome in replay_outcomes)
+
+
 def test_real_mongo_promotes_legacy_int64_balance_to_decimal128(
     mongo_database: Database,
 ) -> None:
@@ -214,6 +304,7 @@ def test_real_mongo_promotes_legacy_int64_balance_to_decimal128(
         "asset1_reserve_micros",
         "asset2_reserve_micros",
         "total_tokens_micros",
+        "operational_algo_balance_micros",
     ):
         payload[field_name] = int(payload[field_name].to_decimal())
 
@@ -253,6 +344,153 @@ def test_duplicate_financial_business_key_fails_without_deletion(
         )
 
     assert collection.count_documents({}) == 2
+
+
+def test_duplicate_asset_identity_fails_without_deletion(
+    mongo_database: Database,
+) -> None:
+    collection = mongo_database["assets"]
+    collection.insert_many(
+        [
+            {"id": Decimal128("42"), "name": "first"},
+            {"id": Decimal128("42"), "name": "second"},
+        ]
+    )
+
+    with pytest.raises(RuntimeError, match="duplicate immutable ID"):
+        create_unique_id_index_fail_closed(
+            collection,
+            collection_name="assets",
+        )
+
+    assert collection.count_documents({}) == 2
+
+
+def test_real_mongo_deletes_only_retired_lp_price_projections(
+    mongo_database: Database,
+) -> None:
+    collection = mongo_database["asset_prices"]
+    collection.insert_many(
+        [
+            {"id": Decimal128("1"), "source": "vestige"},
+            {"id": Decimal128("2"), "source": "vestige", "tinyman_algo_pool_id": None},
+            {
+                "id": Decimal128("3"),
+                "source": "tinyman",
+                "tinyman_algo_pool_id": Decimal128("99"),
+            },
+        ]
+    )
+
+    removed = delete_unverified_legacy_lp_prices(
+        SimpleNamespace(
+            asset_prices=SimpleNamespace(
+                mongodb_collection=collection,
+            )
+        )
+    )
+
+    assert removed == 1
+    assert {document["id"].to_decimal() for document in collection.find({}, projection={"id": 1})} == {1, 2}
+
+
+def test_valid_price_replaces_far_future_observation(
+    mongo_database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = mongo_database["asset_prices"]
+    collection.create_index("id", unique=True)
+    now = datetime.now(UTC)
+    collection.insert_one(
+        {
+            "id": Decimal128("42"),
+            "name": "poisoned",
+            "price_algo": 999.0,
+            "price_usd": 999.0,
+            "last_update_round": Decimal128("1"),
+            "source": "vestige",
+            "observed_at": now + MAX_OBSERVATION_CLOCK_SKEW + timedelta(days=1),
+            "created": now,
+            "updated": now,
+        }
+    )
+    monkeypatch.setattr(
+        asset_price_data,
+        "db",
+        SimpleNamespace(
+            asset_prices=SimpleNamespace(
+                mongodb_collection=collection,
+            )
+        ),
+    )
+    candidate = AssetPrice(
+        id=42,
+        name="verified",
+        price_algo=0.25,
+        price_usd=1.0,
+        last_update_round=2,
+        source="vestige",
+        observed_at=now,
+    )
+
+    assert asset_price_data._upsert_asset_price(candidate) is True
+
+    stored = collection.find_one({"id": Decimal128("42")})
+    assert stored is not None
+    assert stored["name"] == "verified"
+    assert abs(stored["observed_at"] - now) < timedelta(milliseconds=1)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_real_mongo_supply_migration_persists_provenance_once(
+    mongo_database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = mongo_database["assets"]
+    inserted = collection.insert_one(
+        {
+            "id": Decimal128("42"),
+            "total_supply": float(UINT64_MAX),
+            "total_supply_micros": str(2**53),
+        }
+    )
+    legacy_document = collection.find_one({"_id": inserted.inserted_id})
+    assert legacy_document is not None
+    monkeypatch.setattr(
+        asset_data,
+        "db",
+        SimpleNamespace(
+            assets=SimpleNamespace(
+                mongodb_collection=collection,
+            )
+        ),
+    )
+    authoritative = Asset(
+        id=42,
+        name="Canonical Asset",
+        decimals=0,
+        unit_name="CANON",
+        creator="CREATOR",
+        reserve="RESERVE",
+        total_supply=0,
+        total_supply_micros=UINT64_MAX,
+        total_supply_source=TOTAL_SUPPLY_SOURCE_INDEXER,
+    )
+
+    async def fetch_asset(asset_id: int) -> Asset:
+        assert asset_id == 42
+        await asyncio.sleep(0)
+        return authoritative
+
+    monkeypatch.setattr(asset_data, "fetch_asset", fetch_asset)
+
+    results = await asyncio.gather(*(asset_data._backfill_canonical_supply(42, legacy_document) for _ in range(8)))
+
+    persisted = collection.find_one({"_id": inserted.inserted_id})
+    assert results == [UINT64_MAX] * 8
+    assert persisted is not None
+    assert persisted["total_supply_micros"] == str(UINT64_MAX)
+    assert persisted["total_supply_source"] == TOTAL_SUPPLY_SOURCE_INDEXER
 
 
 def test_expired_real_mongo_sync_lease_fences_stale_owner(

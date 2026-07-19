@@ -17,6 +17,7 @@ from flex.db.classes.base_entity import BaseEntity
 from flex.db.classes.bson_uint64 import BsonUint64StorageMixin
 
 UINT64_MAX = (1 << 64) - 1
+TOTAL_SUPPLY_SOURCE_INDEXER = "indexer"
 
 
 class _MissingTotalSupply(int):
@@ -24,6 +25,10 @@ class _MissingTotalSupply(int):
 
 
 _MISSING_TOTAL_SUPPLY = _MissingTotalSupply(-1)
+
+
+class _UnverifiedTotalSupply(int):
+    """Compatibility value that must never be serialized as canonical."""
 
 
 def _decode_total_supply(value: object) -> int:
@@ -204,7 +209,20 @@ class Asset(
     # Keep an int in memory and serialize it as a decimal string in MongoDB.
     total_supply_micros: int = field(
         default=_MISSING_TOTAL_SUPPLY,
-        metadata=config(encoder=str, decoder=_decode_total_supply),
+        metadata=config(
+            encoder=str,
+            decoder=_decode_total_supply,
+            exclude=lambda value: isinstance(value, _UnverifiedTotalSupply),
+        ),
+    )
+    total_supply_source: str | None = None
+    # Kept out of storage: old documents may be decoded for display, but code
+    # that makes financial decisions must first migrate from the Indexer.
+    total_supply_is_authoritative: bool = field(
+        init=False,
+        default=False,
+        repr=False,
+        metadata=config(exclude=lambda _: True),
     )
 
     created: datetime = field(default_factory=datetime.now)
@@ -212,15 +230,18 @@ class Asset(
 
     def __post_init__(self) -> None:
         if isinstance(self.total_supply_micros, _MissingTotalSupply):
-            # Documents written before the canonical field was introduced only
-            # contain display units. This is necessarily best-effort because a
-            # historical float may already have lost precision.
+            # Retain a display-compatible value for old read models, but mark
+            # it as non-authoritative so financial paths cannot trust it.
+            self.total_supply_source = None
             self.total_supply_micros = self.amount_to_micros(self.total_supply)
 
         self.total_supply_micros = _validate_uint64(
             self.total_supply_micros,
             field_name="total_supply_micros",
         )
+        self.total_supply_is_authoritative = self.total_supply_source == TOTAL_SUPPLY_SOURCE_INDEXER
+        if not self.total_supply_is_authoritative:
+            self.total_supply_micros = _UnverifiedTotalSupply(self.total_supply_micros)
         # The persisted base-unit amount is authoritative. Keep the old float
         # field as a presentation-only compatibility value.
         self.total_supply = self.micros_to_amount(self.total_supply_micros)

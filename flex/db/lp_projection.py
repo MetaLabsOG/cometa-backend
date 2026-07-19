@@ -11,8 +11,11 @@ from pymongo.errors import DuplicateKeyError
 
 from flex.db.bson import encode_bson_integer
 from flex.db.model.liquidity_pools import LpState, LpTransaction
-from flex.domain.lp_projection import (
+from flex.domain.algorand import (
     MAX_ALGORAND_UINT,
+    require_algorand_uint64,
+)
+from flex.domain.lp_projection import (
     LpBalanceDelta,
     lp_balance_delta,
     lp_round_end_order,
@@ -39,10 +42,6 @@ class LpProjectionOutcome:
     @property
     def changed_balances(self) -> bool:
         return self.result is LpProjectionResult.APPLIED
-
-    @property
-    def requires_derived_refresh(self) -> bool:
-        return self.result is not LpProjectionResult.SNAPSHOT_COVERED
 
 
 @dataclass(slots=True)
@@ -148,42 +147,6 @@ class MongoLpProjectionRepository:
                 result=LpProjectionResult.APPLIED,
             )
 
-    def update_derived_fields(
-        self,
-        state: LpState,
-        *,
-        expected_cursor: str,
-    ) -> LpState | None:
-        if state.derived_observed_at is None:
-            raise LpProjectionPersistenceError("derived LP fields have no observation timestamp")
-        document = self.states.find_one_and_update(
-            {
-                "token_id": encode_bson_integer(state.token_id),
-                "last_event_order": expected_cursor,
-                "$or": [
-                    {"derived_observed_at": {"$exists": False}},
-                    {"derived_observed_at": None},
-                    {
-                        "derived_observed_at": {
-                            "$lte": state.derived_observed_at,
-                        }
-                    },
-                ],
-            },
-            {
-                "$set": {
-                    "asset1_reserve": state.asset1_reserve,
-                    "asset2_reserve": state.asset2_reserve,
-                    "total_tokens": state.total_tokens,
-                    "token_price_algo": state.token_price_algo,
-                    "derived_observed_at": state.derived_observed_at,
-                    "updated": datetime.now(UTC),
-                }
-            },
-            return_document=ReturnDocument.AFTER,
-        )
-        return self._from_state_document(document)
-
     def replace_snapshot(
         self,
         state: LpState,
@@ -192,6 +155,27 @@ class MongoLpProjectionRepository:
     ) -> LpState:
         """Replace balances only when the authoritative snapshot is newer."""
 
+        try:
+            for field_name in (
+                "id",
+                "token_id",
+                "asset1_id",
+                "asset2_id",
+                "asset1_reserve_micros",
+                "asset2_reserve_micros",
+                "total_tokens_micros",
+                "operational_algo_balance_micros",
+            ):
+                require_algorand_uint64(
+                    getattr(state, field_name),
+                    f"LP snapshot {field_name}",
+                )
+            require_algorand_uint64(
+                observed_round,
+                "LP snapshot observed_round",
+            )
+        except ValueError as exc:
+            raise LpProjectionPersistenceError(str(exc)) from exc
         snapshot_order = lp_round_end_order(observed_round)
         document = self.states.find_one_and_update(
             {
@@ -213,11 +197,9 @@ class MongoLpProjectionRepository:
                     "total_tokens_micros": encode_bson_integer(
                         state.total_tokens_micros,
                     ),
-                    "asset1_reserve": state.asset1_reserve,
-                    "asset2_reserve": state.asset2_reserve,
-                    "total_tokens": state.total_tokens,
-                    "token_price_algo": state.token_price_algo,
-                    "derived_observed_at": state.derived_observed_at,
+                    "operational_algo_balance_micros": encode_bson_integer(
+                        state.operational_algo_balance_micros,
+                    ),
                     "last_updated_round": encode_bson_integer(
                         observed_round,
                     ),
@@ -314,6 +296,7 @@ class MongoLpProjectionRepository:
         persisted_event = LpTransaction.from_dict(persisted)
         if (
             persisted_event.pool_address,
+            persisted_event.user_address,
             persisted_event.asa_id,
             persisted_event.delta_amount_micros,
             persisted_event.confirmed_round,
@@ -321,6 +304,7 @@ class MongoLpProjectionRepository:
             persisted_event.event_order,
         ) != (
             expected.pool_address,
+            expected.user_address,
             expected.asa_id,
             expected.delta_amount_micros,
             expected.confirmed_round,
@@ -339,11 +323,12 @@ class MongoLpProjectionRepository:
         return None
 
     @staticmethod
-    def _balances(state: LpState) -> tuple[int, int, int]:
+    def _balances(state: LpState) -> tuple[int, int, int, int]:
         return (
             state.asset1_reserve_micros,
             state.asset2_reserve_micros,
             state.total_tokens_micros,
+            state.operational_algo_balance_micros,
         )
 
     @staticmethod
