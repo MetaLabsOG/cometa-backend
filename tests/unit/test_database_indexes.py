@@ -4,6 +4,7 @@ from unittest.mock import Mock, call
 import pytest
 
 from flex.db.indexes import (
+    create_unique_id_index_fail_closed,
     deduplicate_and_create_unique_id_index,
     ensure_database_indexes,
 )
@@ -15,13 +16,16 @@ def _manager(collection: Mock) -> SimpleNamespace:
 
 def _database(**collections: Mock) -> SimpleNamespace:
     names = (
+        "airdrop_manifests",
         "asset_prices",
+        "asset_transfer_intents",
         "pool_transactions",
         "lp_transactions",
         "lp_states",
         "pool_states",
         "user_states",
         "lp_tokens",
+        "airdrop_rewards",
     )
     return SimpleNamespace(**{name: _manager(collections.get(name, Mock())) for name in names})
 
@@ -62,11 +66,34 @@ def test_deduplication_keeps_newest_record_before_creating_index() -> None:
     ) < collection.mock_calls.index(call.create_index("id", unique=True, name="id_unique"))
 
 
+def test_immutable_ledger_duplicates_abort_without_deleting_evidence() -> None:
+    collection = Mock()
+    collection.aggregate.return_value = [
+        {
+            "_id": "operation",
+            "count": 2,
+            "keep_id": "confirmed",
+            "all_ids": ["confirmed", "prepared"],
+        }
+    ]
+
+    with pytest.raises(RuntimeError, match="duplicate immutable ID"):
+        create_unique_id_index_fail_closed(
+            collection,
+            collection_name="asset_transfer_intents",
+        )
+
+    collection.delete_many.assert_not_called()
+    collection.create_index.assert_not_called()
+
+
 def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
     unique_collections = {
         name: Mock()
         for name in (
+            "airdrop_manifests",
             "asset_prices",
+            "asset_transfer_intents",
             "pool_transactions",
             "lp_transactions",
         )
@@ -79,7 +106,9 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
     removed = ensure_database_indexes(database)
 
     assert removed == {
+        "airdrop_manifests": 0,
         "asset_prices": 0,
+        "asset_transfer_intents": 0,
         "pool_transactions": 0,
         "lp_transactions": 0,
     }
@@ -90,10 +119,17 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
     database.pool_states.mongodb_collection.create_index.assert_called_once_with("pool_id", name="pool_id_idx")
     database.user_states.mongodb_collection.create_index.assert_called_once_with("address", name="address_idx")
     database.lp_tokens.mongodb_collection.create_index.assert_called_once_with("id", name="lp_token_id_idx")
+    database.airdrop_rewards.mongodb_collection.create_index.assert_called_once_with(
+        "operation_id",
+        unique=True,
+        name="operation_id_unique",
+        partialFilterExpression={"operation_id": {"$type": "string"}},
+    )
 
 
 def test_correctness_critical_index_failure_is_not_swallowed() -> None:
     database = _database()
+    database.airdrop_manifests.mongodb_collection.aggregate.return_value = []
     database.asset_prices.mongodb_collection.aggregate.return_value = []
     database.asset_prices.mongodb_collection.create_index.side_effect = RuntimeError("index build failed")
 

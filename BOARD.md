@@ -1,6 +1,6 @@
 # Cometa Backend — Task Board
 
-> Last updated: 2026-07-18
+> Last updated: 2026-07-19
 
 ## Conventions
 
@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-078**
+- Next available ID: **CB-079**
 
 ## Active
 
@@ -18,6 +18,7 @@
 | CB-074 | Atomic event projection | todo | critical | backend, arch | Crash-safe inbox/projector with duplicate, replay, and recovery tests |
 | CB-075 | Isolate transaction signing | todo | high | security, arch | Read-only API boundary; authenticated policy-limited signing service |
 | CB-076 | Async persistence boundary | todo | high | backend, perf | Storage outages cannot block the event loop; timeouts and readiness covered |
+| CB-078 | Replay-safe outbound asset payouts | done | critical | security, backend, arch | Exact allocations, immutable airdrop manifests, persisted signed intents, on-chain reconciliation, and regression tests |
 
 ## Completed milestones
 

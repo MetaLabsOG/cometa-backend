@@ -47,13 +47,27 @@ class UserCost:
 class AirdropReward(BaseEntity["AirdropReward"]):
     airdrop_id: str
     address: str
-    asa_id: int
-    amount_micros: int
+    asa_id: str
+    amount_micros: str
     txid: str
 
+    operation_id: str | None = None
+    confirmed_round: int | None = None
     id: str = field(default_factory=get_uuid)
     created: datetime = field(default_factory=datetime.now)
     updated: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self) -> None:
+        self.asa_id = str(self.asa_id)
+        self.amount_micros = str(self.amount_micros)
+
+    @property
+    def asa_id_int(self) -> int:
+        return int(self.asa_id)
+
+    @property
+    def amount_micros_int(self) -> int:
+        return int(self.amount_micros)
 
 
 @dataclass_json

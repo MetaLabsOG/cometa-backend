@@ -27,6 +27,8 @@ quote-style = "double"
 files = [
     "core/circuit_breaker.py",
     "flex/blockchain/contract_state.py",
+    "flex/application/asset_transfers.py",
+    "flex/domain/allocation.py",
     "flex/domain/pricing.py",
     "flex/domain/transactions.py",
     "flex/providers/pact.py",

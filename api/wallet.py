@@ -1,29 +1,37 @@
+"""Wallet-side asset transfer operations."""
+
 import logging
 
-from algosdk import mnemonic, account
-from algosdk.transaction import AssetTransferTxn, wait_for_confirmation
+from flex.application.asset_transfers import (
+    AssetTransferReceipt,
+    AssetTransferRequest,
+)
+from flex.application.transfer_runtime import get_asset_transfer_service
 
-from blockchain.node import init_algod_client
-from env import settings
-
-cometa_private_key = mnemonic.to_private_key(settings.algo_mnemonic)
-cometa_public_key = account.address_from_private_key(cometa_private_key)
-
-algod = init_algod_client()
 logger = logging.getLogger(__name__)
 
 
-def send_nft(address: str, nft_id: int, amount: int = 1) -> None:
-    logger.info(f'Sending {amount} NFT {nft_id} to {address}')
-    params = algod.suggested_params()
-    txn = AssetTransferTxn(
-        sender=cometa_public_key,
-        sp=params,
-        receiver=address,
-        amt=amount,
-        index=nft_id)
-    stxn = txn.sign(cometa_private_key)
+def send_nft(
+    address: str,
+    nft_id: int,
+    amount: int = 1,
+    *,
+    idempotency_key: str,
+) -> AssetTransferReceipt:
+    """Send an NFT once for a stable business operation."""
 
-    txid = algod.send_transaction(stxn)
-    wait_for_confirmation(algod, txid)
-    logger.info(f'Sent {amount} NFT {nft_id} to {address} with tx {txid}')
+    receipt = get_asset_transfer_service().execute(
+        AssetTransferRequest(
+            operation_id=f"nft:{idempotency_key}",
+            receiver=address,
+            asset_id=nft_id,
+            amount_micros=amount,
+        )
+    )
+    logger.info(
+        "NFT transfer %s confirmed in round %s as %s",
+        receipt.operation_id,
+        receipt.confirmed_round,
+        receipt.txid,
+    )
+    return receipt

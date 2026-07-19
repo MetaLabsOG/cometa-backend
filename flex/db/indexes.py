@@ -8,10 +8,12 @@ from flex.db.cometa_database import CometaDatabase
 
 logger = logging.getLogger(__name__)
 
-_UNIQUE_ID_COLLECTIONS = (
-    "asset_prices",
-    "pool_transactions",
-    "lp_transactions",
+_UNIQUE_ID_POLICIES = (
+    ("airdrop_manifests", False),
+    ("asset_prices", True),
+    ("asset_transfer_intents", False),
+    ("pool_transactions", False),
+    ("lp_transactions", False),
 )
 
 _HOT_INDEXES = (
@@ -69,20 +71,55 @@ def deduplicate_and_create_unique_id_index(
     return removed
 
 
+def create_unique_id_index_fail_closed(
+    collection: Collection[dict[str, Any]],
+    *,
+    collection_name: str,
+) -> None:
+    """Preserve conflicting immutable records for explicit reconciliation."""
+
+    duplicate_groups: Sequence[dict[str, Any]] = list(
+        collection.aggregate(
+            _duplicate_id_pipeline(),
+            allowDiskUse=True,
+        )
+    )
+    if duplicate_groups:
+        raise RuntimeError(
+            f"{collection_name} contains {len(duplicate_groups)} duplicate immutable ID group(s); "
+            "reconcile or quarantine them before startup"
+        )
+    collection.create_index("id", unique=True, name="id_unique")
+
+
 def ensure_database_indexes(database: CometaDatabase) -> dict[str, int]:
     """Install correctness-critical unique indexes and hot query indexes."""
     removed_by_collection: dict[str, int] = {}
 
-    for collection_name in _UNIQUE_ID_COLLECTIONS:
+    for collection_name, can_deduplicate in _UNIQUE_ID_POLICIES:
         manager = getattr(database, collection_name)
-        removed_by_collection[collection_name] = deduplicate_and_create_unique_id_index(
-            manager.mongodb_collection,
-            collection_name=collection_name,
-        )
+        if can_deduplicate:
+            removed_by_collection[collection_name] = deduplicate_and_create_unique_id_index(
+                manager.mongodb_collection,
+                collection_name=collection_name,
+            )
+        else:
+            create_unique_id_index_fail_closed(
+                manager.mongodb_collection,
+                collection_name=collection_name,
+            )
+            removed_by_collection[collection_name] = 0
 
     for manager_name, field_name, index_name in _HOT_INDEXES:
         manager = getattr(database, manager_name)
         manager.mongodb_collection.create_index(field_name, name=index_name)
+
+    database.airdrop_rewards.mongodb_collection.create_index(
+        "operation_id",
+        unique=True,
+        name="operation_id_unique",
+        partialFilterExpression={"operation_id": {"$type": "string"}},
+    )
 
     logger.info("Ensured hot query indexes for Flex collections")
     return removed_by_collection
