@@ -215,6 +215,45 @@ def test_concurrent_replay_changes_the_balance_once() -> None:
     assert sum(outcome.result is LpProjectionResult.APPLIED for outcome in outcomes) == 1
 
 
+def test_replay_refreshes_stale_state_before_declaring_marker_divergence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transaction = _transaction()
+    stale_state = _state(cursor=lp_round_end_order(99))
+    repository, _, _ = _repository(
+        _state(
+            cursor=transaction.event_order,
+            last_round=100,
+            reserve=110,
+        ),
+        events=[transaction],
+    )
+    original_get_state = MongoLpProjectionRepository._get_state
+    read_count = 0
+
+    def stale_then_current(
+        current_repository: MongoLpProjectionRepository,
+        pool_address: str,
+    ) -> LpState:
+        nonlocal read_count
+        read_count += 1
+        if read_count == 1:
+            return stale_state
+        return original_get_state(current_repository, pool_address)
+
+    monkeypatch.setattr(
+        MongoLpProjectionRepository,
+        "_get_state",
+        stale_then_current,
+    )
+
+    outcome = repository.project(transaction)
+
+    assert outcome.result is LpProjectionResult.ALREADY_APPLIED
+    assert outcome.state.asset1_reserve_micros == 110
+    assert read_count == 2
+
+
 def test_later_event_cannot_hide_an_unrecorded_earlier_event() -> None:
     later = _transaction("Z@POOL", position=2)
     earlier = _transaction("A@POOL", position=1)
@@ -485,6 +524,32 @@ def test_expired_round_lease_uses_fencing_owner_and_checkpoint_cas() -> None:
     )
 
     assert completed.last_round == 100
+
+
+def test_expired_round_lease_cannot_complete_without_takeover() -> None:
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    collection = AtomicCollection([SyncState(last_round=99).to_dict()])
+    coordinator = MongoSyncCoordinator(
+        collection=collection,  # type: ignore[arg-type]
+        lease_duration=timedelta(seconds=30),
+    )
+
+    claimed = coordinator.claim_round(
+        owner="worker-a",
+        expected_last_round=99,
+        round_number=100,
+        now=now,
+    )
+
+    assert claimed is not None
+    with pytest.raises(SyncCoordinatorError, match="lost its claim"):
+        coordinator.complete_round(
+            owner="worker-a",
+            expected_last_round=99,
+            round_number=100,
+            now=now + timedelta(seconds=31),
+        )
+    assert SyncState.from_dict(collection.documents[0]).last_round == 99
 
 
 def test_uint64_sync_checkpoint_operations_are_bson_safe() -> None:

@@ -71,5 +71,7 @@ aggregate.
 
 Indexer account balances are authoritative for reconciliation, but not
 necessarily for a DEX’s economic reserve accounting: donations and protocol
-excess balances may be included. Production pricing therefore remains disabled
-until each DEX has a verified app-state adapter.
+excess balances may be included. The legacy account-balance price worker is
+therefore independently disabled by default with
+`BACKGROUND_LP_PRICES_UPDATE=false` until each DEX has a verified app-state
+adapter.

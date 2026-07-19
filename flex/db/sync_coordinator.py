@@ -80,6 +80,7 @@ class MongoSyncCoordinator:
                 "last_round": encoded_expected_round,
                 "claimed_round": encode_bson_integer(round_number),
                 "lease_owner": owner,
+                "lease_until": {"$gt": current_time},
             },
             {
                 "$set": {

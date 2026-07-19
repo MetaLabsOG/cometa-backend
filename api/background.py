@@ -240,11 +240,15 @@ async def update_asset_prices_background():
         failures,
     )
 
-    # LP token prices: calculate from on-chain reserves
-    try:
-        await update_lp_token_prices(current_round)
-    except Exception as e:
-        logger.error(f"LP token price update failed: {e}")
+    if settings.background_lp_prices_update:
+        # This legacy worker prices raw account balances. It is opt-in until
+        # every supported DEX has a verified economic-reserve adapter.
+        try:
+            await update_lp_token_prices(current_round)
+        except Exception:
+            logger.exception("LP token price update failed")
+    else:
+        logger.info("Background LP price updates are disabled")
 
 
 def run_background():

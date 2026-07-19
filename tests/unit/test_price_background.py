@@ -9,6 +9,7 @@ from flex.data import lp_prices
 
 def test_empty_asset_catalog_still_updates_lp_prices(monkeypatch) -> None:
     monkeypatch.setattr(background.settings, "background_asset_prices_update", True)
+    monkeypatch.setattr(background.settings, "background_lp_prices_update", True)
     monkeypatch.setattr(
         background,
         "db",
@@ -44,6 +45,7 @@ def test_lp_registry_failure_cannot_overwrite_lp_with_external_price(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(background.settings, "background_asset_prices_update", True)
+    monkeypatch.setattr(background.settings, "background_lp_prices_update", True)
     monkeypatch.setattr(
         background,
         "db",
@@ -83,6 +85,44 @@ def test_lp_registry_failure_cannot_overwrite_lp_with_external_price(
     asyncio.run(one_shot())
 
     assert updated_rounds == [321]
+
+
+def test_lp_price_worker_is_disabled_independently(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(background.settings, "background_asset_prices_update", True)
+    monkeypatch.setattr(background.settings, "background_lp_prices_update", False)
+    monkeypatch.setattr(
+        background,
+        "db",
+        SimpleNamespace(
+            assets=SimpleNamespace(get_all=lambda: []),
+            asset_prices=SimpleNamespace(get_all=lambda: []),
+        ),
+    )
+    monkeypatch.setattr(background, "get_current_round", lambda: 321)
+
+    async def no_lp_definitions() -> list[dict]:
+        return []
+
+    async def unexpected_lp_update(current_round: int) -> None:
+        raise AssertionError(
+            f"disabled LP price worker received round {current_round}",
+        )
+
+    monkeypatch.setattr(
+        background,
+        "get_lp_token_definitions",
+        no_lp_definitions,
+    )
+    monkeypatch.setattr(
+        background,
+        "update_lp_token_prices",
+        unexpected_lp_update,
+    )
+
+    one_shot = background.update_asset_prices_background.__wrapped__.__wrapped__
+    asyncio.run(one_shot())
 
 
 def test_incomplete_lp_registry_fails_closed(monkeypatch) -> None:

@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     background_user_pools_update: bool = False
     background_pools_update: bool = False
     background_asset_prices_update: bool = True  # Enable background update of asset prices
+    # Legacy LP pricing uses raw pool-account balances, which can include
+    # donations or protocol excess. Keep it off until each DEX has a verified
+    # economic-reserve adapter.
+    background_lp_prices_update: bool = False
     asset_price_update_batch_size: int = Field(default=10, gt=0)
     asset_price_api_call_delay: float = Field(default=1, ge=0)
     asset_price_batch_delay: float = Field(default=2.0, ge=0)

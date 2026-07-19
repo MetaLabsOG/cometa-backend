@@ -82,11 +82,18 @@ class MongoLpProjectionRepository:
 
             if canonical_event is not None:
                 if cursor < order:
-                    raise LpProjectionPersistenceError(
-                        f"LP event {transaction.id!r} is recorded but state "
-                        f"{state.token_id} is behind it; reconcile from an "
-                        "authoritative pool snapshot"
-                    )
+                    # Another worker may have advanced the state and recorded
+                    # the marker after this worker read its initial snapshot.
+                    # Re-read before classifying marker/state divergence as
+                    # persistent corruption.
+                    state = self._get_state(transaction.pool_address)
+                    cursor = state.last_event_order
+                    if cursor is None or cursor < order:
+                        raise LpProjectionPersistenceError(
+                            f"LP event {transaction.id!r} is recorded but state "
+                            f"{state.token_id} is behind it; reconcile from an "
+                            "authoritative pool snapshot"
+                        )
                 return LpProjectionOutcome(
                     state=state,
                     result=LpProjectionResult.ALREADY_APPLIED,
