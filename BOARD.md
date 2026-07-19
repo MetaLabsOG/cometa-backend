@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-081**
+- Next available ID: **CB-085**
 
 ## Active
 
@@ -21,6 +21,10 @@
 | CB-078 | Replay-safe outbound asset payouts | done | critical | security, backend, arch | Exact allocations, immutable airdrop manifests, persisted signed intents, on-chain reconciliation, and regression tests |
 | CB-079 | Crash-safe LP projection | done | critical | backend, arch | Decimal128 balances, ordered per-state CAS cursor, fenced round checkpoint, snapshot guards, and crash/concurrency tests |
 | CB-080 | Financial read-model regressions | done | medium | backend | Reward decimals use the reward asset and request ordering never mutates cached contract state |
+| CB-081 | Fence expired sync workers | done | critical | backend, arch | A worker cannot commit a financial round after its lease expires, with unit and real-Mongo regressions |
+| CB-082 | Verify Mongo financial invariants | done | high | backend, infra | CI proves CAS replay, marker repair, BSON promotion, uniqueness, and lease fencing against a disposable pinned MongoDB |
+| CB-083 | Refresh public engineering docs | done | medium | dx, arch | Runtime commands, Python support, architecture boundaries, API shapes, and cross-project contract are current |
+| CB-084 | Disable unverified LP pricing | done | critical | backend, arch | Legacy raw-account-balance LP pricing is independently default-off until DEX economic reserves are verified |
 
 ## Completed milestones
 
@@ -32,7 +36,7 @@
 | Replay identity | done | Deterministic nested event IDs and collection-level uniqueness constraints |
 | LP financial ledger | done | Marker-gap recovery, uint64-safe BSON operations, full-block preflight, snapshot coverage guards, and fenced round CAS |
 | Container baseline | done | Digest-pinned Alpine base, multi-stage non-root runtime, healthcheck, image exclusions, Trivy CI gate |
-| API hardening | done | Fail-closed header authentication, trusted hosts, explicit CORS policy, bounded LP/asset/wallet requests |
+| API request hardening | done | Fail-closed configured header checks, trusted hosts, explicit CORS policy, bounded selectors and wallet expansion |
 | Native Reach decoding | done | Versioned global/local codecs, exact-width integers, deterministic layout tests, no private npm runtime |
 | Legacy runtime removal | done | CB-077: Node/Reach sidecar and production source bind mount removed |
 
