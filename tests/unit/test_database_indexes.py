@@ -6,6 +6,8 @@ import pytest
 from flex.db.indexes import (
     create_unique_id_index_fail_closed,
     deduplicate_and_create_unique_id_index,
+    delete_unverified_legacy_lp_prices,
+    ensure_airdrop_indexes,
     ensure_database_indexes,
     ensure_sync_state_singleton,
 )
@@ -18,6 +20,7 @@ def _manager(collection: Mock) -> SimpleNamespace:
 def _database(**collections: Mock) -> SimpleNamespace:
     names = (
         "airdrop_manifests",
+        "assets",
         "asset_prices",
         "asset_transfer_intents",
         "pool_transactions",
@@ -94,10 +97,12 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
         name: Mock()
         for name in (
             "airdrop_manifests",
+            "assets",
             "asset_prices",
             "asset_transfer_intents",
             "pool_transactions",
             "lp_transactions",
+            "lp_tokens",
         )
     }
     for collection in unique_collections.values():
@@ -106,24 +111,83 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
     lp_states.aggregate.return_value = []
     sync_states = Mock()
     sync_states.find.return_value = []
+    airdrop_rewards = Mock()
+    airdrop_rewards.aggregate.return_value = []
 
     database = _database(
         **unique_collections,
         lp_states=lp_states,
         sync_states=sync_states,
+        airdrop_rewards=airdrop_rewards,
+    )
+    database.asset_prices.mongodb_collection.delete_many.return_value = SimpleNamespace(
+        deleted_count=1,
     )
 
     removed = ensure_database_indexes(database)
 
     assert removed == {
         "airdrop_manifests": 0,
+        "assets": 0,
         "asset_prices": 0,
         "asset_transfer_intents": 0,
         "pool_transactions": 0,
         "lp_transactions": 0,
+        "lp_tokens": 0,
     }
     for collection in unique_collections.values():
         collection.create_index.assert_called_once_with("id", unique=True, name="id_unique")
+    database.asset_prices.mongodb_collection.delete_many.assert_called_once_with(
+        {
+            "$or": [
+                {
+                    "tinyman_algo_pool_id": {
+                        "$exists": True,
+                        "$ne": None,
+                    }
+                },
+                {"source": "derived_lp"},
+            ]
+        }
+    )
+    assert database.asset_prices.mongodb_collection.mock_calls.index(
+        call.delete_many(
+            {
+                "$or": [
+                    {
+                        "tinyman_algo_pool_id": {
+                            "$exists": True,
+                            "$ne": None,
+                        }
+                    },
+                    {"source": "derived_lp"},
+                ]
+            }
+        )
+    ) < database.asset_prices.mongodb_collection.mock_calls.index(
+        call.aggregate(
+            [
+                {
+                    "$sort": {
+                        "id": 1,
+                        "observed_at": -1,
+                        "updated": -1,
+                        "_id": -1,
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": "$id",
+                        "count": {"$sum": 1},
+                        "keep_id": {"$first": "$_id"},
+                        "all_ids": {"$push": "$_id"},
+                    }
+                },
+                {"$match": {"count": {"$gt": 1}}},
+            ],
+            allowDiskUse=True,
+        )
+    )
 
     assert database.lp_states.mongodb_collection.create_index.call_args_list == [
         call("token_id", unique=True, name="token_id_unique"),
@@ -131,7 +195,6 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
     ]
     database.pool_states.mongodb_collection.create_index.assert_called_once_with("pool_id", name="pool_id_idx")
     database.user_states.mongodb_collection.create_index.assert_called_once_with("address", name="address_idx")
-    database.lp_tokens.mongodb_collection.create_index.assert_called_once_with("id", name="lp_token_id_idx")
     database.airdrop_rewards.mongodb_collection.create_index.assert_called_once_with(
         "operation_id",
         unique=True,
@@ -142,6 +205,60 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
         "id",
         unique=True,
         name="id_unique",
+    )
+
+
+def test_standalone_airdrop_indexes_fail_closed_on_duplicate_operations() -> None:
+    manifests = Mock()
+    manifests.aggregate.return_value = []
+    rewards = Mock()
+    rewards.aggregate.return_value = [
+        {
+            "_id": "airdrop:summer:wallet",
+            "count": 2,
+            "keep_id": "first",
+            "all_ids": ["first", "second"],
+        }
+    ]
+
+    with pytest.raises(RuntimeError, match="duplicate 'operation_id'"):
+        ensure_airdrop_indexes(
+            _database(
+                airdrop_manifests=manifests,
+                airdrop_rewards=rewards,
+            )
+        )
+
+    manifests.create_index.assert_called_once_with(
+        "id",
+        unique=True,
+        name="id_unique",
+    )
+    rewards.create_index.assert_not_called()
+    rewards.delete_many.assert_not_called()
+
+
+def test_legacy_lp_price_cleanup_reports_deleted_rows() -> None:
+    collection = Mock()
+    collection.delete_many.return_value = SimpleNamespace(deleted_count=3)
+
+    removed = delete_unverified_legacy_lp_prices(
+        _database(asset_prices=collection),
+    )
+
+    assert removed == 3
+    collection.delete_many.assert_called_once_with(
+        {
+            "$or": [
+                {
+                    "tinyman_algo_pool_id": {
+                        "$exists": True,
+                        "$ne": None,
+                    }
+                },
+                {"source": "derived_lp"},
+            ]
+        }
     )
 
 
@@ -188,7 +305,12 @@ def test_competing_sync_cursors_fail_closed() -> None:
 def test_correctness_critical_index_failure_is_not_swallowed() -> None:
     database = _database()
     database.airdrop_manifests.mongodb_collection.aggregate.return_value = []
+    database.airdrop_rewards.mongodb_collection.aggregate.return_value = []
+    database.assets.mongodb_collection.aggregate.return_value = []
     database.asset_prices.mongodb_collection.aggregate.return_value = []
+    database.asset_prices.mongodb_collection.delete_many.return_value = SimpleNamespace(
+        deleted_count=0,
+    )
     database.asset_prices.mongodb_collection.create_index.side_effect = RuntimeError("index build failed")
 
     with pytest.raises(RuntimeError, match="index build failed"):

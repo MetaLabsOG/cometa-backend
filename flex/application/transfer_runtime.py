@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from env import settings
 from flex import db
 from flex.application.asset_transfers import AssetTransferService
 from flex.blockchain.asset_transfers import AlgorandAssetTransferGateway
@@ -20,5 +21,7 @@ def get_asset_transfer_service() -> AssetTransferService:
         indexer=indexer_client,
         sender=cometa_public_key,
         private_key=cometa_private_key,
+        network=settings.algo_network,
+        max_fee_microalgos=settings.outbound_asset_transfer_max_fee_microalgos,
     )
     return AssetTransferService(repository=repository, gateway=gateway)

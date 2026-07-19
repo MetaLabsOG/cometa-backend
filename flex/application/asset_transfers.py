@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from flex.db.model.transfers import AssetTransferIntent
+from flex.domain.algorand import (
+    MAX_ALGORAND_UINT,
+    require_algorand_uint64,
+)
 
-MAX_ALGORAND_UINT = 2**64 - 1
 MAX_NOTE_BYTES = 1_000
 MAX_OPERATION_ID_BYTES = 200
 
@@ -85,6 +88,23 @@ class PreparedAssetTransfer:
     first_valid_round: int
     last_valid_round: int
 
+    def __post_init__(self) -> None:
+        try:
+            require_algorand_uint64(
+                self.first_valid_round,
+                "first_valid_round",
+            )
+            require_algorand_uint64(
+                self.last_valid_round,
+                "last_valid_round",
+            )
+        except ValueError as exc:
+            raise InvalidAssetTransferError(str(exc)) from exc
+        if self.first_valid_round > self.last_valid_round:
+            raise InvalidAssetTransferError(
+                "first_valid_round cannot exceed last_valid_round",
+            )
+
 
 @dataclass(frozen=True, slots=True)
 class AssetTransferReceipt:
@@ -92,6 +112,15 @@ class AssetTransferReceipt:
     txid: str
     confirmed_round: int
     already_confirmed: bool
+
+    def __post_init__(self) -> None:
+        try:
+            require_algorand_uint64(
+                self.confirmed_round,
+                "confirmed_round",
+            )
+        except ValueError as exc:
+            raise InvalidAssetTransferError(str(exc)) from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +131,25 @@ class ConfirmedAssetTransfer:
     asset_id: int
     amount_micros: int
     confirmed_round: int
+
+    def __post_init__(self) -> None:
+        try:
+            require_algorand_uint64(
+                self.asset_id,
+                "asset_id",
+                positive=True,
+            )
+            require_algorand_uint64(
+                self.amount_micros,
+                "amount_micros",
+                positive=True,
+            )
+            require_algorand_uint64(
+                self.confirmed_round,
+                "confirmed_round",
+            )
+        except ValueError as exc:
+            raise InvalidAssetTransferError(str(exc)) from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,11 +251,13 @@ class AssetTransferService:
             try:
                 confirmed_round = self.gateway.lookup_confirmed_round(intent.txid)
             except Exception as exc:
-                self.repository.record_error(
+                intent = self.repository.record_error(
                     intent.id,
                     intent.txid,
                     f"expired transaction lookup unavailable after {type(exc).__name__}",
                 )
+                if intent.status == TransferStatus.CONFIRMED:
+                    return self._confirmed_receipt(intent, already_confirmed=True)
                 raise AssetTransferExpiredError(intent.id, intent.txid) from exc
             if confirmed_round is not None:
                 intent = self.repository.mark_confirmed(
@@ -217,14 +267,18 @@ class AssetTransferService:
                 )
                 return self._confirmed_receipt(intent, already_confirmed=True)
 
-            self.repository.record_error(
+            intent = self.repository.record_error(
                 intent.id,
                 intent.txid,
                 "signed transaction expired before confirmation; manual reconciliation required",
             )
+            if intent.status == TransferStatus.CONFIRMED:
+                return self._confirmed_receipt(intent, already_confirmed=True)
             raise AssetTransferExpiredError(intent.id, intent.txid)
 
-        self.repository.record_attempt(intent.id, intent.txid)
+        intent = self.repository.record_attempt(intent.id, intent.txid)
+        if intent.status == TransferStatus.CONFIRMED:
+            return self._confirmed_receipt(intent, already_confirmed=True)
         broadcast_error: Exception | None = None
         try:
             returned_txid = self.gateway.broadcast(
@@ -238,7 +292,9 @@ class AssetTransferService:
             )
             if returned_txid != intent.txid:
                 raise AssetTransferError("Algorand node returned a different transaction ID")
-            self.repository.mark_submitted(intent.id, intent.txid)
+            intent = self.repository.mark_submitted(intent.id, intent.txid)
+            if intent.status == TransferStatus.CONFIRMED:
+                return self._confirmed_receipt(intent, already_confirmed=True)
         except Exception as exc:
             # A transport failure can happen after the node accepted the
             # transaction. Confirmation of the persisted txid is authoritative.
@@ -248,11 +304,13 @@ class AssetTransferService:
             confirmed_round = self.gateway.wait_for_confirmation(intent.txid)
         except Exception as exc:
             failure_kind = type(broadcast_error or exc).__name__
-            self.repository.record_error(
+            intent = self.repository.record_error(
                 intent.id,
                 intent.txid,
                 f"confirmation unresolved after {failure_kind}",
             )
+            if intent.status == TransferStatus.CONFIRMED:
+                return self._confirmed_receipt(intent, already_confirmed=True)
             raise AssetTransferPendingError(intent.id, intent.txid) from exc
 
         intent = self.repository.mark_confirmed(
@@ -289,13 +347,38 @@ class AssetTransferService:
                 confirmed_round=confirmed.confirmed_round,
             )
 
-        status = "expired_unconfirmed" if self.gateway.current_round() > intent.last_valid_round else intent.status
+        current_round = self.gateway.current_round()
+        intent = self._reload_reconciliation_intent(intent)
+        if intent.status == TransferStatus.CONFIRMED:
+            receipt = self._confirmed_receipt(intent, already_confirmed=True)
+            return TransferReconciliation(
+                operation_id=receipt.operation_id,
+                txid=receipt.txid,
+                status=TransferStatus.CONFIRMED,
+                confirmed_round=receipt.confirmed_round,
+            )
+
+        status = "expired_unconfirmed" if current_round > intent.last_valid_round else intent.status
         return TransferReconciliation(
             operation_id=intent.id,
             txid=intent.txid,
             status=status,
             confirmed_round=None,
         )
+
+    def _reload_reconciliation_intent(
+        self,
+        expected: AssetTransferIntent,
+    ) -> AssetTransferIntent:
+        current = self.repository.get(expected.id)
+        if current is None:
+            raise AssetTransferError(f"transfer {expected.id!r} disappeared during reconciliation")
+        if current.txid != expected.txid:
+            raise AssetTransferConflictError(
+                f"transfer {expected.id!r} changed transaction from "
+                f"{expected.txid!r} to {current.txid!r} during reconciliation"
+            )
+        return current
 
     @staticmethod
     def _assert_same_transfer(

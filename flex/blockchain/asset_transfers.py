@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any
 
-from algosdk import account, encoding, transaction
+from algosdk import account, constants, encoding, transaction
 from algosdk.error import AlgodHTTPError
 from algosdk.v2client.algod import AlgodClient
 from algosdk.v2client.indexer import IndexerClient
@@ -17,9 +17,24 @@ from flex.application.asset_transfers import (
     InvalidAssetTransferError,
     PreparedAssetTransfer,
 )
+from flex.domain.algorand import require_algorand_uint64
 
 TX_WAIT_ROUNDS = 4
 LEASE_DOMAIN = b"cometa-asset-transfer:v1:"
+NETWORK_GENESIS = {
+    "mainnet": (
+        "mainnet-v1.0",
+        "wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=",
+    ),
+    "testnet": (
+        "testnet-v1.0",
+        "SGO1GKSzyE7IEPItTxCByw9x8FmnrCDexi9/cOUJOiI=",
+    ),
+    "betanet": (
+        "betanet-v1.0",
+        "mFgazF+2uRS1tMiL9dsj01hJGySEmPN28B/TjjvpVW0=",
+    ),
+}
 
 
 @dataclass(slots=True)
@@ -28,6 +43,8 @@ class AlgorandAssetTransferGateway:
     indexer: IndexerClient
     sender: str
     private_key: str
+    network: str
+    max_fee_microalgos: int
     wait_rounds: int = TX_WAIT_ROUNDS
 
     def prepare(self, request: AssetTransferRequest) -> PreparedAssetTransfer:
@@ -35,6 +52,7 @@ class AlgorandAssetTransferGateway:
             raise InvalidAssetTransferError("receiver is not a valid Algorand address")
 
         params = self.algod.suggested_params()
+        self._apply_fee_and_network_policy(params)
         unsigned_transaction = transaction.AssetTransferTxn(
             sender=self.sender,
             sp=params,
@@ -74,6 +92,7 @@ class AlgorandAssetTransferGateway:
         expected_lease = sha256(LEASE_DOMAIN + request.operation_id.encode()).digest()
         expected_authorizer = account.address_from_private_key(self.private_key)
         expected_signer = None if expected_authorizer == self.sender else expected_authorizer
+        expected_genesis_id, expected_genesis_hash = self._network_genesis()
 
         expected_fields = (
             self.sender,
@@ -88,6 +107,8 @@ class AlgorandAssetTransferGateway:
             None,
             None,
             None,
+            expected_genesis_id,
+            expected_genesis_hash,
         )
         observed_fields = (
             txn.sender,
@@ -102,9 +123,12 @@ class AlgorandAssetTransferGateway:
             getattr(txn, "revocation_target", None),
             txn.group,
             txn.rekey_to,
+            txn.genesis_id,
+            txn.genesis_hash,
         )
         if not isinstance(txn, transaction.AssetTransferTxn) or observed_fields != expected_fields:
             raise InvalidAssetTransferError("persisted transaction fields do not match the transfer intent")
+        self._validate_fee(txn.fee)
         if txn.get_txid() != prepared.txid:
             raise InvalidAssetTransferError("persisted transaction ID does not match the transfer intent")
         if signed.authorizing_address != expected_signer:
@@ -116,6 +140,45 @@ class AlgorandAssetTransferGateway:
             expected_signature,
         ):
             raise InvalidAssetTransferError("persisted transaction signature is invalid")
+
+    def _network_genesis(self) -> tuple[str, str]:
+        try:
+            return NETWORK_GENESIS[self.network]
+        except KeyError as exc:
+            raise InvalidAssetTransferError(
+                f"unsupported outbound transfer network {self.network!r}",
+            ) from exc
+
+    def _apply_fee_and_network_policy(
+        self,
+        params: transaction.SuggestedParams,
+    ) -> None:
+        expected_genesis_id, expected_genesis_hash = self._network_genesis()
+        if params.gen != expected_genesis_id or params.gh != expected_genesis_hash:
+            raise InvalidAssetTransferError(
+                "Algod suggested parameters do not match the configured network",
+            )
+        min_fee = params.min_fee
+        if isinstance(min_fee, bool) or not isinstance(min_fee, int) or min_fee <= 0:
+            raise InvalidAssetTransferError("Algod returned an invalid minimum fee")
+        self._validate_fee(min_fee)
+        # Payouts are single outer transfers. Paying exactly the protocol
+        # minimum is deterministic and prevents a node-provided per-byte fee
+        # from silently draining the signer. Congestion therefore fails closed.
+        params.flat_fee = True
+        params.fee = min_fee
+
+    def _validate_fee(self, fee: object) -> None:
+        if isinstance(fee, bool) or not isinstance(fee, int):
+            raise InvalidAssetTransferError("outbound transaction fee is not an integer")
+        if fee < constants.min_txn_fee:
+            raise InvalidAssetTransferError(
+                "outbound transaction fee is below the Algorand protocol minimum",
+            )
+        if fee > self.max_fee_microalgos:
+            raise InvalidAssetTransferError(
+                "outbound transaction fee exceeds the configured payout policy",
+            )
 
     def wait_for_confirmation(self, txid: str) -> int:
         response = transaction.wait_for_confirmation(
@@ -161,10 +224,19 @@ class AlgorandAssetTransferGateway:
         amount_micros = asset_transfer.get("amount")
         if not isinstance(receiver, str) or not encoding.is_valid_address(receiver):
             raise RuntimeError("Algorand indexer response has an invalid receiver")
-        if isinstance(asset_id, bool) or not isinstance(asset_id, int) or asset_id <= 0:
-            raise RuntimeError("Algorand indexer response has an invalid asset ID")
-        if isinstance(amount_micros, bool) or not isinstance(amount_micros, int) or amount_micros <= 0:
-            raise RuntimeError("Algorand indexer response has an invalid transfer amount")
+        try:
+            asset_id = require_algorand_uint64(
+                asset_id,
+                "Algorand indexer asset ID",
+                positive=True,
+            )
+            amount_micros = require_algorand_uint64(
+                amount_micros,
+                "Algorand indexer transfer amount",
+                positive=True,
+            )
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
 
         return ConfirmedAssetTransfer(
             txid=txid,
@@ -178,9 +250,13 @@ class AlgorandAssetTransferGateway:
     def current_round(self) -> int:
         status = self.algod.status()
         current_round = status.get("last-round")
-        if isinstance(current_round, bool) or not isinstance(current_round, int) or current_round < 0:
-            raise RuntimeError("Algorand node returned an invalid current round")
-        return current_round
+        try:
+            return require_algorand_uint64(
+                current_round,
+                "Algorand node current round",
+            )
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
 
     @staticmethod
     def _confirmed_round(response: dict[str, Any]) -> int:
@@ -194,6 +270,10 @@ class AlgorandAssetTransferGateway:
         confirmed_round = response.get("confirmed-round")
         if confirmed_round is None or confirmed_round == 0:
             return None
-        if isinstance(confirmed_round, bool) or not isinstance(confirmed_round, int) or confirmed_round < 0:
-            raise RuntimeError("Algorand response contains an invalid confirmed round")
-        return confirmed_round
+        try:
+            return require_algorand_uint64(
+                confirmed_round,
+                "Algorand confirmed round",
+            )
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc

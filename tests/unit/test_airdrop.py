@@ -19,6 +19,13 @@ from flex.tools import airdrop
 class FakeRewardCollection:
     def __init__(self, rewards: list[AirdropReward] | None = None) -> None:
         self.documents = [reward.to_dict() for reward in rewards or []]
+        self.indexes: list[tuple[tuple, dict]] = []
+
+    def aggregate(self, *args, **kwargs):
+        return []
+
+    def create_index(self, *args, **kwargs) -> None:
+        self.indexes.append((args, kwargs))
 
     def find_one_and_update(self, query, update, **kwargs):
         document = next(
@@ -53,9 +60,13 @@ class FakeRewardManager:
 class FakeManifestCollection:
     def __init__(self) -> None:
         self.documents: dict[str, dict] = {}
+        self.complete_before_partial = False
 
     def create_index(self, *args, **kwargs) -> None:
         return None
+
+    def aggregate(self, *args, **kwargs):
+        return []
 
     def find_one(self, query, projection=None):
         document = self.documents.get(query["id"])
@@ -66,8 +77,24 @@ class FakeManifestCollection:
         self.documents.setdefault(manifest_id, dict(update["$setOnInsert"]))
         return dict(self.documents[manifest_id])
 
-    def update_one(self, query, update) -> None:
-        self.documents[query["id"]].update(update["$set"])
+    def update_one(self, query, update):
+        document = self.documents.get(query["id"])
+        expected_status = query.get("status")
+        if (
+            document is not None
+            and self.complete_before_partial
+            and isinstance(expected_status, dict)
+            and expected_status.get("$ne") == "complete"
+        ):
+            document["status"] = "complete"
+        if document is None or (
+            isinstance(expected_status, dict)
+            and "$ne" in expected_status
+            and document.get("status") == expected_status["$ne"]
+        ):
+            return SimpleNamespace(matched_count=0)
+        document.update(update["$set"])
+        return SimpleNamespace(matched_count=1)
 
 
 class FakeTransferService:
@@ -194,6 +221,16 @@ def test_airdrop_allocates_the_exact_budget_and_persists_every_receipt(monkeypat
     assert manifests.documents["summer-2026"]["status"] == "complete"
 
 
+@pytest.mark.parametrize("stale_status", ["prepared", "partial"])
+def test_complete_airdrop_manifest_cannot_regress(monkeypatch, stale_status: str) -> None:
+    _, manifests = _install_fake_db(monkeypatch)
+    manifests.documents["summer-2026"] = {"id": "summer-2026", "status": "complete"}
+
+    airdrop._mark_manifest_status("summer-2026", stale_status)
+
+    assert manifests.documents["summer-2026"]["status"] == "complete"
+
+
 def test_airdrop_configuration_conflict_aborts_before_any_broadcast(monkeypatch) -> None:
     address, other_address = _addresses(2)
     existing = AirdropReward(
@@ -255,6 +292,28 @@ def test_airdrop_reports_partial_failure_and_continues_safe_recipients(monkeypat
     assert len(error.value.confirmed_transactions) == 2
     assert len(rewards.mongodb_collection.documents) == 2
     assert manifests.documents["summer-2026"]["status"] == "partial"
+
+
+def test_stale_airdrop_failure_observes_concurrent_terminal_completion(monkeypatch) -> None:
+    rewards, manifests = _install_fake_db(monkeypatch)
+    addresses = _addresses(2)
+    service = FakeTransferService(fail_address=addresses[1])
+    manifests.complete_before_partial = True
+
+    transactions = asyncio.run(
+        airdrop.send_airdrop(
+            asset_info=_asset(),
+            total_amount_micros=10,
+            address_shares=dict.fromkeys(addresses, 1),
+            notes=["hello"],
+            airdrop_id="summer-2026",
+            transfer_service=service,  # type: ignore[arg-type]
+        )
+    )
+
+    assert len(transactions) == 1
+    assert len(rewards.mongodb_collection.documents) == 1
+    assert manifests.documents["summer-2026"]["status"] == "complete"
 
 
 def test_airdrop_rejects_zero_allocations_before_execution(monkeypatch) -> None:

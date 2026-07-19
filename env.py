@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     algod_address: str
     algod_token: str
     algo_indexer_address: str
+    outbound_asset_transfer_max_fee_microalgos: int = Field(
+        default=1_000,
+        ge=1_000,
+        le=1_000_000,
+    )
 
     server_port: int
     workers_num: int
@@ -57,9 +62,8 @@ class Settings(BaseSettings):
     background_user_pools_update: bool = False
     background_pools_update: bool = False
     background_asset_prices_update: bool = True  # Enable background update of asset prices
-    # Legacy LP pricing uses raw pool-account balances, which can include
-    # donations or protocol excess. Keep it off until each DEX has a verified
-    # economic-reserve adapter.
+    # Retained only so existing deployments can roll forward. The raw-balance
+    # publisher has been removed and this flag cannot enable LP pricing.
     background_lp_prices_update: bool = False
     asset_price_update_batch_size: int = Field(default=10, gt=0)
     asset_price_api_call_delay: float = Field(default=1, ge=0)
@@ -91,7 +95,6 @@ class Settings(BaseSettings):
     asset_prices_ttl: int = Field(default=120, gt=0)  # 2 minutes.
     asset_prices_max_stale: int = Field(default=3600, gt=0)
     asset_prices_update_interval: int = 60  # Run the background update every 60 seconds
-    lp_prices_update_interval: int = 300  # LP pricing via algod every 5 minutes
     lp_token_prices_ttl: int = 30
     total_tvl_ttl: int = 30
 

@@ -21,6 +21,7 @@ from flex.application.asset_transfers import (
 from flex.application.transfer_runtime import get_asset_transfer_service
 from flex.blockchain.base import cometa_public_key
 from flex.blockchain.info import get_current_round
+from flex.db.indexes import ensure_airdrop_indexes
 from flex.db.model.airdrop import AirdropManifest
 from flex.db.model.blockchain import AssetInfo
 from flex.db.model.priced import AirdropReward
@@ -152,7 +153,6 @@ def _reserve_manifest(
     manifest: AirdropManifest,
 ) -> AirdropManifest:
     collection = db.airdrop_manifests.mongodb_collection
-    collection.create_index("id", unique=True, name="id_unique")
     document = collection.find_one_and_update(
         {"id": manifest.id},
         {"$setOnInsert": manifest.to_dict()},
@@ -191,9 +191,13 @@ def _has_manifest(airdrop_id: str) -> bool:
     )
 
 
-def _mark_manifest_status(airdrop_id: str, status: str) -> None:
-    db.airdrop_manifests.mongodb_collection.update_one(
-        {"id": airdrop_id},
+def _mark_manifest_status(airdrop_id: str, status: str) -> str:
+    collection = db.airdrop_manifests.mongodb_collection
+    query: dict[str, object] = {"id": airdrop_id}
+    if status != "complete":
+        query["status"] = {"$ne": "complete"}
+    result = collection.update_one(
+        query,
         {
             "$set": {
                 "status": status,
@@ -201,6 +205,16 @@ def _mark_manifest_status(airdrop_id: str, status: str) -> None:
             }
         },
     )
+    if result.matched_count:
+        return status
+
+    persisted = collection.find_one(
+        {"id": airdrop_id},
+        projection={"status": 1},
+    )
+    if persisted is not None and persisted.get("status") == "complete":
+        return "complete"
+    raise AirdropError(f"airdrop manifest {airdrop_id!r} changed while marking status {status!r}")
 
 
 def _reconcile_existing_reward(
@@ -351,6 +365,9 @@ async def send_airdrop(
         notes=notes,
         amounts=amounts,
     )
+    # Operator scripts invoke this function without FastAPI startup. Install
+    # both uniqueness invariants before any reward read or transaction signing.
+    ensure_airdrop_indexes(db)
     service = transfer_service or get_asset_transfer_service()
     requests = {
         address: AssetTransferRequest(
@@ -492,8 +509,15 @@ async def send_airdrop(
         )
 
     if failures:
-        _mark_manifest_status(airdrop_id, "partial")
-        raise AirdropIncompleteError(failures, confirmed_transactions)
+        effective_status = _mark_manifest_status(airdrop_id, "partial")
+        if effective_status != "complete":
+            raise AirdropIncompleteError(failures, confirmed_transactions)
+        logger.info(
+            "Airdrop %s was completed by another worker while this worker had %s stale failure(s)",
+            airdrop_id,
+            len(failures),
+        )
+        return confirmed_transactions
 
     _mark_manifest_status(airdrop_id, "complete")
     logger.info(

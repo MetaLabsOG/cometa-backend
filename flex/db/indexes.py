@@ -5,15 +5,17 @@ from typing import Any
 from pymongo.collection import Collection
 
 from flex.db.cometa_database import CometaDatabase
+from flex.domain.pricing import PriceSource
 
 logger = logging.getLogger(__name__)
 
 _UNIQUE_ID_POLICIES = (
-    ("airdrop_manifests", False),
+    ("assets", False),
     ("asset_prices", True),
     ("asset_transfer_intents", False),
     ("pool_transactions", False),
     ("lp_transactions", False),
+    ("lp_tokens", False),
 )
 
 _HOT_INDEXES = (
@@ -21,8 +23,31 @@ _HOT_INDEXES = (
     ("lp_states", "address", "address_unique"),
     ("pool_states", "pool_id", "pool_id_idx"),
     ("user_states", "address", "address_idx"),
-    ("lp_tokens", "id", "lp_token_id_idx"),
 )
+
+
+def delete_unverified_legacy_lp_prices(database: CometaDatabase) -> int:
+    """Remove reconstructable prices produced from unauthenticated pool balances."""
+
+    result = database.asset_prices.mongodb_collection.delete_many(
+        {
+            "$or": [
+                {
+                    "tinyman_algo_pool_id": {
+                        "$exists": True,
+                        "$ne": None,
+                    }
+                },
+                {"source": PriceSource.DERIVED_LP.value},
+            ]
+        }
+    )
+    if result.deleted_count:
+        logger.warning(
+            "Removed %d retired raw-reserve LP price projection(s)",
+            result.deleted_count,
+        )
+    return result.deleted_count
 
 
 def _duplicate_field_pipeline(field_name: str) -> list[dict[str, Any]]:
@@ -126,6 +151,37 @@ def create_unique_field_index_fail_closed(
     )
 
 
+def ensure_airdrop_indexes(database: CometaDatabase) -> None:
+    """Install the standalone airdrop invariants before any payout work."""
+
+    create_unique_id_index_fail_closed(
+        database.airdrop_manifests.mongodb_collection,
+        collection_name="airdrop_manifests",
+    )
+    reward_collection = database.airdrop_rewards.mongodb_collection
+    duplicate_operation_ids: Sequence[dict[str, Any]] = list(
+        reward_collection.aggregate(
+            [
+                {"$match": {"operation_id": {"$type": "string"}}},
+                *_duplicate_field_pipeline("operation_id"),
+            ],
+            allowDiskUse=True,
+        )
+    )
+    if duplicate_operation_ids:
+        raise RuntimeError(
+            "airdrop_rewards contains "
+            f"{len(duplicate_operation_ids)} duplicate 'operation_id' group(s); "
+            "reconcile them before running an airdrop"
+        )
+    reward_collection.create_index(
+        "operation_id",
+        unique=True,
+        name="operation_id_unique",
+        partialFilterExpression={"operation_id": {"$type": "string"}},
+    )
+
+
 def ensure_sync_state_singleton(database: CometaDatabase) -> None:
     """Migrate one legacy random-ID cursor and reject competing checkpoints."""
 
@@ -150,7 +206,11 @@ def ensure_sync_state_singleton(database: CometaDatabase) -> None:
 
 def ensure_database_indexes(database: CometaDatabase) -> dict[str, int]:
     """Install correctness-critical unique indexes and hot query indexes."""
-    removed_by_collection: dict[str, int] = {}
+    # Delete the retired derived cache before deduplication so a newer unsafe
+    # row cannot displace a safe provider-backed observation with the same ID.
+    delete_unverified_legacy_lp_prices(database)
+    ensure_airdrop_indexes(database)
+    removed_by_collection: dict[str, int] = {"airdrop_manifests": 0}
 
     for collection_name, can_deduplicate in _UNIQUE_ID_POLICIES:
         manager = getattr(database, collection_name)
@@ -179,13 +239,6 @@ def ensure_database_indexes(database: CometaDatabase) -> dict[str, int]:
             )
         else:
             manager.mongodb_collection.create_index(field_name, name=index_name)
-
-    database.airdrop_rewards.mongodb_collection.create_index(
-        "operation_id",
-        unique=True,
-        name="operation_id_unique",
-        partialFilterExpression={"operation_id": {"$type": "string"}},
-    )
 
     logger.info("Ensured hot query indexes for Flex collections")
     return removed_by_collection

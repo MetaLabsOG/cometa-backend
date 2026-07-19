@@ -5,6 +5,7 @@ import pytest
 
 from flex.application.asset_transfers import (
     AssetTransferConflictError,
+    AssetTransferError,
     AssetTransferExpiredError,
     AssetTransferPendingError,
     AssetTransferRequest,
@@ -64,6 +65,54 @@ class InMemoryIntentRepository:
         return intent
 
 
+class ConfirmOnUpdateRepository(InMemoryIntentRepository):
+    def __init__(self, update_name: str) -> None:
+        super().__init__()
+        self.update_name = update_name
+
+    def _confirm(self, intent: AssetTransferIntent, update_name: str) -> AssetTransferIntent:
+        if self.update_name == update_name:
+            intent.status = TransferStatus.CONFIRMED
+            intent.confirmed_round = 777
+        return intent
+
+    def record_attempt(self, operation_id: str, txid: str) -> AssetTransferIntent:
+        return self._confirm(
+            super().record_attempt(operation_id, txid),
+            "record_attempt",
+        )
+
+    def mark_submitted(self, operation_id: str, txid: str) -> AssetTransferIntent:
+        return self._confirm(
+            super().mark_submitted(operation_id, txid),
+            "mark_submitted",
+        )
+
+    def record_error(
+        self,
+        operation_id: str,
+        txid: str,
+        error: str,
+    ) -> AssetTransferIntent:
+        return self._confirm(
+            super().record_error(operation_id, txid, error),
+            "record_error",
+        )
+
+
+class ReconcileReloadRepository(InMemoryIntentRepository):
+    def __init__(self, reloaded: AssetTransferIntent | None) -> None:
+        super().__init__()
+        self.reloaded = reloaded
+        self.get_count = 0
+
+    def get(self, operation_id: str) -> AssetTransferIntent | None:
+        self.get_count += 1
+        if self.get_count == 1:
+            return super().get(operation_id)
+        return self.reloaded
+
+
 class FakeTransferGateway:
     def __init__(self) -> None:
         self.prepare_count = 0
@@ -73,6 +122,7 @@ class FakeTransferGateway:
         self.lookup_round: int | None = None
         self.broadcast_error: Exception | None = None
         self.wait_error: Exception | None = None
+        self.returned_txid: str | None = None
 
     def prepare(self, request: AssetTransferRequest) -> PreparedAssetTransfer:
         self.prepare_count += 1
@@ -91,6 +141,8 @@ class FakeTransferGateway:
         self.broadcasted.append(prepared.signed_transaction)
         if self.broadcast_error is not None:
             raise self.broadcast_error
+        if self.returned_txid is not None:
+            return self.returned_txid
         return prepared.signed_transaction.replace("signed-", "txid-")
 
     def wait_for_confirmation(self, txid: str) -> int:
@@ -204,6 +256,41 @@ def test_confirmed_retry_does_not_contact_the_gateway() -> None:
     assert gateway.broadcasted == []
 
 
+def test_concurrent_confirmation_before_broadcast_returns_terminal_receipt() -> None:
+    repository = ConfirmOnUpdateRepository("record_attempt")
+    existing = _intent()
+    repository.intents[existing.id] = existing
+    gateway = FakeTransferGateway()
+    service = AssetTransferService(repository, gateway)
+
+    receipt = service.execute(_request())
+
+    assert receipt.already_confirmed is True
+    assert receipt.confirmed_round == 777
+    assert gateway.broadcasted == []
+
+
+@pytest.mark.parametrize("update_name", ["mark_submitted", "record_error"])
+def test_concurrent_confirmation_after_broadcast_is_not_reported_pending(
+    update_name: str,
+) -> None:
+    repository = ConfirmOnUpdateRepository(update_name)
+    existing = _intent()
+    repository.intents[existing.id] = existing
+    gateway = FakeTransferGateway()
+    if update_name == "record_error":
+        gateway.wait_error = TimeoutError("another worker confirmed")
+    else:
+        gateway.returned_txid = existing.txid
+    service = AssetTransferService(repository, gateway)
+
+    receipt = service.execute(_request())
+
+    assert receipt.already_confirmed is True
+    assert receipt.confirmed_round == 777
+    assert gateway.broadcasted == ["persisted-signed-transaction"]
+
+
 def test_idempotency_key_cannot_be_reused_for_another_amount() -> None:
     repository = InMemoryIntentRepository()
     existing = _intent()
@@ -261,6 +348,64 @@ def test_reconcile_marks_an_observed_transaction_confirmed() -> None:
 
     assert result.status == TransferStatus.CONFIRMED
     assert result.confirmed_round == 777
+
+
+def test_reconcile_returns_confirmation_committed_during_chain_lookup() -> None:
+    confirmed = _intent(
+        status=TransferStatus.CONFIRMED,
+        confirmed_round=778,
+    )
+    repository = ReconcileReloadRepository(confirmed)
+    existing = _intent()
+    repository.intents[existing.id] = existing
+    gateway = FakeTransferGateway()
+    service = AssetTransferService(repository, gateway)
+
+    result = service.reconcile(existing.id)
+
+    assert repository.get_count == 2
+    assert result.status == TransferStatus.CONFIRMED
+    assert result.txid == existing.txid
+    assert result.confirmed_round == 778
+
+
+def test_reconcile_fails_if_the_intent_disappears_during_chain_lookup() -> None:
+    repository = ReconcileReloadRepository(None)
+    existing = _intent()
+    repository.intents[existing.id] = existing
+    service = AssetTransferService(repository, FakeTransferGateway())
+
+    with pytest.raises(AssetTransferError, match="disappeared during reconciliation"):
+        service.reconcile(existing.id)
+
+
+def test_reconcile_fails_if_the_persisted_transaction_changes() -> None:
+    replacement = _intent(txid="replacement-txid")
+    repository = ReconcileReloadRepository(replacement)
+    existing = _intent()
+    repository.intents[existing.id] = existing
+    service = AssetTransferService(repository, FakeTransferGateway())
+
+    with pytest.raises(AssetTransferConflictError, match="changed transaction"):
+        service.reconcile(existing.id)
+
+
+def test_reconcile_builds_nonterminal_result_from_reloaded_intent() -> None:
+    reloaded = _intent(
+        status=TransferStatus.PREPARED,
+        last_valid_round=99,
+    )
+    repository = ReconcileReloadRepository(reloaded)
+    existing = _intent(last_valid_round=1_000)
+    repository.intents[existing.id] = existing
+    gateway = FakeTransferGateway()
+    gateway.current = 100
+    service = AssetTransferService(repository, gateway)
+
+    result = service.reconcile(existing.id)
+
+    assert result.status == "expired_unconfirmed"
+    assert result.confirmed_round is None
 
 
 def test_full_algorand_uint64_values_are_persisted_without_bson_integers() -> None:
