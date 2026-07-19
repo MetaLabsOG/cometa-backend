@@ -74,8 +74,8 @@ The decision and extension rules are documented in
 Financial write paths are documented separately in
 [`docs/architecture/outbound-asset-transfers.md`](docs/architecture/outbound-asset-transfers.md)
 and [`docs/architecture/lp-projection.md`](docs/architecture/lp-projection.md).
-The latest independent risk review, including resolved and intentionally open
-items, is in
+The latest internal multi-agent engineering review, including resolved and
+intentionally open items, is in
 [`docs/audit/01-audit-architecture-financial-2026-07-19.md`](docs/audit/01-audit-architecture-financial-2026-07-19.md).
 
 ### Reliability boundaries
@@ -192,7 +192,7 @@ flex/providers/        Market-data provider adapters
 flex/db/               MongoDB models, repositories, and indexes
 tests/unit/            Fast regression and boundary tests
 tests/integration/     Opt-in tests against disposable real services
-scripts/               Deployment and safe operational utilities
+scripts/               Deployment and legacy operational utilities
 ```
 
 ## Configuration and security

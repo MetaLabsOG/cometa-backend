@@ -43,7 +43,7 @@ PYTHON_FORMAT_PATHS := \
 
 sync:
 	pipenv verify
-	pipenv sync --dev
+	pipenv sync --dev --python 3.12
 
 run:
 	pipenv run python app.py

@@ -1,4 +1,4 @@
-# Аудит архитектуры и финансовой корректности
+# Внутренний мультиагентный аудит архитектуры и финансовой корректности
 
 **Дата:** 2026-07-19
 
@@ -14,14 +14,25 @@
 исправлений денежные операции переведены на integer base units, устойчивые
 business keys, immutable intents и compare-and-set проекции.
 
-Оценка критических границ до/после:
+## Executive summary
 
-| Область | До | После | Комментарий |
-| --- | ---: | ---: | --- |
-| Финансовая корректность | 3/10 | 9/10 | replay-safe выплаты, точное распределение, fail-closed legacy |
-| Конкурентность и recovery | 3/10 | 8/10 | CAS, marker repair, round leases, реальные Mongo-тесты |
-| Security boundaries | 5/10 | 7/10 | секреты из кода вынесены; auth/signing требуют следующего milestone |
-| Инженерная проверяемость | 6/10 | 9/10 | Python 3.12/3.14, strict typing, 262 теста, Mongo integration CI |
+This internal review used separate agent roles for financial correctness,
+MongoDB concurrency, CI and supply-chain posture, security and history, and
+public API documentation. The branch replaces unsafe payout and LP state
+transitions with durable intents, exact base-unit allocation, conditional
+writes, fencing, and real-Mongo race tests. It deliberately keeps unverified
+staking projection and legacy LP pricing disabled. Remaining authority,
+async-persistence, and runtime-hardening work is listed below instead of hidden
+behind a maturity score.
+
+Качественная сводка критических границ:
+
+| Область | Исходный риск | Текущий контроль |
+| --- | --- | --- |
+| Финансовая корректность | double-pay и float allocation | replay-safe выплаты, exact allocation, fail-closed legacy |
+| Конкурентность и recovery | blind RMW и недоказанный replay | CAS, marker repair, round leases, реальные Mongo-тесты |
+| Security boundaries | смешанные read/signing полномочия | секреты вне кода; auth/signing вынесены в следующий milestone |
+| Инженерная проверяемость | mocks не доказывали BSON/Mongo | Python 3.12/3.14, strict typing, 262 теста, Mongo integration CI |
 
 MongoDB гарантирует атомарность одной операции над одним документом, поэтому
 проектор строится вокруг conditional update, а не blind read-modify-write.
@@ -162,3 +173,19 @@ immutable-field conflict check и transactional outbox для уведомлен
 Форматирование и стиль намеренно не включались в findings: их обеспечивает
 Ruff. Приоритет аудита — correctness, security, data integrity и доказуемое
 recovery-поведение.
+
+## Воспроизводимость
+
+```bash
+git log --oneline 2c1cdad..HEAD
+make sync
+make quality
+
+# Только disposable MongoDB, никогда production:
+MONGODB_TEST_URI=mongodb://127.0.0.1:27017 \
+  pipenv run pytest tests/integration -m integration -v
+```
+
+`make quality` проверен в чистом окружении Python 3.14.6;
+production-equivalent `make sync` явно выбирает Python 3.12. CI повторяет обе
+версии и включает real-Mongo job в стабильный required context `python`.

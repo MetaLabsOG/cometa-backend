@@ -8,7 +8,7 @@
 - **Statuses**: `todo` | `in_progress` | `blocked` | `done`
 - **Priorities**: `critical` | `high` | `medium` | `low`
 - **Tags**: `security` | `backend` | `infra` | `dx` | `arch` | `perf`
-- Next available ID: **CB-085**
+- Next available ID: **CB-086**
 
 ## Active
 
@@ -25,6 +25,7 @@
 | CB-082 | Verify Mongo financial invariants | done | high | backend, infra | CI proves CAS replay, marker repair, BSON promotion, uniqueness, and lease fencing against a disposable pinned MongoDB |
 | CB-083 | Refresh public engineering docs | done | medium | dx, arch | Runtime commands, Python support, architecture boundaries, API shapes, and cross-project contract are current |
 | CB-084 | Disable unverified LP pricing | done | critical | backend, arch | Legacy raw-account-balance LP pricing is independently default-off until DEX economic reserves are verified |
+| CB-085 | Remove repository credibility drift | done | medium | dx, arch | Public claims match verified behavior, local sync selects Python 3.12, and the unrelated EVM sample is removed |
 
 ## Completed milestones
 
