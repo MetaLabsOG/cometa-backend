@@ -9,7 +9,7 @@ from bot.notifier import notify_user, notify_user_new_pool
 from core.db.new_pools import new_pools
 from core.decorators import repeat_every, safe_async_method
 
-spawn = multiprocessing.get_context('spawn')
+spawn = multiprocessing.get_context("spawn")
 logger = logging.getLogger(__name__)
 
 
@@ -31,12 +31,12 @@ async def notify_new_pools():
             for user in all_users:
                 await notify_user_new_pool(user, pool)
             new_pools.remove(pool)
-            logger.info(f'Notified users about new pool: {pool}')
+            logger.info(f"Notified users about new pool: {pool}")
 
 
 @repeat_every(bot_settings.user_pools_cache_ttl_seconds)
 async def notify_all():
-    logger.info('Notifying...')
+    logger.info("Notifying...")
 
     if bot_settings.notify_users:
         await notify_users()
@@ -45,9 +45,7 @@ async def notify_all():
 
 def run_background():
     async def tasks():
-        await asyncio.gather(
-            notify_all()
-        )
+        await asyncio.gather(notify_all())
 
     asyncio.run(tasks())
 
@@ -56,10 +54,9 @@ def run_background():
 def start_bg_tasks():
     proc = spawn.Process(target=run_background)
     proc.start()
-    logger.info(f'STARTED BG TASKS: {proc}')
+    logger.info(f"STARTED BG TASKS: {proc}")
     try:
         yield proc
     finally:
         proc.terminate()
         proc.join()
-

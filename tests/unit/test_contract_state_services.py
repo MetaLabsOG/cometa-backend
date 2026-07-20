@@ -10,6 +10,7 @@ from pydantic import ValidationError
 import app as api_module
 from api import background
 from api.db_model import ContractType
+from core.db.contracts import ContractWriteResult
 from env import Settings
 from flex.blockchain import contract_state
 from flex.blockchain.contract_state import (
@@ -92,11 +93,14 @@ async def test_registration_preserves_metadata_and_native_cache(
         captured["contract"] = contract
         captured["metadata"] = metadata
         return SimpleNamespace(
-            metadata={
-                "begin_block": 1,
-                "end_block": 2,
-                "lock_length_blocks": 0,
-            }
+            contract=SimpleNamespace(
+                metadata={
+                    "begin_block": 1,
+                    "end_block": 2,
+                    "lock_length_blocks": 0,
+                }
+            ),
+            created=True,
         )
 
     async def notify_new_pool(**kwargs: object) -> None:
@@ -118,6 +122,151 @@ async def test_registration_preserves_metadata_and_native_cache(
 
     assert captured["metadata"] == {"source": "test", "cache": view}
     assert captured["notification"]["metadata"] == {"source": "test"}
+
+
+@pytest.mark.asyncio
+async def test_registration_retry_skips_duplicate_notification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beneficiary = f"0x{encoding.decode_address(api_module.settings.beneficiary_address).hex()}"
+    canonical = SimpleNamespace(
+        metadata={
+            "begin_block": 1,
+            "end_block": 2,
+            "lock_length_blocks": 0,
+        }
+    )
+
+    async def fetch_view(*_args: object) -> dict[str, dict[str, Any]]:
+        return _view(beneficiary)
+
+    async def create_contract(*_args: object) -> SimpleNamespace:
+        return SimpleNamespace(contract=canonical, created=False)
+
+    async def unexpected_notification(**_kwargs: object) -> None:
+        raise AssertionError("idempotent retry must not emit a second notification")
+
+    monkeypatch.setattr(api_module, "_fetch_contract_view", fetch_view)
+    monkeypatch.setattr(api_module, "create_contract", create_contract)
+    monkeypatch.setattr(api_module, "notify_new_pool", unexpected_notification)
+
+    result = await api_module.register_contract(
+        api_module.AddContract(
+            type=ContractType.FARM,
+            id=42,
+            version="17.2.5",
+        )
+    )
+
+    assert result is canonical
+
+
+@pytest.mark.asyncio
+async def test_contract_registration_retries_partial_pool_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored_contract = None
+    pool_attempts = 0
+    invalidations = 0
+
+    def store_contract(contract):
+        nonlocal stored_contract
+        created = stored_contract is None
+        if stored_contract is None:
+            stored_contract = contract
+        return ContractWriteResult(contract=stored_contract, created=created)
+
+    async def create_pool(contract):
+        nonlocal pool_attempts
+        pool_attempts += 1
+        if pool_attempts == 1:
+            raise RuntimeError("injected pool write failure")
+        return SimpleNamespace(
+            id=contract.id,
+            stake_token=SimpleNamespace(id=7),
+            reward_token=SimpleNamespace(id=8),
+        )
+
+    async def create_pool_state(contract) -> SimpleNamespace:
+        return SimpleNamespace(pool_id=contract.id)
+
+    async def get_price(_asset_id: int) -> None:
+        return None
+
+    def invalidate() -> None:
+        nonlocal invalidations
+        invalidations += 1
+
+    monkeypatch.setattr(
+        api_module,
+        "parse_cache",
+        lambda _cache: {
+            "begin_block": 10,
+            "end_block": 20,
+            "begin_date": None,
+            "end_date": None,
+            "lock_length_blocks": 5,
+        },
+    )
+    monkeypatch.setattr(api_module, "get_or_create_contract", store_contract)
+    monkeypatch.setattr(api_module, "ensure_pool_identity_slot", lambda _contract: None)
+    monkeypatch.setattr(api_module, "create_pool_from_contract", create_pool)
+    monkeypatch.setattr(api_module, "create_pool_state_from_contract", create_pool_state)
+    monkeypatch.setattr(api_module, "get_asset_price_not_cached", get_price)
+    monkeypatch.setattr(api_module, "invalidate_contracts_cache", invalidate)
+
+    with pytest.raises(RuntimeError, match="injected pool write failure"):
+        await api_module.create_contract_with(
+            type="farm",
+            id=42,
+            version="17.2.5",
+            description="Retry-safe registration",
+            metadata={"cache": {"initial": {}}},
+        )
+
+    result = await api_module.create_contract_with(
+        type="farm",
+        id=42,
+        version="17.2.5",
+        description="Retry-safe registration",
+        metadata={"cache": {"initial": {}}},
+    )
+
+    assert result.created is False
+    assert result.contract.metadata["begin_block"] == 10
+    assert result.contract.metadata["end_block"] == 20
+    assert result.contract.metadata["lock_length_blocks"] == 5
+    assert pool_attempts == 2
+    assert invalidations == 1
+
+
+@pytest.mark.asyncio
+async def test_contract_registration_checks_pool_slot_before_legacy_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writes = 0
+
+    def reject_pool_slot(_contract: object) -> None:
+        raise api_module.PoolIdentityConflictError("opposite pool type")
+
+    def unexpected_write(_contract: object) -> None:
+        nonlocal writes
+        writes += 1
+
+    monkeypatch.setattr(api_module, "parse_cache", lambda _cache: {})
+    monkeypatch.setattr(api_module, "ensure_pool_identity_slot", reject_pool_slot)
+    monkeypatch.setattr(api_module, "get_or_create_contract", unexpected_write)
+
+    with pytest.raises(api_module.PoolIdentityConflictError, match="opposite pool type"):
+        await api_module.create_contract_with(
+            type="distribution",
+            id=42,
+            version="17.0.5",
+            description="Conflicting registration",
+            metadata={},
+        )
+
+    assert writes == 0
 
 
 @pytest.mark.asyncio

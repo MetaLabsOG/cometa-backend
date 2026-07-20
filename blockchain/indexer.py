@@ -16,7 +16,7 @@ indexer_client = indexer.IndexerClient(
     headers={"User-Agent": "py-algorand-sdk", "x-algo-api-token": settings.algod_token},
 )
 
-# TODO: INFO NOT FULL, handle get_asset(0) better
+# Synthetic native-ALGO metadata matching the Indexer asset response shape.
 ALGO_ASSET_INFO = {
     "created-at-round": 3317341,
     "deleted": False,

@@ -25,27 +25,36 @@ from blockchain.node import get_current_round
 from blockchain.util import date_from_block
 from core.auth import require_password
 from core.db.contracts import (
+    ContractIdentityConflictError,
     ContractInfo,
+    ContractWriteResult,
+    ensure_contract_id_index,
     get_contract,
     get_contracts_by_type,
-    insert_contract,
+    get_or_create_contract,
     invalidate_contracts_cache,
     update_contract,
 )
 from core.db.model import UserPool
 from core.util import parse_bignum, strip_version
 from env import settings
+from flex.application.pool_registration import (
+    PoolIdentityConflictError,
+    create_pool_from_contract,
+    ensure_pool_identity_slot,
+)
 from flex.blockchain.contract_state import (
     ContractStateDecodeError,
     ContractStateFetchError,
     fetch_contract_views,
 )
 from flex.data.asset_prices import get_asset_price_not_cached
-from flex.data.pool_state import get_or_create_pool_state, update_pool_state
+from flex.data.pool_state import (
+    PoolStateIdentityConflictError,
+    create_pool_state_from_contract,
+)
 from flex.data.pool_state_priced import calculate_user_pool_state_cost
 from flex.db.indexes import ensure_database_indexes
-from flex.migrations import migrate_before_start
-from flex.migrations.contracts import create_pool_from_contract
 from flex.providers.vestige import get_dex_tag_by_name
 from flex.sync_pools import get_sync_user_state_by_address
 
@@ -222,9 +231,9 @@ def parse_cache(cache: Optional[dict]) -> dict:
         return {}
 
 
-async def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractInfo:
+async def create_contract(contract_info: AddContract, new_metadata: dict) -> ContractWriteResult:
     return await create_contract_with(
-        type=contract_info.type,
+        type=contract_info.type.value,
         id=contract_info.id,
         version=contract_info.version,
         description=contract_info.description,
@@ -232,56 +241,67 @@ async def create_contract(contract_info: AddContract, new_metadata: dict) -> Con
     )
 
 
-async def create_contract_with(type: str, id: int, version: str, description: str, metadata: dict) -> ContractInfo:
+async def create_contract_with(
+    type: str,
+    id: int,
+    version: str,
+    description: str | None,
+    metadata: dict,
+) -> ContractWriteResult:
     try:
-        cache = metadata.get("cache")
+        canonical_metadata = dict(metadata)
+        cache = canonical_metadata.get("cache")
         metadata_fields = parse_cache(cache)
         current_date = datetime.now()
 
-        if "dex" in metadata:
+        if "dex" in canonical_metadata:
             try:
-                metadata["dex"] = get_dex_tag_by_name(metadata["dex"])
+                canonical_metadata["dex"] = get_dex_tag_by_name(canonical_metadata["dex"])
             except Exception as e:
-                logger.warning(f"Could not get DEX tag for {metadata['dex']}: {e}")
+                logger.warning(f"Could not get DEX tag for {canonical_metadata['dex']}: {e}")
+
+        for field_name in ("begin_block", "end_block", "lock_length_blocks"):
+            if field_name in metadata_fields:
+                canonical_metadata[field_name] = metadata_fields[field_name]
 
         contract = ContractInfo(
             type=type,
             id=id,
             version=version,
-            description=description,
+            description=description or "",
             deployed_timestamp=current_date.timestamp(),
             deployed_date=current_date,
             begin_date=metadata_fields.get("begin_date"),
             end_date=metadata_fields.get("end_date"),
-            metadata=metadata,
+            metadata=canonical_metadata,
         )
-        insert_contract(contract)
-        invalidate_contracts_cache()
+        # Reject an opposite-kind orphan before anchoring the saga in the
+        # network-scoped legacy contract collection.
+        ensure_pool_identity_slot(contract)
+        write_result = get_or_create_contract(contract)
+        if write_result.created:
+            invalidate_contracts_cache()
+
+        # Contract and pool records live in separate databases. Treat this as a
+        # retry-safe saga: a failed pool write fails the request, while the next
+        # identical request resumes from the canonical contract record.
+        pool_info = await create_pool_from_contract(write_result.contract)
+        logger.info(f"Ensured pool info exists for contract {id}: {pool_info.id}")
+
+        # Registration owns identity creation only. The legacy staking event
+        # projection is intentionally disabled; replaying it in a concurrent
+        # request path could apply a transfer before its marker is persisted.
+        pool_state = await create_pool_state_from_contract(write_result.contract)
+        logger.info(f"Ensured pool state identity exists for pool {pool_state.pool_id}")
 
         try:
-            pool_info = await create_pool_from_contract(contract)
-            if pool_info is not None:
-                logger.info(f"Created pool info for contract {id}: {pool_info.id}")
-
-                try:
-                    pool_state = await get_or_create_pool_state(pool_info.id)
-                    await update_pool_state(pool_state)
-                    logger.info(f"Updated pool state for pool {pool_info.id}")
-                except Exception as e:
-                    logger.error(f"Error updating pool state: {e}", exc_info=True)
-
-                try:
-                    await get_asset_price_not_cached(pool_info.stake_token.id)
-                    await get_asset_price_not_cached(pool_info.reward_token.id)
-                    logger.info(
-                        f"Fetched asset prices for tokens {pool_info.stake_token.id} and {pool_info.reward_token.id}"
-                    )
-                except Exception as e:
-                    logger.error(f"Error fetching asset prices: {e}", exc_info=True)
+            await get_asset_price_not_cached(pool_info.stake_token.id)
+            await get_asset_price_not_cached(pool_info.reward_token.id)
+            logger.info(f"Fetched asset prices for tokens {pool_info.stake_token.id} and {pool_info.reward_token.id}")
         except Exception as e:
-            logger.error(f"Error creating pool from contract {id}: {e}", exc_info=True)
+            logger.error(f"Error fetching asset prices: {e}", exc_info=True)
 
-        return contract
+        return write_result
     except Exception as e:
         logger.error(f"Fatal error creating contract {id}: {e}", exc_info=True)
         raise
@@ -324,9 +344,6 @@ async def _fetch_contract_view(contract_id: int, contract_type: str, version: st
 async def register_contract(contract: AddContract) -> ContractInfo:
     logger.info(f"Registering a new contract {contract}")
 
-    if get_contract(contract.id) is not None:
-        raise HTTPException(status_code=409, detail="Contract already exists")
-
     cache_metadata = {}
 
     if contract.type in ("farm", "distribution"):
@@ -350,18 +367,27 @@ async def register_contract(contract: AddContract) -> ContractInfo:
 
     metadata = {**contract.metadata, **cache_metadata} if contract.metadata is not None else cache_metadata
     logger.info(f"Registering a contract with metadata:\n{metadata}")
-    rich_contract = await create_contract(contract, metadata)
-
     try:
-        await notify_new_pool(
-            begin_block=rich_contract.metadata["begin_block"],
-            end_block=rich_contract.metadata["end_block"],
-            lock_length_blocks=rich_contract.metadata["lock_length_blocks"],
-            type=contract.type,
-            metadata=contract.metadata,
-        )
-    except Exception as e:
-        logger.error(f"Error notifying about new pool: {e}", exc_info=True)
+        registration = await create_contract(contract, metadata)
+    except (
+        ContractIdentityConflictError,
+        PoolIdentityConflictError,
+        PoolStateIdentityConflictError,
+    ) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    rich_contract = registration.contract
+
+    if registration.created:
+        try:
+            await notify_new_pool(
+                begin_block=rich_contract.metadata["begin_block"],
+                end_block=rich_contract.metadata["end_block"],
+                lock_length_blocks=rich_contract.metadata["lock_length_blocks"],
+                type=contract.type,
+                metadata=contract.metadata,
+            )
+        except Exception as e:
+            logger.error(f"Error notifying about new pool: {e}", exc_info=True)
 
     return rich_contract
 
@@ -574,20 +600,12 @@ setup_logging()
 
 
 def init_app():
-    """Initialize the application with migrations if needed"""
-    if settings.migrate:
-        logger.info("Running database migrations...")
-        try:
-            migrate_before_start()
-            logger.info("Database migrations completed successfully")
-        except Exception as e:
-            logger.error(f"Error during database migrations: {e}", exc_info=True)
-            raise
-
+    """Initialize database invariants and legacy contract metadata."""
     # These indexes enforce idempotent event and price projections.
     try:
         from flex import db as flex_db
 
+        ensure_contract_id_index()
         ensure_database_indexes(flex_db)
     except Exception as e:
         logger.error(f"Error during database index setup: {e}", exc_info=True)

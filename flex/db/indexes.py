@@ -13,17 +13,21 @@ _UNIQUE_ID_POLICIES = (
     ("assets", False),
     ("asset_prices", True),
     ("asset_transfer_intents", False),
+    ("farming_pools", False),
     ("pool_transactions", False),
     ("lp_transactions", False),
     ("lp_tokens", False),
+    ("staking_pools", False),
 )
 
 _HOT_INDEXES = (
     ("lp_states", "token_id", "token_id_unique"),
     ("lp_states", "address", "address_unique"),
-    ("pool_states", "pool_id", "pool_id_idx"),
-    ("user_states", "address", "address_idx"),
+    ("pool_states", "pool_id", "pool_id_unique"),
+    ("user_states", "address", "address_unique"),
 )
+
+_UNIQUE_HOT_COLLECTIONS = frozenset({"lp_states", "pool_states", "user_states"})
 
 
 def delete_unverified_legacy_lp_prices(database: CometaDatabase) -> int:
@@ -182,6 +186,22 @@ def ensure_airdrop_indexes(database: CometaDatabase) -> None:
     )
 
 
+def ensure_pool_identity_is_disjoint(database: CometaDatabase) -> None:
+    """Reject an application ID assigned to both staking and farming pools."""
+
+    farming_ids = database.farming_pools.mongodb_collection.distinct("id")
+    if not farming_ids:
+        return
+    conflict = database.staking_pools.mongodb_collection.find_one(
+        {"id": {"$in": farming_ids}},
+        projection={"_id": 0, "id": 1},
+    )
+    if conflict is not None:
+        raise RuntimeError(
+            f"pool ID {conflict['id']!r} exists in both staking_pools and farming_pools; reconcile it before startup"
+        )
+
+
 def ensure_sync_state_singleton(database: CometaDatabase) -> None:
     """Migrate one legacy random-ID cursor and reject competing checkpoints."""
 
@@ -210,6 +230,7 @@ def ensure_database_indexes(database: CometaDatabase) -> dict[str, int]:
     # row cannot displace a safe provider-backed observation with the same ID.
     delete_unverified_legacy_lp_prices(database)
     ensure_airdrop_indexes(database)
+    ensure_pool_identity_is_disjoint(database)
     removed_by_collection: dict[str, int] = {"airdrop_manifests": 0}
 
     for collection_name, can_deduplicate in _UNIQUE_ID_POLICIES:
@@ -230,7 +251,7 @@ def ensure_database_indexes(database: CometaDatabase) -> dict[str, int]:
 
     for manager_name, field_name, index_name in _HOT_INDEXES:
         manager = getattr(database, manager_name)
-        if manager_name == "lp_states":
+        if manager_name in _UNIQUE_HOT_COLLECTIONS:
             create_unique_field_index_fail_closed(
                 manager.mongodb_collection,
                 collection_name=manager_name,

@@ -735,7 +735,7 @@ def draw_id(lottery: NftLottery) -> int | None:
     while True:
         if not lottery.available_nfts:
             return None
-        # TODO: refactor to get balance once
+        # Re-check inventory because another draw may have consumed the NFT.
         res = random.choice(lottery.available_nfts)
         data = indexer_client.lookup_account_assets(address=cometa_public_key, asset_id=res)
         assets = data.get("assets", [])

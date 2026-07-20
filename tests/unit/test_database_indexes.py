@@ -9,6 +9,7 @@ from flex.db.indexes import (
     delete_unverified_legacy_lp_prices,
     ensure_airdrop_indexes,
     ensure_database_indexes,
+    ensure_pool_identity_is_disjoint,
     ensure_sync_state_singleton,
 )
 
@@ -23,6 +24,7 @@ def _database(**collections: Mock) -> SimpleNamespace:
         "assets",
         "asset_prices",
         "asset_transfer_intents",
+        "farming_pools",
         "pool_transactions",
         "lp_transactions",
         "lp_states",
@@ -30,9 +32,12 @@ def _database(**collections: Mock) -> SimpleNamespace:
         "user_states",
         "lp_tokens",
         "airdrop_rewards",
+        "staking_pools",
         "sync_states",
     )
-    return SimpleNamespace(**{name: _manager(collections.get(name, Mock())) for name in names})
+    database = SimpleNamespace(**{name: _manager(collections.get(name, Mock())) for name in names})
+    database.farming_pools.mongodb_collection.distinct.return_value = []
+    return database
 
 
 def test_deduplication_keeps_newest_record_before_creating_index() -> None:
@@ -100,9 +105,11 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
             "assets",
             "asset_prices",
             "asset_transfer_intents",
+            "farming_pools",
             "pool_transactions",
             "lp_transactions",
             "lp_tokens",
+            "staking_pools",
         )
     }
     for collection in unique_collections.values():
@@ -123,6 +130,8 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
     database.asset_prices.mongodb_collection.delete_many.return_value = SimpleNamespace(
         deleted_count=1,
     )
+    database.pool_states.mongodb_collection.aggregate.return_value = []
+    database.user_states.mongodb_collection.aggregate.return_value = []
 
     removed = ensure_database_indexes(database)
 
@@ -131,9 +140,11 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
         "assets": 0,
         "asset_prices": 0,
         "asset_transfer_intents": 0,
+        "farming_pools": 0,
         "pool_transactions": 0,
         "lp_transactions": 0,
         "lp_tokens": 0,
+        "staking_pools": 0,
     }
     for collection in unique_collections.values():
         collection.create_index.assert_called_once_with("id", unique=True, name="id_unique")
@@ -193,8 +204,16 @@ def test_database_indexes_cover_all_projection_ids_and_hot_queries() -> None:
         call("token_id", unique=True, name="token_id_unique"),
         call("address", unique=True, name="address_unique"),
     ]
-    database.pool_states.mongodb_collection.create_index.assert_called_once_with("pool_id", name="pool_id_idx")
-    database.user_states.mongodb_collection.create_index.assert_called_once_with("address", name="address_idx")
+    database.pool_states.mongodb_collection.create_index.assert_called_once_with(
+        "pool_id",
+        unique=True,
+        name="pool_id_unique",
+    )
+    database.user_states.mongodb_collection.create_index.assert_called_once_with(
+        "address",
+        unique=True,
+        name="address_unique",
+    )
     database.airdrop_rewards.mongodb_collection.create_index.assert_called_once_with(
         "operation_id",
         unique=True,
@@ -236,6 +255,15 @@ def test_standalone_airdrop_indexes_fail_closed_on_duplicate_operations() -> Non
     )
     rewards.create_index.assert_not_called()
     rewards.delete_many.assert_not_called()
+
+
+def test_pool_identity_cannot_span_staking_and_farming_collections() -> None:
+    database = _database()
+    database.farming_pools.mongodb_collection.distinct.return_value = [42]
+    database.staking_pools.mongodb_collection.find_one.return_value = {"id": 42}
+
+    with pytest.raises(RuntimeError, match="exists in both"):
+        ensure_pool_identity_is_disjoint(database)
 
 
 def test_legacy_lp_price_cleanup_reports_deleted_rows() -> None:

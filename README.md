@@ -33,7 +33,7 @@ staking programs, liquidity pools, and token markets. This service turns several
 eventually consistent data sources—Algorand nodes, the indexer, DEX APIs, and
 MongoDB—into stable, query-oriented API models for the product frontend.
 
-## Why this repository is interesting
+## Engineering guarantees
 
 | Engineering concern | Implementation |
 | --- | --- |
@@ -45,9 +45,8 @@ MongoDB—into stable, query-oriented API models for the product frontend.
 | **Versioned chain decoding** | Reach 0.1.11 state is decoded natively from Algorand with explicit per-version layouts, exact-width integers, and fail-closed schema validation. |
 | **Supply-chain hardening** | The digest-pinned Alpine image is multi-stage, non-root, and Python-only; CI smoke-tests it and rejects high/critical vulnerabilities or embedded secrets. |
 
-The codebase combines a production system's real constraints with incremental
-modernization: pure domain modules and strict typing sit beside legacy adapters,
-and the quality gate expands as those adapters gain isolated test seams.
+Pure domain modules own financial invariants, while application services and
+adapters isolate network, persistence, and provider behavior.
 
 ## Architecture
 
@@ -74,9 +73,6 @@ The decision and extension rules are documented in
 Financial write paths are documented separately in
 [`docs/architecture/outbound-asset-transfers.md`](docs/architecture/outbound-asset-transfers.md)
 and [`docs/architecture/lp-projection.md`](docs/architecture/lp-projection.md).
-The latest internal multi-agent engineering review, including resolved and
-intentionally open items, is in
-[`docs/audit/01-audit-architecture-financial-2026-07-19.md`](docs/audit/01-audit-architecture-financial-2026-07-19.md).
 
 ### Reliability boundaries
 
@@ -85,6 +81,7 @@ intentionally open items, is in
 | Provider quote → stored price | Positive, finite decimal values with source and observation timestamp |
 | Cached price → API response | Explicit freshness window; expired data is rejected instead of silently relabelled |
 | Chain event → LP read model | Full-block preflight, fee-aware uint64 ledger, CAS cursor, marker repair, and round fencing |
+| Contract registration → pool identity | Fail-closed unique IDs and a retry-safe cross-database saga; unsafe legacy staking replay is never run in the request path |
 | Raw LP account balance → price | Prohibited; economic reserves require a verified DEX-specific adapter |
 | Asset payout → Algorand | Validate genesis and fee ceiling; persist signed intent first; rebroadcast identical bytes; reconcile before completion |
 | Selected sync chain SDK → async request path | Bounded executor hand-off |
@@ -96,7 +93,7 @@ intentionally open items, is in
 
 ### Requirements
 
-- Python 3.12 and [Pipenv](https://pipenv.pypa.io/) for the production-equivalent environment
+- Python 3.12 and [Pipenv](https://github.com/pypa/pipenv) for the production-equivalent environment
 - Python 3.14 is also exercised by CI as a forward-compatibility gate
 - MongoDB
 - access to an Algorand node/indexer
@@ -114,17 +111,19 @@ make run-api
 ```
 
 `make run-api` is the safe API-only development loop. `make run` executes the
-production-equivalent entrypoint: critical indexes,
-optional migrations when `MIGRATE=true`, configured workers, and Uvicorn. For
-the full entrypoint, review every worker flag first. A development mnemonic is
-still required by legacy Python transaction adapters; use a generated, unfunded
-account only.
+production-equivalent entrypoint: critical indexes, configured workers, and
+Uvicorn. For the full entrypoint, review every worker flag first. A development
+mnemonic is still required by legacy Python transaction adapters; use a
+generated, unfunded account only.
 
 Verify the service:
 
 ```bash
 curl --fail http://127.0.0.1:8000/status
 # {"version":"2.1.0","algo_network":"mainnet"}
+
+# Verify Algod and Indexer connectivity without printing credentials.
+pipenv run python scripts/verify_algorand_credentials.py
 ```
 
 For a containerized environment:
@@ -134,9 +133,9 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
-This Compose stack starts persistent MongoDB and a full Algorand node. Inspect
-the network, volume paths, and validated `MONGODB_IMAGE`/`ALGOD_IMAGE` values
-before using it outside an isolated development host.
+This Compose stack starts persistent MongoDB and a full Algorand node from the
+digest-pinned defaults in `docker-compose.yml`. Inspect the network and volume
+paths before using it outside an isolated development host.
 
 ## Quality gate
 
@@ -148,18 +147,18 @@ This single command runs:
 
 - Ruff linting and formatting checks;
 - strict mypy checks on modern domain boundaries;
-- the complete Python test suite with branch coverage, including deterministic Reach
-  state-codec and security-boundary tests.
+- the hermetic Python suite with branch coverage, including deterministic Reach
+  state-codec and security-boundary tests. Real-MongoDB integration tests run
+  when `MONGODB_TEST_URI` is configured.
 
 CI repeats those checks on Python 3.12 and 3.14 for every pull request and every
 push to `main`, verifies the lockfile and Compose configuration, builds and
 smoke-tests the production image, scans it with Trivy, and exercises financial
 repository invariants against a digest-pinned MongoDB service. A pinned
-TruffleHog gate fetches and scans every published Git ref for verified or unresolved
-credentials and feeds the stable required `python` status. The focused
-coverage ratchet is currently 75%;
-it measures maintained domain and infrastructure modules rather than presenting
-a misleading whole-repository number.
+TruffleHog gate fetches and scans every published Git ref for verified or
+unresolved credentials and feeds the stable required `python` status. CI
+enforces at least 75% branch coverage across the critical domain and
+infrastructure modules listed in `Makefile`.
 
 Useful individual targets are `make lint`, `make format-check`,
 `make typecheck`, and `make test`.
@@ -176,14 +175,14 @@ Useful individual targets are `make lint`, `make format-check`,
 | `POST /lp/state/priced` | Read LP token prices; missing or stale batch entries are returned as `null` |
 | `GET /stats/tvl` | Protocol TVL snapshot |
 
-The production API intentionally disables interactive OpenAPI pages. Endpoint
-changes must remain compatible with the linked frontend; see
+Interactive OpenAPI pages are intentionally disabled in every environment.
+Endpoint changes must remain compatible with the linked frontend; see
 [`CONTRIBUTING.md`](CONTRIBUTING.md) for the cross-project checklist.
 
 ## Repository map
 
 ```text
-app.py                 FastAPI composition, routes, and lifespan
+app.py                 FastAPI composition, routes, and process startup
 api/                   Product-facing API and background orchestration
 blockchain/            Algorand node and indexer adapters
 core/                  Shared authentication, persistence, and resilience
@@ -195,7 +194,7 @@ flex/providers/        Market-data provider adapters
 flex/db/               MongoDB models, repositories, and indexes
 tests/unit/            Fast regression and boundary tests
 tests/integration/     Opt-in tests against disposable real services
-scripts/               Deployment and legacy operational utilities
+scripts/               Container entrypoint and connectivity utilities
 ```
 
 ## Configuration and security
@@ -204,6 +203,10 @@ Runtime configuration is defined in `env.py` and loaded from environment
 variables. `.env.example` contains names and safe placeholders only. Never commit
 wallet mnemonics, API tokens, `.env` files, database exports, unredacted logs, or
 recovery artifacts.
+
+Each `NEW_DB_NAME` must belong to exactly one Algorand network. Contract, pool,
+and state IDs are network-scoped and protected by unique MongoDB indexes; do not
+point mainnet and testnet processes at the same Flex database.
 
 Report vulnerabilities privately using the process in
 [`SECURITY.md`](SECURITY.md). For development conventions, regression-test

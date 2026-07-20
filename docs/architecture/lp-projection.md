@@ -13,7 +13,7 @@ Each scoped transfer has a fixed-width cursor:
 ```
 
 Events are sorted by that cursor. One `find_one_and_update` atomically applies
-the Decimal128 balance delta and advances `last_event_order`. The audit marker
+the Decimal128 balance delta and advances `last_event_order`. The event marker
 is inserted afterward. If the process dies in that gap, replay sees the cursor,
 repairs the missing marker, and does not apply the delta again.
 
@@ -58,7 +58,7 @@ same snapshot round require reconciliation. Snapshots update only integer ledger
 fields and cursors: they never calculate or publish a price.
 Duplicate holdings and out-of-range values are rejected at the Indexer adapter;
 issued supply is range-checked before subtraction. Refresh builds an immutable
-candidate state, and the repository repeats validation before issuing its
+proposed state, and the repository repeats validation before issuing its
 single-document CAS, so a failed snapshot cannot partially mutate in-memory or
 persisted balances.
 
@@ -68,8 +68,8 @@ can all be present. The ledger projector therefore has no price-publishing
 dependency. Public LP prices come from the separately validated `asset_prices`
 read model with source and freshness checks. The raw-balance publisher has been
 removed; startup deletes its identifiable legacy rows and read paths
-independently reject them. A future DEX adapter must derive economic reserves
-from verified protocol state before it can become a price source.
+independently reject them. Only DEX adapters that derive economic reserves from
+verified protocol state may publish an LP price.
 
 ## Worker ordering
 

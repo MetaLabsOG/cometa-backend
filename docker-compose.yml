@@ -29,7 +29,7 @@ services:
   mongodb:
     # Set MONGODB_IMAGE to the exact version already validated against the
     # existing data directory before changing it in production.
-    image: "${MONGODB_IMAGE:-mongo}"
+    image: "${MONGODB_IMAGE:-mongo:7.0.28@sha256:4510cf3d7050003e958745adb25d2deb3fb907430716162d9cc1a92eda2a6047}"
     restart: unless-stopped
     command: mongod --port ${MONGODB_PORT:-27017}
     volumes:
@@ -51,7 +51,7 @@ services:
       start_period: 20s
 
   algod:
-    image: "${ALGOD_IMAGE:-algorand/algod:latest}"
+    image: "${ALGOD_IMAGE:-algorand/algod@sha256:9c667451da575abcf325c631bd24f845f051122e689628eba1c83daa3ebd3cbc}"
     restart: unless-stopped
     environment:
       NETWORK: "${ALGO_NETWORK:-mainnet}"

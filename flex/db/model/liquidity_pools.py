@@ -94,7 +94,7 @@ class LpState(
             decoder=decode_bson_uint64,
         )
     )
-    # TODO: could not fit into MongoDB ??? (64 bits)
+    # Financial uint64 values use the model's BSON-safe codecs.
     asset1_reserve_micros: int = field(
         metadata=config(
             encoder=encode_bson_integer,

@@ -83,7 +83,5 @@ The exact draw is marked claimed with a conditional update only after
 confirmation. Multiple workers may race safely: they resolve to the same
 persisted transaction and cannot update another draw.
 
-Lottery inventory itself is still a separate authority boundary. A future
-re-enabled lottery must reserve each one-of-one NFT atomically before exposing
-the feature; the public lottery routes remain disabled until that control and
-product reconciliation are reviewed.
+Lottery inventory is a separate authority boundary. Public lottery routes are
+disabled because one-of-one NFT inventory is not yet reserved atomically.

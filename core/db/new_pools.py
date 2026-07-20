@@ -14,4 +14,4 @@ class NewPoolInfo:
     type: str
 
 
-new_pools = DbManager[NewPoolInfo](settings.db_name, 'new_pools', 'id', NewPoolInfo)
+new_pools = DbManager[NewPoolInfo](settings.db_name, "new_pools", "id", NewPoolInfo)

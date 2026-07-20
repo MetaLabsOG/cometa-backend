@@ -38,7 +38,8 @@ class UserPool:
     reward_usd: float
     lock_timestamp: int
     ended_duration: Optional[float]
-    staked_token_id: Optional[int] = None  # TODO: remove Optional when all UserPools are migrated
+    # Legacy UserPool documents may not contain this field.
+    staked_token_id: Optional[int] = None
     reward_token_id: Optional[int] = None
     staked_tokens: Optional[float] = None
     reward_tokens: Optional[float] = None
@@ -60,9 +61,9 @@ class CometaUser:
 
 
 class PoolType(str, Enum):
-    FARM = 'farm'
-    DISTRIBUTION = 'distribution'
-    STAKING = 'staking'
+    FARM = "farm"
+    DISTRIBUTION = "distribution"
+    STAKING = "staking"
 
     def __str__(self):
         return self.value
@@ -97,15 +98,15 @@ class PoolState:
 
 
 class PoolStatus(str, Enum):
-    LIVE = 'live'
-    ENDED = 'ended'
-    UPCOMING = 'upcoming'
+    LIVE = "live"
+    ENDED = "ended"
+    UPCOMING = "upcoming"
 
     def __str__(self):
         return self.value
 
     @classmethod
-    def from_current_block(cls, current_block: int, start_block: int, end_block: int) -> 'PoolStatus':
+    def from_current_block(cls, current_block: int, start_block: int, end_block: int) -> "PoolStatus":
         if current_block < start_block:
             return PoolStatus.UPCOMING
         if current_block > end_block:

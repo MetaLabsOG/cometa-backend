@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TypeVar, Generic, Any
+from typing import Any, Generic, TypeVar
 
 from core.db.mongodb import get_db_collection
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
-# TODO: migrate all Cometa DB collections to CollectionManager
+# Compatibility repository for legacy collections.
 @dataclass
 class DbManager(Generic[T]):
     db_name: str
@@ -39,7 +39,7 @@ class DbManager(Generic[T]):
 
     def update(self, item: T) -> T:
         item_dict = item.to_dict()
-        self.collection.update_one({self.primary_key: item_dict.get(self.primary_key)}, {'$set': item_dict})
+        self.collection.update_one({self.primary_key: item_dict.get(self.primary_key)}, {"$set": item_dict})
         return item
 
     def remove(self, item: T):

@@ -26,7 +26,6 @@ from flex.data.asset_prices import (
     update_asset_price,
 )
 from flex.data.lp_registry import get_lp_token_definitions
-from flex.migrations import migrate_background
 from flex.sync_pools import sync_pools_loop
 
 spawn = multiprocessing.get_context("spawn")
@@ -250,9 +249,6 @@ async def update_asset_prices_background():
 def run_background():
     async def tasks():
         task_list = []
-
-        if settings.migrate:
-            task_list.append(asyncio.create_task(safe_background_task(migrate_background(), "migrate_background")))
 
         if settings.update_contract_caches:
             task_list.append(asyncio.create_task(safe_background_task(update_contracts_worker(), "update_contracts")))

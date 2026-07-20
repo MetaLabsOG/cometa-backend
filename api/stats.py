@@ -3,12 +3,12 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-from cachetools import cached, TTLCache, FIFOCache
+from cachetools import FIFOCache, TTLCache, cached
 from dataclasses_json import dataclass_json
 
 from core.db.mongodb import get_db_collection
 from core.tinychart import get_asset_price
-from dexes.tinyman import init_tinyman_client, get_pool_info
+from dexes.tinyman import get_pool_info, init_tinyman_client
 from env import settings
 
 
@@ -21,8 +21,8 @@ class CometaSnapshot:
     distribution_tvl: float | None = None
 
 
-tiny_client = init_tinyman_client(settings.algod_address)
-snapshots = get_db_collection(settings.db_name, 'snapshot')
+tiny_client = init_tinyman_client()
+snapshots = get_db_collection(settings.db_name, "snapshot")
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +30,7 @@ logger = logging.getLogger(__name__)
 def save_snapshot(farm_tvl: float, distribution_tvl: float, staking_tvl: float) -> CometaSnapshot:
     cur_time = time.time()
     snapshot = CometaSnapshot(
-        farm_tvl=farm_tvl,
-        distribution_tvl=distribution_tvl,
-        timestamp=cur_time,
-        staking_tvl=staking_tvl
+        farm_tvl=farm_tvl, distribution_tvl=distribution_tvl, timestamp=cur_time, staking_tvl=staking_tvl
     )
     snapshots.insert_one(snapshot.to_dict())
     return snapshot
@@ -65,13 +62,8 @@ def get_asset_info(asset_id: int) -> dict:
 def get_tvl() -> dict:
     snapshot = get_last_snapshot()
     if snapshot is None:
-        return {'farm': 0, 'distribution': 0, 'staking': 0, 'total': 0}
+        return {"farm": 0, "distribution": 0, "staking": 0, "total": 0}
     farm = snapshot.farm_tvl or 0
     distribution = snapshot.distribution_tvl or 0
     staking = snapshot.staking_tvl or 0
-    return {
-        'farm': farm,
-        'distribution': distribution,
-        'staking': staking,
-        'total': farm + distribution + staking
-    }
+    return {"farm": farm, "distribution": distribution, "staking": staking, "total": farm + distribution + staking}

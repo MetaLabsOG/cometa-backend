@@ -2,31 +2,52 @@
 
 ## Project Structure & Module Organization
 
-`app.py` creates the FastAPI application and defines routes; `env.py` owns configuration. Keep database models and background jobs in `api/`, Algorand helpers in `blockchain/`, and shared logic in `core/`. DEX adapters belong in `dexes/`, while Flex-specific APIs, providers, migrations, and pricing data live under `flex/`. Telegram and Farcaster integrations are in `bot/` and `farcaster/`; Node.js interoperability is isolated in `js/`. Operational utilities belong in `scripts/`. The repository currently has no committed `tests/` suite.
-
-Before changing an API contract, inspect the frontend consumers in `~/dev/cometa/metafarm-frontend/src/providers/` and update the canonical contract in `~/dev/cometa/CLAUDE.md`.
+`app.py` assembles the FastAPI application and background workers; `env.py`
+defines environment-backed settings. Product routes and legacy models live in
+`api/`, Algorand clients in `blockchain/`, and shared persistence and resilience
+code in `core/`. New financial use cases are split across `flex/application/`,
+pure invariants in `flex/domain/`, and MongoDB adapters in `flex/db/`. Keep DEX
+integration details in `dexes/` or `flex/providers/`. Tests mirror these
+boundaries under `tests/unit/` and `tests/integration/`.
 
 ## Build, Test, and Development Commands
 
-- `pipenv install` installs Python 3.12 dependencies from `Pipfile`.
-- `pipenv run uvicorn app:app --reload --port 8000` starts the local API with reload.
-- `docker-compose up -d --build` rebuilds and starts the service stack.
-- `docker-compose logs -f app` follows application logs.
-- `pipenv run pytest tests/ -v` runs tests after the pytest infrastructure is installed.
-- `scripts/redeploy.sh` pulls, rebuilds, and restarts services on the VPS; do not use it as a local development command.
+- `make sync` installs the locked Python 3.12 development environment.
+- `make run-api` starts an API-only reload loop on port 8000.
+- `make run` starts the production-equivalent application entrypoint.
+- `make quality` runs lint, format, type, and test checks.
+- `docker compose up -d --build` starts the local application, MongoDB, and
+  Algorand services.
+
+Copy `.env.example` to `.env` before running the application. Use only generated,
+unfunded accounts for development.
 
 ## Coding Style & Naming Conventions
 
-Use four-space indentation and standard Python naming: `snake_case` for functions and modules, `PascalCase` for classes, and uppercase names for constants. Add type annotations to public functions and prefer explicit models over loosely shaped dictionaries. Use a module-level logger (`logger = logging.getLogger(__name__)`) instead of `print()`. Read secrets and environment-specific values through `env.py`; never hardcode them. Avoid blocking SDK or HTTP calls in async request paths.
+Use four spaces and Ruff formatting. Name functions and modules with
+`snake_case`, classes with `PascalCase`, and constants with `UPPER_SNAKE_CASE`.
+Type public interfaces. Keep financial amounts as integer base units or
+`Decimal`; never round-trip them through `float`. Domain modules must remain
+independent of network and database clients. Use module-level logging instead of
+`print()`, and move blocking SDK calls outside async request paths.
 
 ## Testing Guidelines
 
-New tests should use `pytest`, `pytest-asyncio`, and `httpx.AsyncClient`; use `mongomock` or a dedicated test database for MongoDB code. Name files `tests/test_<feature>.py` and test functions `test_<behavior>`. Prioritize atomic lottery claims, contract CRUD, price fetching, and failure paths. Every bug fix should include a regression test when practical.
+Use pytest and name tests `test_<behavior>`. Every bug fix requires a regression
+test. Prefer deterministic unit tests with injected clocks and mocked adapter
+boundaries. Use `MONGODB_TEST_URI` only for disposable real-MongoDB integration
+tests covering uniqueness, compare-and-set behavior, and crash recovery.
 
-## Commit & Pull Request Guidelines
+## Commits & Pull Requests
 
-Use concise, lowercase imperative subjects such as `fix null bytes in on-chain state keys`. Update `BOARD.md` before committing related work. Keep commits focused, then push unless explicitly told not to. Pull requests should explain the behavior change, link the task or issue, list verification commands, and call out API, configuration, database, or deployment effects. Include frontend updates when response shapes or endpoints change.
+Use focused, lowercase imperative subjects, for example
+`fix stale price fallback`. Pull requests must explain the failure mode and
+outcome, link a GitHub issue when available, list exact verification commands,
+and identify API, migration, configuration, rollout, or rollback effects.
 
 ## Security & Data Integrity
 
-Validate all external and on-chain input. Preserve Algorand amounts and identifiers without lossy numeric conversion. Do not log credentials, tokens, private keys, or full sensitive payloads.
+Validate every external and on-chain payload before persistence. Outbound asset
+operations must remain idempotent and reconcile on-chain before completion.
+Never commit or log mnemonics, private keys, tokens, database exports, recovery
+artifacts, or unredacted production payloads.

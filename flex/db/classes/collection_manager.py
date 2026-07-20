@@ -53,7 +53,17 @@ class CollectionManager(Generic[EntityT]):
 
     def get_or_create(self, item: EntityT) -> EntityT:
         """Use one upsert operation; concurrent uniqueness requires a primary-key index."""
-        query = self.elem_type.encode_query({self.primary_key_name: item.primary_key})
+        return self.get_or_create_by(
+            item,
+            **{self.primary_key_name: item.primary_key},
+        )
+
+    def get_or_create_by(self, item: EntityT, **identity: Any) -> EntityT:
+        """Atomically create an entity using a uniquely indexed business identity."""
+
+        if not identity:
+            raise ValueError("get_or_create_by requires at least one identity field")
+        query = self.elem_type.encode_query(identity)
         try:
             document = self.mongodb_collection.find_one_and_update(
                 query,
@@ -66,7 +76,7 @@ class CollectionManager(Generic[EntityT]):
             if document is None:
                 raise
         if document is None:
-            raise DbError(code=500, message=f"Failed to read {self.name} after upsert")
+            raise DbError(code=500, message=f"Failed to read {self.name} after business-key upsert")
         return self.item_from_dict(document)
 
     def get_or_create_with(self, **kwargs) -> EntityT:

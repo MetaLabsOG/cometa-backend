@@ -5,19 +5,22 @@ safety, and frontend compatibility—not only make the happy path pass.
 
 ## Development workflow
 
-Create a focused branch from `main`, copy `.env.example` to `.env`, and install
-the locked development environment:
+Create a focused branch from `main`, prepare local settings, and install the
+locked development environment:
 
 ```bash
+cp .env.example .env
 make sync
-make run
+make run-api
 ```
 
-`make run` uses the production-equivalent entrypoint. Use `make run-api` for
-API-only hot reload when migrations and background workers are intentionally
-out of scope.
+Before starting the API, follow the
+[`README` quick start](README.md#quick-start) to generate an unfunded
+development mnemonic and configure the MongoDB and Algorand endpoints.
+`make run-api` is the safe API-only development loop. `make run` uses the
+production-equivalent entrypoint and may start configured background workers.
 
-Before opening a pull request, run the same gate used by CI:
+Before opening a pull request, run the local Python quality gate:
 
 ```bash
 make quality
@@ -28,6 +31,10 @@ passes strict mypy, and must remain green under the Python 3.14 compatibility
 job. Keep I/O in adapters or application services; prefer pure functions and
 immutable value objects for pricing, transaction parsing, and other financial
 rules.
+
+CI additionally verifies the lockfile and Compose configuration, builds and
+scans the production image, scans reachable Git history for secrets, and runs
+financial integration tests against disposable MongoDB.
 
 ## Tests
 
@@ -56,18 +63,19 @@ MONGODB_TEST_URI=mongodb://127.0.0.1:27017 \
 
 ## API compatibility
 
-The frontend lives in `../metafarm-frontend` and calls this service through
-`src/providers/`. Before changing an endpoint, inspect its consumer. A response
-shape or field change must update backend tests, frontend types/providers, and
-the shared API contract in the parent Cometa documentation.
+The public
+[`metafarm-frontend`](https://github.com/MetaLabsOG/metafarm-frontend)
+repository consumes this service through `src/providers/`. Before changing an
+endpoint, inspect its consumer. A response shape or field change must update
+backend tests and the corresponding frontend types and provider calls.
 
 ## Commits and pull requests
 
 Use concise, imperative commit subjects beginning with a lowercase verb, for
 example `fix stale price fallback` or `add transaction replay test`.
 
-A pull request should explain the outcome and failure mode, link its issue or
-board item, list exact verification commands, and call out migrations,
+A pull request should explain the outcome and failure mode, link its issue when
+available, list exact verification commands, and call out migrations,
 configuration changes, rollout order, and rollback steps. Include screenshots
 only when the change affects user-visible frontend behavior.
 

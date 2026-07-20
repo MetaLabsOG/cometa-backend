@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 import requests
-from cachetools import cached, TTLCache
+from cachetools import TTLCache, cached
 from dataclasses_json import dataclass_json
 from tinyman.assets import Asset
 from tinyman.v2.client import TinymanV2MainnetClient, TinymanV2TestnetClient
@@ -41,7 +41,7 @@ class TinymanPoolInfo:
 
 
 def get_amount(micros: int, asset: Asset) -> float:
-    decimals = 10 ** asset.decimals
+    decimals = 10**asset.decimals
     return micros / decimals
 
 
@@ -51,6 +51,7 @@ async def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolIn
         asset1_id, asset2_id = asset2_id, asset1_id
 
     import asyncio
+
     loop = asyncio.get_running_loop()
 
     # Tinyman SDK methods do blocking HTTP — run in executor to avoid blocking the event loop
@@ -59,9 +60,9 @@ async def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolIn
 
     pool = await loop.run_in_executor(None, tinyman_client.fetch_pool, asset1, asset2)
 
-    logger.debug(f'Found pool for assets {asset1_id} and {asset2_id}: {pool}')
+    logger.debug(f"Found pool for assets {asset1_id} and {asset2_id}: {pool}")
     if pool.asset_1_reserves is None or pool.asset_2_reserves is None or pool.issued_pool_tokens is None:
-        raise ValueError(f'Tinyman pool for assets {asset1_id} and {asset2_id} is empty: {pool}')
+        raise ValueError(f"Tinyman pool for assets {asset1_id} and {asset2_id} is empty: {pool}")
 
     asset1_reserve = get_amount(pool.asset_1_reserves, pool.asset_1)
     asset2_reserve = get_amount(pool.asset_2_reserves, pool.asset_2)
@@ -78,7 +79,7 @@ async def get_tinyman_pool_info(asset1_id: int, asset2_id: int) -> TinymanPoolIn
         asset1_reserve_micros=pool.asset_1_reserves,
         asset2_reserve_micros=pool.asset_2_reserves,
         total_lp_tokens_micros=pool.issued_pool_tokens,
-        address=pool.address
+        address=pool.address,
     )
 
 
@@ -87,7 +88,7 @@ async def fetch_algo_tinyman_pool_by_asset_id(asset_id: int) -> TinymanPoolInfo 
         pool = await get_tinyman_pool_info(asset_id, 0)
         return pool
     except ValueError as e:
-        logger.error(f'Failed to get pool for asset {asset_id}: {e}')
+        logger.error(f"Failed to get pool for asset {asset_id}: {e}")
         return None
 
 
@@ -105,19 +106,19 @@ class TinymanAssetInfo:
 
 @cached(cache=TTLCache(maxsize=1, ttl=60 * 60 * 24))
 def get_tinyman_assets_details() -> dict[int, TinymanAssetInfo]:
-    url = 'https://asa-list.tinyman.org/assets.json'
+    url = "https://asa-list.tinyman.org/assets.json"
     response = requests.get(url, timeout=30)
     data = response.json()
     assets_info = []
     for asa_id, asa_data in data.items():
         asset_details = TinymanAssetInfo(
             id=int(asa_id),
-            name=asa_data['name'],
-            unit_name=asa_data['unit_name'],
-            decimals=asa_data['decimals'],
-            total_amount=asa_data['total_amount'],
-            logo_png_url=asa_data['logo']['png'],
-            logo_svg_url=asa_data['logo']['svg']
+            name=asa_data["name"],
+            unit_name=asa_data["unit_name"],
+            decimals=asa_data["decimals"],
+            total_amount=asa_data["total_amount"],
+            logo_png_url=asa_data["logo"]["png"],
+            logo_svg_url=asa_data["logo"]["svg"],
         )
         assets_info.append(asset_details)
     return {asset.id: asset for asset in assets_info}

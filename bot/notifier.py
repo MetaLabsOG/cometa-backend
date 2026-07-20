@@ -19,22 +19,21 @@ logger = logging.getLogger(__name__)
 async def notify_user(user: BotUser):
     pools = await get_address_pools(user.algo_address)
 
-    text = f'🤖 <i>{Phrases.greet()}️</i>\n'
+    text = f"🤖 <i>{Phrases.greet()}️</i>\n"
 
     compound_pools = filter_compoundable_pools(pools)
     if compound_pools:
-        text += '\n\n✅ <b>Need compounding:</b>\n\n'
-        text += '\n'.join([format_user_pool(pool) for pool in compound_pools])
+        text += "\n\n✅ <b>Need compounding:</b>\n\n"
+        text += "\n".join([format_user_pool(pool) for pool in compound_pools])
 
     ended_pools = filter_ended_pools(pools)
     if ended_pools:
-        text += '\n\n❌ <b>Need withdraw:</b>\n\n'
-        text += '\n'.join([format_user_pool(pool) for pool in ended_pools])
+        text += "\n\n❌ <b>Need withdraw:</b>\n\n"
+        text += "\n".join([format_user_pool(pool) for pool in ended_pools])
 
     if ended_pools or compound_pools:
-        text += '\n\n<i>It is the time.</i>\n\nhttps://app.cometa.farm/\n'
+        text += "\n\n<i>It is the time.</i>\n\nhttps://app.cometa.farm/\n"
 
-        # TODO: save all notifications to DB
         logger.debug(text)
 
         await app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
@@ -45,10 +44,10 @@ async def notify_user(user: BotUser):
 
 @safe_async_method
 async def notify_user_new_pool(user: BotUser, pool: NewPoolInfo):
-    text = f'🤖 <i>{Phrases.greet()}️</i>\n\n'
-    text += f'🎉 Good news! New {pool.type} pool has started on Cometa!\n\n'
-    text += f'<b>{pool.name}</b>\n\n'
-    text += f'<i>Be one of the first to grab juicy APR</i>😏\n\n'
-    text += 'https://app.cometa.farm/'
+    text = f"🤖 <i>{Phrases.greet()}️</i>\n\n"
+    text += f"🎉 Good news! New {pool.type} pool has started on Cometa!\n\n"
+    text += f"<b>{pool.name}</b>\n\n"
+    text += "<i>Be one of the first to grab juicy APR</i>😏\n\n"
+    text += "https://app.cometa.farm/"
 
     await app_context.bot.send_message(text=text, chat_id=user.telegram_id, parse_mode=ParseMode.HTML)
