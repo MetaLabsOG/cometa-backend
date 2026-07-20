@@ -17,8 +17,6 @@ from bot.log import LOG_DATE_FORMAT, LOG_FORMAT
 from bot.phrase_manager import Phrases
 from core.db.cometa_users import cometa_users, filter_compoundable_pools, filter_ended_pools, filter_no_action_pools
 
-# TODO: move commands to separate files
-
 
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_html(
@@ -222,7 +220,6 @@ async def show_help(update: Update, context: CallbackContext):
 
 
 def start_bot():
-    # TODO: implement Command class
     app_context.application.add_handler(CommandHandler("start", start))
     app_context.application.add_handler(CommandHandler("register", register))
     app_context.application.add_handler(CommandHandler("change_address", change_address))
@@ -245,7 +242,6 @@ def tear_down():
     logging.info("EXIT BOT\n\nBye!\n")
 
 
-# TODO: set up smarter
 def setup_logging():
     logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATE_FORMAT, level=bot_settings.logging_level)
 

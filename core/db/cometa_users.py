@@ -3,13 +3,13 @@ from typing import List
 
 from core.cometa import fetch_user_pools
 from core.db.db_manager import DbManager
-from core.db.model import UserPool, CometaUser
+from core.db.model import CometaUser, UserPool
 from core.decorators import safe_async_method
 from env import settings
 
 logger = logging.getLogger(__name__)
 
-cometa_users = DbManager[CometaUser](settings.db_name, 'cometa_users', 'address', CometaUser)
+cometa_users = DbManager[CometaUser](settings.db_name, "cometa_users", "address", CometaUser)
 
 
 @safe_async_method
@@ -21,7 +21,7 @@ async def update_user_pools(user: CometaUser, is_mainnet: bool = True) -> list[U
             cometa_users.update(user)
         return user_pools
     except Exception as e:
-        logger.error(f'Error updating user pools for {user.address}: {e}', exc_info=True)
+        logger.error(f"Error updating user pools for {user.address}: {e}", exc_info=True)
         return []
 
 

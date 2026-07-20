@@ -16,6 +16,19 @@ from flex.meta_error import MetaError
 logger = logging.getLogger(__name__)
 
 
+class PoolStateIdentityConflictError(ValueError):
+    """A pool state business key is bound to another immutable identity."""
+
+
+def _pool_state_identity(state: PoolState) -> tuple[object, ...]:
+    return (
+        state.pool_id,
+        state.type,
+        state.address,
+        state.stake_token.id,
+    )
+
+
 def get_pool_type_from_contract(contract: ContractInfo) -> PoolType:
     if contract.type == "distribution":
         return PoolType.STAKING
@@ -39,20 +52,23 @@ async def create_pool_state_from_contract(contract: ContractInfo) -> PoolState:
         stake_token=pool.stake_token,
     )
 
-    db.pool_states.create(pool_state)
-    logger.info(f"Created new pool state: address = {pool_state.address}")
-    return pool_state
+    stored = db.pool_states.get_or_create_by(pool_state, pool_id=pool_state.pool_id)
+    if _pool_state_identity(stored) != _pool_state_identity(pool_state):
+        raise PoolStateIdentityConflictError(
+            f"pool state {pool_state.pool_id} has incompatible persisted identity fields"
+        )
+    logger.info(f"Ensured pool state exists: address = {stored.address}")
+    return stored
 
 
 @cached(ttl=30)
 async def get_or_create_pool_state(pool_id: int) -> PoolState:
-    pool_state = db.pool_states.get_one(pool_id=pool_id)
-    if pool_state is None:
-        contract_info = get_contract(pool_id)
-        if contract_info is None:
-            raise MetaError(f"Pool {pool_id} contract not found")
-        pool_state = await create_pool_state_from_contract(contract_info)
-    return pool_state
+    contract_info = get_contract(pool_id)
+    if contract_info is None:
+        raise MetaError(f"Pool {pool_id} contract not found")
+    # Always rebuild the immutable candidate. The atomic upsert then validates
+    # an existing state instead of trusting a matching business key alone.
+    return await create_pool_state_from_contract(contract_info)
 
 
 def get_user_state_pool(user_state: UserState, pool_state: PoolState) -> UserPoolState:
@@ -97,7 +113,7 @@ async def update_pool_states_with_transactions(
     pool_state_by_id = {pool_state.pool_id: pool_state for pool_state in pool_states or []}
     user_state_by_address = {}
 
-    # TODO: remove after migration DIRTY HACKS
+    # Reset migrations may discover users before their first replayed event.
     if reset_pool_states:
         all_user_addresses = {user_state.address for user_state in db.user_states.get_all()}
         tx_addresses = {tx.user_address for tx in transactions}
@@ -227,8 +243,9 @@ async def update_pool_state_by_id(pool_id: int) -> PoolState:
 
 @cached(ttl=30)
 async def get_or_create_user_state(address: str) -> UserState:
-    user_state = db.user_states.get_one(address=address)
-    if user_state is None:
-        user_state = db.user_states.create(UserState(address=address))
-        logger.info(f"Created new user state: address = {user_state.address}")
+    user_state = db.user_states.get_or_create_by(
+        UserState(address=address),
+        address=address,
+    )
+    logger.debug(f"Ensured user state exists: address = {user_state.address}")
     return user_state

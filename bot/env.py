@@ -2,9 +2,9 @@ from datetime import timedelta
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-FEEDBACK_COMMAND = 'feedback'
-SUPPORT_COMMAND = 'support'
-MESSAGE_ALL_COMMAND = 'message_all'
+FEEDBACK_COMMAND = "feedback"
+SUPPORT_COMMAND = "support"
+MESSAGE_ALL_COMMAND = "message_all"
 
 
 class Settings(BaseSettings):
@@ -26,13 +26,13 @@ class Settings(BaseSettings):
     user_pools_cache_ttl_seconds: int = 300
 
     logs_dir: str
-    logging_level: str = 'INFO'
+    logging_level: str = "INFO"
 
     telegram_admin_ids: list[int]
 
-    db_name: str = 'COMETA_BOT'
+    db_name: str = "COMETA_BOT"
 
-    model_config = SettingsConfigDict(env_file='bot/.env', env_file_encoding='utf-8')
+    model_config = SettingsConfigDict(env_file="bot/.env", env_file_encoding="utf-8")
 
     @property
     def remind_again_delay(self):

@@ -37,7 +37,7 @@ async def create_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
 
 
 async def create_lp_state_by_lp_token(lp_token: LpToken) -> LpState:
-    # TODO: remove after test
+    # Canonical LP identity stores native ALGO as the second asset.
     if lp_token.asset1_id == 0:
         raise MetaError(f"ALGO LP token asset1 ID = 0, not id2: {lp_token}")
 
@@ -51,7 +51,7 @@ async def create_lp_state_by_lp_token(lp_token: LpToken) -> LpState:
     asset2_reserve_micros = balances[lp_token.asset2_id]
     lp_token_reserve_micros = balances[lp_token.id]
 
-    # TODO: add field total_supply_micros to LP token
+    # Supply is Indexer-provenanced and refreshed independently of pool metadata.
     lp_token_total_supply_micros = await get_asset_total_supply(lp_token.id)
     try:
         total_supply_micros = require_algorand_uint64(
@@ -308,9 +308,6 @@ async def get_lp_state_by_lp_token_id(lp_token_id: int) -> LpState:
     lp_state = db.lp_states.get_one(token_id=lp_token_id)
     if lp_state is None:
         lp_state = await create_lp_state_by_lp_token_id(lp_token_id)
-    # TODO: add setting: do update or not
-    # elif (await get_current_round()) - lp_state.last_updated_round > settings.lp_state_ttl_rounds:
-    #     lp_state = await update_lp_state(lp_state)
     return lp_state
 
 

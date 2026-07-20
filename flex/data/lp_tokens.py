@@ -52,7 +52,6 @@ async def lp_token_from_tinyman_pool(tinyman_pool: TinymanPoolInfo) -> LpToken:
 
 
 async def fetch_lp_token_strong(lp_token_id: int, asset1_id: int, asset2_id: int, dex_provider: str) -> LpToken:
-    # TODO: refactor
     if dex_provider == DexProvider.PACT:
         pact_pool = await get_pact_pool_info(asset1_id, asset2_id, lp_token_id)
         if pact_pool is not None:

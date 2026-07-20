@@ -1,6 +1,5 @@
 from env import settings
 
-
 MICROALGOS_IN_ALGO = 1000000
 
 MAINNET_USDC_ASA_ID = 31566704
@@ -15,4 +14,3 @@ META_DECIMALS = 6
 ALGO_ASA_ID = 0
 USDC_ASA_ID = MAINNET_USDC_ASA_ID if settings.is_mainnet() else TESTNET_USDC_ASA_ID
 META_ASA_ID = MAINNET_META_ASA_ID if settings.is_mainnet() else TESTNET_META_ASA_ID
-

@@ -4,7 +4,7 @@
 
 ## Why
 
-<!-- Link the issue/BOARD.md item and explain the failure mode or opportunity. -->
+<!-- Link the GitHub issue when available and explain the failure mode or opportunity. -->
 
 ## Risk checklist
 

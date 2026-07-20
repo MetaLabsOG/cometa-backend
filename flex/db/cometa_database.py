@@ -2,10 +2,10 @@ from pymongo.database import Database as MongoDatabase
 
 from flex.db.classes.database import EntitiesDatabase
 from flex.db.model.airdrop import AirdropManifest
-from flex.db.model.blockchain import LpToken, Asset, PoolTransaction, SyncState, SyncBlock
+from flex.db.model.blockchain import Asset, LpToken, PoolTransaction, SyncBlock, SyncState
 from flex.db.model.liquidity_pools import LpState, LpTransaction
-from flex.db.model.pool_states import UserState, PoolState
-from flex.db.model.pools import StakingPool, FarmingPool
+from flex.db.model.pool_states import PoolState, UserState
+from flex.db.model.pools import FarmingPool, StakingPool
 from flex.db.model.priced import AirdropReward, AssetPrice
 from flex.db.model.transfers import AssetTransferIntent
 

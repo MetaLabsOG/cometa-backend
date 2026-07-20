@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 
 from dataclasses_json import dataclass_json
 
-from flex.db.classes.base_entity import BaseEntity, EntityT
-from flex.db.model.blockchain import TxInfo, AssetInfo
+from flex.db.classes.base_entity import BaseEntity
+from flex.db.model.blockchain import AssetInfo, TxInfo
 from flex.db.model.pools import PoolType
 from flex.db.util import get_uuid
 from flex.util import format_timedelta
@@ -29,7 +29,7 @@ class PoolStateInfo:
 
 @dataclass_json
 @dataclass
-class PoolState(BaseEntity['PoolState']):
+class PoolState(BaseEntity["PoolState"]):
     pool_id: int
     type: PoolType
     stake_token: AssetInfo
@@ -61,7 +61,7 @@ class PoolState(BaseEntity['PoolState']):
     def total_staked(self) -> float:
         return self.stake_token.micros_to_amount(self.total_staked_micros)
 
-    def to_info(self, now: datetime| None = None) -> PoolStateInfo:
+    def to_info(self, now: datetime | None = None) -> PoolStateInfo:
         now = now or datetime.now()
         return PoolStateInfo(
             pool_id=self.pool_id,
@@ -73,8 +73,9 @@ class PoolState(BaseEntity['PoolState']):
             total_staked=self.total_staked,
             updated_round=self.last_tx_round,
             since_update=now - self.updated,
-            staked_micros_by_address=self.staked_micros_by_address
+            staked_micros_by_address=self.staked_micros_by_address,
         )
+
 
 @dataclass_json
 @dataclass
@@ -121,7 +122,7 @@ class UserStateInfo:
 
 @dataclass_json
 @dataclass
-class UserState(BaseEntity['UserState']):
+class UserState(BaseEntity["UserState"]):
     address: str
     pool_by_address: dict[str, UserPoolState] = field(default_factory=dict)
     last_tx: TxInfo | None = None
@@ -135,6 +136,5 @@ class UserState(BaseEntity['UserState']):
             address=self.address,
             pools={pool.pool_id: pool.to_info() for pool in self.pool_by_address.values()},
             updated_round=self.last_tx.confirmed_round if self.last_tx else None,
-            since_update=format_timedelta(now - self.updated)
+            since_update=format_timedelta(now - self.updated),
         )
-

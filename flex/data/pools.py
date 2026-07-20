@@ -9,8 +9,8 @@ from flex.util import build_key_str
 logger = logging.getLogger(__name__)
 
 
-# TODO: replace the two-collection lookup with a unified pool repository.
-@cached(namespace='pool_info_by_id', key_builder=build_key_str)  # pool info is almost never updated
+# Pool types remain in separate legacy collections.
+@cached(namespace="pool_info_by_id", key_builder=build_key_str)  # pool info is almost never updated
 async def get_pool_info_by_id(pool_id: int) -> PoolInfo:
     pool = db.staking_pools.get_by_primary_key(pool_id, throw_ex=False)
     if pool is not None:
@@ -20,7 +20,7 @@ async def get_pool_info_by_id(pool_id: int) -> PoolInfo:
     if pool is not None:
         return pool.to_info()
 
-    raise ValueError(f'Pool {pool_id} not found')
+    raise ValueError(f"Pool {pool_id} not found")
 
 
 async def get_pools_by_query(query_dict: dict, pool_type: PoolType = PoolType.ANY) -> list[PoolInfo]:
@@ -29,7 +29,9 @@ async def get_pools_by_query(query_dict: dict, pool_type: PoolType = PoolType.AN
     elif pool_type == PoolType.STAKING:
         return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)]
     else:
-        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)] + [pool.to_info() for pool in db.farming_pools.get_many(**query_dict)]
+        return [pool.to_info() for pool in db.staking_pools.get_many(**query_dict)] + [
+            pool.to_info() for pool in db.farming_pools.get_many(**query_dict)
+        ]
 
 
 async def get_all_pools() -> list[PoolInfo]:

@@ -59,6 +59,34 @@ def test_get_or_create_returns_existing_document_without_overwriting_it() -> Non
     assert result == existing
 
 
+def test_get_or_create_by_uses_business_identity() -> None:
+    collection = Mock()
+    item = _entity()
+    collection.find_one_and_update.return_value = item.to_dict()
+    manager = CollectionManager("examples", ExampleEntity, collection)
+
+    result = manager.get_or_create_by(item, value="new")
+
+    assert result == item
+    collection.find_one_and_update.assert_called_once_with(
+        {"value": "new"},
+        {"$setOnInsert": item.to_dict()},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+
+
+def test_get_or_create_by_requires_business_identity() -> None:
+    manager = CollectionManager("examples", ExampleEntity, Mock())
+
+    try:
+        manager.get_or_create_by(_entity())
+    except ValueError as exc:
+        assert str(exc) == "get_or_create_by requires at least one identity field"
+    else:
+        raise AssertionError("Expected ValueError for an empty business identity")
+
+
 def test_get_or_create_with_delegates_to_upsert_path() -> None:
     collection = Mock()
     item = _entity()

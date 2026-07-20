@@ -1,270 +1,79 @@
-# Byte-compiled / optimized / DLL files
+# Python bytecode and build output
 __pycache__/
 *.py[cod]
-*$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
+*.egg-info/
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
 sdist/
-var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.ruff_cache/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+# Virtual environments and package tools
+.venv/
+venv/
+env/
+ENV/
 __pypackages__/
 
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
+# Tests, coverage, and static analysis
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.hypothesis/
+.mypy_cache/
+.nox/
+.pytest_cache/
+.pyre/
+.ruff_cache/
+.tox/
+test-results/
 
-# SageMath parsed files
-*.sage.py
-
-# Environments
+# Local configuration and credentials
 .env
 .env.*
 !.env.example
-.env.main
-*.mnemonic
-*.seed
-*.pem
-*.key
-*.p12
-*.pfx
+.mcp.json
 *.jks
+*.key
 *.keystore
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+*.mnemonic
+*.p12
+*.pem
+*.pfx
+*.seed
 
-# Database exports and operator backups
-dump/
-backups/
-*.bson
-*.dump
-*.sql.gz
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-.idea
+# Editors and operating systems
 .DS_Store
 **/.DS_Store
-/tmp/
-/scripts/missing_contracts.json
-/scripts/recovery_results.json
-/scripts/restore_checkpoint.json
-/scripts/restore_results.json
-metapunks/arweave_key.json
-metapunks/copy_chosen_nfts.sh
-metapunks/filter_nft_files.sh
-metapunks/image_urls.txt
-metapunks/model_urls.txt
-metapunks/remove_used.sh
-metapunks/ybg_2_id_mapping.json
-metapunks/ybg_first_50_ids.json
-metapunks/ybg_info.json
-metapunks/ybg_metapunks_numbers.json
-sample_jsons/algo_brdini_farm.json
-sample_jsons/arm_algo_pact_create_info.json
-sample_jsons/bloom_ipt_farm_create.json
-sample_jsons/bndri_algo_farm.json
-sample_jsons/cjesus_cat_staking.json
-sample_jsons/lp_tx.json
-sample_jsons/meta_ballsack_deploy.json
-sample_jsons/meta_niko_farm_info.json
-sample_jsons/meta_pact_nft_lottery.json
-sample_jsons/meta_pool_info.json
-sample_jsons/meta_pool_txns.json
-.archive/cometa_2746104200.json
-.archive/cosmic_snapshot_2.json
-.archive/cosmic_snapshot_3.json
-.archive/cosmic_snapshot.json
-.archive/cosmic_stakes_26672956.json
-.archive/cosmic_stakes_27330358.json
-.archive/cosmic_stakes_27461042.json
-.archive/cosmic_stakes_27494994.json
-.archive/cosmic_stakes_old_27330238.json
-.archive/cosmic_stakes_prev_27461042.json
-.archive/free_punks.txt
-.archive/latest_cosg_pool_28810058.json
-.archive/lol.json
-.archive/meta_lotteries.json
-.archive/nft_list_1.txt
-.archive/opyx_pool_28858365.json
-.archive/opyx_pool_29858365.json
-bot/.DS_Store
-bot/.env
-bot_log/bot.log.2022-09-15
-bot_log/bot.log.2022-09-17
-bot_log/bot.log.2022-09-26
-core/.DS_Store
-temp_data/airdrop_amounts_algo 200_37601573.json
-temp_data/airdrop_amounts_algo 200_37603224.json
-temp_data/airdrop_amounts_algo 200_37603344.json
-temp_data/airdrop_amounts_algo 200_37603373.json
-temp_data/airdrop_amounts_algo 200_37603507.json
-temp_data/airdrop_amounts_algo 200_37604069.json
-temp_data/airdrop_amounts_token for testing_39225461.json
-temp_data/airdrop_amounts_token for testing_39226450.json
-temp_data/airdrop_amounts_token for testing_39226505.json
-temp_data/airdrop_amounts_token for testing_39226635.json
-temp_data/airdrop_amounts_token for testing_39226652.json
-temp_data/airdrop_amounts_token for testing_39226671.json
-temp_data/airdrop_amounts_token for testing_39226683.json
-temp_data/airdrop_txns_algo 200_37603373.json
-temp_data/airdrop_txns_algo 200_37603507.json
-temp_data/airdrop_txns_algo 200_37604069.json
-temp_data/airdrop_txns_token for testing_39226505.json
-temp_data/airdrop_txns_token for testing_39226683.json
-temp_data/algofi_airdrop.txt
-temp_data/cometa_info.html
-temp_data/coop_meta_farm.json
-temp_data/deploy_requests.json
-temp_data/kek.json
-temp_data/meta_coop_nft_lottery.json
-temp_data/meta_staked_airdrop.py
-temp_data/metapunk_holders.txt
-temp_data/outage_opted_in.json
-temp_data/pool_costs_37598572.json
-temp_data/pool_fees_35720000_37530000.json
-temp_data/response_1712150137492.json
-temp_data/response_1712151196711.json
-temp_data/response_1712153435846.json
-temp_data/response_1712153944657.json
-temp_data/test_optins_balances_count.json
-temp_data/test_optins_balances.json
-temp_data/test_optins.json
-temp_data/user_pools_snapshot.json
-temp_data/user_pools.json
-temp_data/user_txns_35720000_37530000.json
+.idea/
+.vscode/
+*.swp
 
-# Analysis artifacts
+# Runtime and operator output
+*.log
+backups/
+bot_log/
+dump/
+downloaded_logs/
+sample_jsons/
+temp_data/
+tmp/
+.archive/
+*.bson
+*.dump
 *.json.bak
+*.sql.gz
 all_log_entries_*.json
 analysis_report_*.txt
 api_calls_*.json
 api_endpoints_*/
 contract_operations_*.json
-downloaded_logs/
-sample_jsons/
-test-results/
 
-# Local agent/tool configuration
-.mcp.json
-
-# Sensitive scripts with hardcoded keys
-test_refund.py
-check_vestige_hack.py
-sample.py
-# Retired credential-bearing operator helper; history is scrubbed separately.
-/verify_pool.sh
-
-# Local operator scratch files; never publish from this checkout.
-/analyze_logs.sh
-/download_and_analyze_logs.sh
-/log_analyzer.py
-/docs/impeccable-analysis.md
-/docs/pagination-plan.md
-/scripts/recover_contracts.py
-/scripts/restore_missing.py
+# Known operator credential and recovery paths
+/metapunks/arweave_key.json
+/scripts/missing_contracts.json
+/scripts/recovery_results.json
+/scripts/restore_checkpoint.json
+/scripts/restore_results.json

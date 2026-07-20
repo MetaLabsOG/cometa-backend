@@ -15,6 +15,4 @@ class NftInfo:
 
 def get_nft_info(asa_id: int) -> NftInfo:
     asset = get_asset(asa_id)
-    return NftInfo(asa_id=asa_id,
-                   name=asset['params']['name'],
-                   image_url=asset['params']['url'])
+    return NftInfo(asa_id=asa_id, name=asset["params"]["name"], image_url=asset["params"]["url"])

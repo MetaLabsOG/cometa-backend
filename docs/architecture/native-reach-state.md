@@ -39,6 +39,7 @@ the API and frontend contract remain unchanged.
 
 Add a layout only after recording the canonical program digest, schema, page
 count, state size, and offsets. Cover global and local decoding, identity
-rejection, malformed payloads, failure isolation, and concurrency bounds. Run
-`make quality`, then compare at least one mainnet application with the previous
-decoder before enabling the version.
+rejection, malformed payloads, failure isolation, and concurrency bounds with
+committed deterministic fixtures. Run `make quality`, then verify at least one
+mainnet application against its authoritative Algorand state before enabling
+the version.

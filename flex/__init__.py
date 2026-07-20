@@ -6,7 +6,7 @@ from typing import Any
 
 # Load the namespace package once so later ``flex.db.*`` imports do not replace
 # the public ``db`` dependency below on the parent package.
-import_module(f'{__name__}.db')
+import_module(f"{__name__}.db")
 
 
 class _LazyCometaDatabase:

@@ -18,12 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 async def notify_telegram_chat(chat_id: int, text: str):
-    return await bot.send_message(
-        chat_id=chat_id,
-        text=text,
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True
-    )
+    return await bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 
 async def notify_cometa_telegram_channel(text: str):
@@ -37,26 +32,22 @@ def notify_discord_webhook(text: str):
     _ = webhook.execute()
 
 
-async def announce_stake(
-        duration: timedelta,
-        lock_duration: timedelta,
-        metadata: dict
-) -> None:
-    stake_token_id = int(metadata['stake_token_id'])
-    reward_token_id = int(metadata['reward_token_id'])
+async def announce_stake(duration: timedelta, lock_duration: timedelta, metadata: dict) -> None:
+    stake_token_id = int(metadata["stake_token_id"])
+    reward_token_id = int(metadata["reward_token_id"])
 
     stake_token = get_asset(stake_token_id)
     reward_token = get_asset(reward_token_id)
 
-    stake_token_link = f'https://vestige.fi/asset/{stake_token_id}'
-    reward_token_link = f'https://vestige.fi/asset/{reward_token_id}'
+    stake_token_link = f"https://vestige.fi/asset/{stake_token_id}"
+    reward_token_link = f"https://vestige.fi/asset/{reward_token_id}"
 
-    stake_token_name = stake_token['params']['unit-name']
-    reward_token_name = reward_token['params']['unit-name']
-    token_buy_link = 'https://app.cometa.farm/swap'
+    stake_token_name = stake_token["params"]["unit-name"]
+    reward_token_name = reward_token["params"]["unit-name"]
+    token_buy_link = "https://app.cometa.farm/swap"
 
     try:
-        lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
+        lock_str = "" if lock_duration.days == 0 else f"🔒 <b>{lock_duration.days} days</b>\n"
         telegram_text = f'''
 💸 New pool <a href="{stake_token_link}">{stake_token_name}</a> → <a href="{reward_token_link}">{reward_token_name}</a>
 
@@ -73,8 +64,8 @@ https://app.cometa.farm/
         logger.exception(e)
 
     try:
-        lock_str = '' if lock_duration.days == 0 else f'🔒 **{lock_duration.days} days**\n'
-        discord_text = f'''
+        lock_str = "" if lock_duration.days == 0 else f"🔒 **{lock_duration.days} days**\n"
+        discord_text = f"""
 💸 New pool **{stake_token_name} → {reward_token_name}**
 
 ⏳ **{duration.days} days**
@@ -87,44 +78,40 @@ https://app.cometa.farm/
 Enjoy staking ❤️ 
 
 https://app.cometa.farm/
-        '''
+        """
         notify_discord_webhook(discord_text)
     except Exception as e:
         logger.exception(e)
 
 
-async def announce_farm(
-        duration: timedelta,
-        lock_duration: timedelta,
-        metadata: dict
-) -> None:
-    if metadata.get('asset1_id') is None:
+async def announce_farm(duration: timedelta, lock_duration: timedelta, metadata: dict) -> None:
+    if metadata.get("asset1_id") is None:
         return await announce_stake(duration, lock_duration, metadata)
 
-    lp_token_id = int(metadata['stake_token_id'])
-    asset1_id = int(metadata['asset1_id'])
-    asset2_id = int(metadata['asset2_id'])
-    reward_token_id = int(metadata['reward_token_id'])
+    lp_token_id = int(metadata["stake_token_id"])
+    asset1_id = int(metadata["asset1_id"])
+    asset2_id = int(metadata["asset2_id"])
+    reward_token_id = int(metadata["reward_token_id"])
 
     lp_token = get_asset(lp_token_id)
     asset1 = get_asset(asset1_id)
     asset2 = get_asset(asset2_id)
     reward_token = get_asset(reward_token_id)
 
-    asset1_link = f'https://vestige.fi/asset/{asset1_id}'
-    asset2_link = f'https://vestige.fi/asset/{asset2_id}'
-    reward_link = f'https://vestige.fi/asset/{reward_token_id}'
-    lp_pool_address = lp_token['params']['reserve']
-    get_lp_link = f'https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity'
+    asset1_link = f"https://vestige.fi/asset/{asset1_id}"
+    asset2_link = f"https://vestige.fi/asset/{asset2_id}"
+    reward_link = f"https://vestige.fi/asset/{reward_token_id}"
+    lp_pool_address = lp_token["params"]["reserve"]
+    get_lp_link = f"https://app.tinyman.org/#/pool/{lp_pool_address}/add-liquidity"
 
-    asset1_name = asset1['params']['unit-name']
-    asset2_name = asset2['params']['unit-name']
-    reward_token_name = reward_token['params']['unit-name']
+    asset1_name = asset1["params"]["unit-name"]
+    asset2_name = asset2["params"]["unit-name"]
+    reward_token_name = reward_token["params"]["unit-name"]
 
     try:
-        lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
-        asset1_str = f'<a href="{asset1_link}">{asset1_name}</a>' if asset1_id != 0 else 'ALGO'
-        asset2_str = f'<a href="{asset2_link}">{asset2_name}</a>' if asset2_id != 0 else 'ALGO'
+        lock_str = "" if lock_duration.days == 0 else f"🔒 <b>{lock_duration.days} days</b>\n"
+        asset1_str = f'<a href="{asset1_link}">{asset1_name}</a>' if asset1_id != 0 else "ALGO"
+        asset2_str = f'<a href="{asset2_link}">{asset2_name}</a>' if asset2_id != 0 else "ALGO"
         telegram_text = f'''
 💸 New pool {asset1_str}/{asset2_str} → <a href="{reward_link}">{reward_token_name}</a>
 
@@ -139,15 +126,15 @@ Enjoy farming ❤️ https://app.cometa.farm/
         logger.exception(e)
 
     try:
-        lock_str = '' if lock_duration.days == 0 else f'🔒 **{lock_duration.days} days**\n'
-        assets_info_str = ''
+        lock_str = "" if lock_duration.days == 0 else f"🔒 **{lock_duration.days} days**\n"
+        assets_info_str = ""
         if asset1_id != 0:
-            assets_info_str += f'ℹ️ **${asset1_name}** *{asset1_link}*\n'
+            assets_info_str += f"ℹ️ **${asset1_name}** *{asset1_link}*\n"
         if asset2_id != 0:
-            assets_info_str += f'ℹ️ **${asset2_name}** *{asset2_link}*\n'
+            assets_info_str += f"ℹ️ **${asset2_name}** *{asset2_link}*\n"
         if reward_token_id != asset1_id and reward_token_id != asset2_id:
-            assets_info_str += f'ℹ️ **${reward_token_name}** *{reward_link}*\n'
-        discord_text = f'''
+            assets_info_str += f"ℹ️ **${reward_token_name}** *{reward_link}*\n"
+        discord_text = f"""
 💸 New pool **{asset1_name}/{asset2_name} → {reward_token_name}**
 
 ⏳ **{duration.days} days**
@@ -156,26 +143,22 @@ Enjoy farming ❤️ https://app.cometa.farm/
 ✅ Get LP tokens: *{get_lp_link}*
 
 Enjoy farming ❤️ https://app.cometa.farm/
-        '''
+        """
         notify_discord_webhook(discord_text)
     except Exception as e:
         logger.exception(e)
 
 
-async def announce_distribution(
-        duration: timedelta,
-        lock_duration: timedelta,
-        metadata: dict
-) -> None:
-    stake_token_id = metadata['stake_token_id']
+async def announce_distribution(duration: timedelta, lock_duration: timedelta, metadata: dict) -> None:
+    stake_token_id = metadata["stake_token_id"]
     stake_token = get_asset(int(stake_token_id))
-    stake_token_name = stake_token['params']['unit-name']
+    stake_token_name = stake_token["params"]["unit-name"]
 
-    token_link = f'https://vestige.fi/asset/{stake_token_id}'
-    token_buy_link = 'https://app.cometa.farm/swap'
+    token_link = f"https://vestige.fi/asset/{stake_token_id}"
+    token_buy_link = "https://app.cometa.farm/swap"
 
     try:
-        lock_str = '' if lock_duration.days == 0 else f'🔒 <b>{lock_duration.days} days</b>\n'
+        lock_str = "" if lock_duration.days == 0 else f"🔒 <b>{lock_duration.days} days</b>\n"
         token_str = f'<a href="{token_link}">{stake_token_name}</a>'
         telegram_text = f'''
 💸 New pool {token_str} → {token_str}
@@ -191,8 +174,8 @@ Enjoy staking ❤️ https://app.cometa.farm/
         logger.exception(e)
 
     try:
-        lock_str = '' if lock_duration.days == 0 else f'🔒 **{lock_duration.days} days**\n'
-        discord_text = f'''
+        lock_str = "" if lock_duration.days == 0 else f"🔒 **{lock_duration.days} days**\n"
+        discord_text = f"""
 💸 New pool **{stake_token_name} → {stake_token_name}**
 
 ⏳ **{duration.days} days**
@@ -204,20 +187,14 @@ Enjoy staking ❤️ https://app.cometa.farm/
 Enjoy staking ❤️ 
 
 https://app.cometa.farm/
-    '''
+    """
         notify_discord_webhook(discord_text)
     except Exception as e:
         logger.exception(e)
 
 
-# TODO: show additional algo rewards
-# TODO: show projected APY
 async def notify_new_pool(
-        begin_block: int,
-        end_block: int,
-        lock_length_blocks: int,
-        type: str,
-        metadata: Optional[dict] = None
+    begin_block: int, end_block: int, lock_length_blocks: int, type: str, metadata: Optional[dict] = None
 ):
     try:
         duration = duration_from_block_count(end_block - begin_block + 1)
@@ -230,6 +207,6 @@ async def notify_new_pool(
         elif type == ContractType.DISTRIBUTION:
             return await announce_distribution(duration, lock_duration, metadata)
         else:
-            raise Exception(f'Unknown contract type: {type}')
+            raise Exception(f"Unknown contract type: {type}")
     except Exception as e:
         logger.exception(e)

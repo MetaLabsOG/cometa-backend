@@ -237,7 +237,7 @@ async def process_pool_transactions(txns: list[dict]) -> list[PoolTransaction]:
     return pool_transactions
 
 
-async def update_pools(txns: list[dict]) -> [PoolState]:
+async def update_pools(txns: list[dict]) -> list[PoolState]:
     pool_transactions = await process_pool_transactions(txns)
     return await update_pool_states_with_transactions(pool_transactions)
 
@@ -276,8 +276,8 @@ def _snapshot_checkpoint_round(
     return checkpoint
 
 
-async def catch_up_the_sync_manually(sync_state: SyncState, current_round: int) -> SyncState:
-    logger.info("\n\nMANUAL roll rock and roll BABE.\n")
+async def reconcile_sync_checkpoint(sync_state: SyncState, current_round: int) -> SyncState:
+    logger.info("Reconciling LP snapshots before event sync")
     logger.info(
         f"Last sync round = {sync_state.last_round}, sync lag = {sync_state.rounds_since_updated(current_round)} rounds.\n"
     )
@@ -289,7 +289,7 @@ async def catch_up_the_sync_manually(sync_state: SyncState, current_round: int) 
         )
 
     current_round = await get_current_round()
-    logger.info(f"\n\nAnother, shorter loop, starting from round {current_round}\n")
+    logger.info("Starting event sync from reconciled round %s", current_round)
     if settings.sync_liquidity_pools:
         logger.info("\n\nSyncing LP states from authoritative account snapshots.\n")
         _ = await create_lp_states_from_all_pools()
@@ -311,7 +311,7 @@ async def catch_up_the_sync_manually(sync_state: SyncState, current_round: int) 
         expected_last_round=sync_state.last_round,
         round_number=checkpoint_round,
     )
-    logger.info(f"\n\nALL synced up to round {checkpoint_round}.\n")
+    logger.info("Snapshot reconciliation complete through round %s", checkpoint_round)
 
     return sync_state
 
@@ -333,7 +333,7 @@ async def sync_pools_loop():
 
     previous_round = sync_state.last_round
     try:
-        sync_state = await catch_up_the_sync_manually(sync_state, current_round)
+        sync_state = await reconcile_sync_checkpoint(sync_state, current_round)
     except SyncCoordinatorError:
         # A competing worker may have completed the same authoritative cutover.
         refreshed = await get_sync_state()
@@ -440,8 +440,4 @@ async def get_sync_pool_state_by_id(pool_id: int) -> PoolState:
 
 
 async def get_sync_user_state_by_address(user_address: str) -> UserState:
-    user_state = db.user_states.get_one(address=user_address)
-    # TODO: uncomment
-    # if is_sync_delayed():
-    #     user_state = await update_user_state(user_state)
-    return user_state
+    return db.user_states.get_one(address=user_address)

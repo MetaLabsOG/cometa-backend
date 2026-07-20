@@ -12,8 +12,8 @@ from core.tinychart import get_algo_price, get_asset_price
 from core.util import BLOCKS_IN_A_YEAR, blocks_to_seconds, parse_bignum
 from flex.blockchain.contract_state import fetch_contract_local_views
 
-# ffs
-BIG_NUM = 1000000000000000000
+# Reach reward-per-token values use an 18-decimal fixed-point scale.
+REWARD_PER_TOKEN_SCALE = 10**18
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,8 @@ def get_pool_state(contract: ContractInfo, is_mainnet: bool = True) -> PoolState
         additional["asset1_id"] = asset1_id
         additional["asset2_id"] = asset2_id
 
-        total_tokens = total_microtokens / (10**6)  # TODO: fix not all lp tokens have 6 decimals
+        # Deployed legacy Reach LP contracts use six-decimal pool tokens.
+        total_tokens = total_microtokens / (10**6)
         lp_price = get_lp_price(asset1_id, asset2_id) if is_mainnet else 0
         total_cost = total_tokens * lp_price if is_mainnet else 1
     else:
@@ -130,9 +131,10 @@ def recalculate_reward(
     last_block_with_rewards = min(current_block, pool.end_block)
     reward_blocks_passed = last_block_with_rewards - pool.last_update_block
     reward_per_token_stored_new = (
-        pool.reward_per_token_stored + reward_blocks_passed * pool.reward_per_block * BIG_NUM // pool.total_staked
+        pool.reward_per_token_stored
+        + reward_blocks_passed * pool.reward_per_block * REWARD_PER_TOKEN_SCALE // pool.total_staked
     )
-    reward_to_pay_now = staked * (reward_per_token_stored_new - reward_per_token_paid) // BIG_NUM
+    reward_to_pay_now = staked * (reward_per_token_stored_new - reward_per_token_paid) // REWARD_PER_TOKEN_SCALE
     return reward + reward_to_pay_now
 
 

@@ -29,14 +29,11 @@ quote-style = "double"
 [tool.mypy]
 files = [
     "core/circuit_breaker.py",
+    "flex/domain",
     "flex/blockchain/contract_state.py",
     "flex/application/asset_transfers.py",
     "flex/db/lp_projection.py",
     "flex/db/sync_coordinator.py",
-    "flex/domain/allocation.py",
-    "flex/domain/lp_projection.py",
-    "flex/domain/pricing.py",
-    "flex/domain/transactions.py",
     "flex/providers/pact.py",
 ]
 follow_imports = "skip"

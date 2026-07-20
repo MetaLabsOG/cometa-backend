@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     server_port: int
     workers_num: int
     api_password: str
-    migrate: bool = False
 
     mongodb_host: str
     mongodb_port: int
@@ -103,9 +102,8 @@ class Settings(BaseSettings):
     farm_creation_fee: int
     farm_flat_algo_creation_fee: int
 
-    # Accepted temporarily so existing deployments can roll forward before
-    # removing obsolete integration keys from their .env files. These values
-    # are intentionally unused.
+    # Accepted as no-op compatibility keys for existing deployment env files.
+    migrate: bool = False
     enable_js: bool = False
     reach_no_warn: bool = False
     reach_connector_mode: str = "ALGO"
