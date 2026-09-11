@@ -5,28 +5,28 @@ name = "pypi"
 
 [packages]
 aiocache = "==0.12.3"
-cachetools = "==7.1.4"
+cachetools = "==7.1.8"
 dataclasses-json = "==0.6.7"
 discord-webhook = "==1.4.1"
-fastapi = "==0.139.2"
+fastapi = "==0.141.1"
 httpx = "==0.28.1"
 tinyman-py-sdk = {git = "https://github.com/tinymanorg/tinyman-py-sdk.git", ref = "ed5b1b4dea8716bc02f8e8c422224d26606a5f72"}
-py-algorand-sdk = "==2.11.1"
+py-algorand-sdk = "==2.12.0"
 pynacl = "==1.6.2"
-pydantic = "==2.13.4"
-pydantic-settings = "==2.14.2"
-pymongo = "==4.17.0"
-python-dotenv = "==1.2.2"
+pydantic = "==2.13.5"
+pydantic-settings = "==2.15.0"
+pymongo = "==4.18.0"
+python-dotenv = "==1.2.3"
 python-telegram-bot = "==22.8"
 requests = "==2.34.2"
-uvicorn = "==0.51.0"
+uvicorn = "==0.52.4"
 
 [dev-packages]
-mypy = "==2.3.0"
+mypy = "==2.3.1"
 pytest = "==9.1.1"
 pytest-asyncio = "==1.4.0"
 pytest-cov = "==7.1.0"
-ruff = "==0.15.22"
+ruff = "==0.16.6"
 
 [requires]
 python_version = "3.12"
